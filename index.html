@@ -208,6 +208,12 @@ button.icon{min-width:40px;padding:8px}
 }
 #tip .tdate{font-weight:650;margin-bottom:5px;font-size:12px}
 #tip .trow{display:flex;justify-content:space-between;gap:14px}
+/* a long list becomes two columns instead of a column taller than the chart */
+#tip.wide{max-width:min(94vw,470px)}
+#tip.wide .tdate{column-span:all}
+#tip.wide .twrap{columns:2;column-gap:20px}
+#tip.wide .trow{break-inside:avoid}
+#tip.wide hr{display:none}
 #tip .trow span:first-child{color:var(--ink-2)}
 #tip hr{border:0;border-top:1px solid var(--hairline);margin:6px 0}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 0;font-size:12px;color:var(--ink-2)}
@@ -369,13 +375,22 @@ input.idbox{width:100%;margin-top:5px;font:12px/1.5 ui-monospace,SFMono-Regular,
   padding:8px 9px;border:1px solid var(--hairline);border-radius:9px;background:var(--page);color:var(--ink-1)}
 
 /* ---------- signals ---------- */
-.sig{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:10px}
-.sigitem{display:flex;gap:10px;padding:11px 12px;border:1px solid var(--hairline);border-radius:11px;background:var(--page)}
-.sigicon{flex:0 0 auto;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;margin-top:1px}
-.sigbody{min-width:0}
-.sigttl{font-size:13px;font-weight:650;margin:0 0 2px}
-.sigtxt{font-size:12px;color:var(--ink-2);margin:0}
-.sigtag{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--ink-3);text-transform:uppercase}
+/* Eighteen boxed cards, each with its own border, tag line, title and
+   paragraph, filled most of a screen for what is a list of one-line
+   readings. Rows on a hairline instead of cards in a grid: the tag sits on
+   the title line, and the explanation is one line unless you ask for it. */
+.sig{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0 22px}
+.sigitem{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--hairline);
+  align-items:flex-start}
+.sigicon{flex:0 0 auto;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;
+  font-size:11px;font-weight:700;color:#fff;margin-top:2px}
+.sigbody{min-width:0;flex:1}
+.sigttl{font-size:13px;font-weight:600;margin:0;line-height:1.5}
+.sigttl .sigtag{font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--ink-3);
+  text-transform:uppercase;margin-right:7px}
+.sigtxt{font-size:11.5px;color:var(--ink-2);margin:1px 0 0;line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sig.open .sigtxt{display:block;-webkit-line-clamp:none;overflow:visible}
 .verdict{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--page);margin:0 0 12px}
 .verdict>div{flex:1 1 240px;min-width:0}
 .vbig{font-size:19px;font-weight:700}
@@ -581,6 +596,9 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <h2>シグナル判定</h2>
     <div class="verdict" id="verdict"></div>
     <div class="sig" id="signals"></div>
+    <div class="filters" style="margin:10px 0 0">
+      <button class="chip" id="sigMore" aria-pressed="false">説明をひらく</button>
+    </div>
   </div>
 
   <div class="card">
@@ -653,6 +671,44 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </div>
     <p class="qsrc" id="extMarginStat" style="margin:0 0 10px"></p>
     <div id="marginBox"></div>
+    <details class="dhelp" id="pasteWrap">
+      <summary><b>表を貼り付けて取り込む</b>(日経など自動取得できないページ)</summary>
+      <p class="qsrc" style="margin:0 0 10px">日経など<b>自動取得できないページ</b>の表は、
+        ブラウザで<b>表をドラッグして選択 → コピー</b>し、ここに貼り付けてください。
+        日付・信用買残・信用売残・逆日歩などを自動で見分けて、いま開いている銘柄に取り込みます。
+        <b>見出し行ごと貼って構いません。</b></p>
+      <textarea id="pasteBox" rows="6" spellcheck="false"
+        placeholder="ここに貼り付け（例）&#10;日付&#9;信用買残&#9;信用売残&#9;信用倍率&#10;2026/08/07&#9;12,345,600&#9;3,210,000&#9;3.84"></textarea>
+      <div class="filters" style="margin:8px 0">
+        <button class="chip" id="pasteGo">取り込む</button>
+        <button class="chip" id="pasteClear" style="border-style:dashed">消す</button>
+      </div>
+      <div id="pasteBox2"></div>
+      <details class="dhelp">
+        <summary>どんな形式なら取り込めますか</summary>
+        <div class="qsrc" style="line-height:1.8;margin-top:8px">
+          <p style="margin:0 0 8px"><b>区切りはタブでもカンマでも構いません。</b>
+            Webページの表をコピーするとタブ区切りになるので、そのまま貼れます。
+            スペース区切り・全角スペースも読みます。桁区切りのカンマ(12,345,600)も、
+            タブ区切りならそのままで大丈夫です。</p>
+          <p style="margin:0 0 8px"><b>見出しに使える言葉</b>（一部でも含まれていれば拾います）</p>
+          <table class="wtab" style="margin-bottom:8px"><tbody>
+            <tr><td class="wl">日付</td><td class="wl">日付 / 年月日 / 週末 / 申込日 / 基準日</td></tr>
+            <tr><td class="wl">信用買残</td><td class="wl">信用買残 / 買残 / 融資残高</td></tr>
+            <tr><td class="wl">信用売残</td><td class="wl">信用売残 / 売残 / 貸株残高</td></tr>
+            <tr><td class="wl">信用倍率</td><td class="wl">信用倍率 / 倍率 / 貸借倍率</td></tr>
+            <tr><td class="wl">逆日歩</td><td class="wl">逆日歩 / 品貸料率</td></tr>
+          </tbody></table>
+          <p style="margin:0 0 8px"><b>見出しが無いときは</b>、
+            <code>日付, 信用買残, 信用売残</code> の順とみなします。</p>
+          <p style="margin:0 0 8px">日付は <code>2026/08/07</code> <code>2026-08-07</code>
+            <code>26/08/07</code> <code>08/07</code>(今年とみなす) <code>2026年8月7日</code> を読みます。</p>
+          <p style="margin:0"><b>取り込む前に必ず内容を表示します。</b>
+            違っていたら「取り込む」を押さずに閉じてください。</p>
+        </div>
+      </details>
+    </details>
+
     <!-- Only the links that are about margin balances. 株主優待 has nothing
          to do with this card and was confusing next to it. -->
     <div class="links" style="margin-top:12px">
@@ -662,44 +718,6 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <a id="lnkNkGyaku" target="_blank" rel="noopener noreferrer">日経 逆日歩・貸借残</a>
     </div>
     <p id="extNote"></p>
-  </div>
-
-  <div class="card">
-    <h2>表を貼り付けて取り込む</h2>
-    <p class="qsrc" style="margin:0 0 10px">日経など<b>自動取得できないページ</b>の表は、
-      ブラウザで<b>表をドラッグして選択 → コピー</b>し、ここに貼り付けてください。
-      日付・信用買残・信用売残・逆日歩などを自動で見分けて、いま開いている銘柄に取り込みます。
-      <b>見出し行ごと貼って構いません。</b></p>
-    <textarea id="pasteBox" rows="6" spellcheck="false"
-      placeholder="ここに貼り付け（例）&#10;日付&#9;信用買残&#9;信用売残&#9;信用倍率&#10;2026/08/07&#9;12,345,600&#9;3,210,000&#9;3.84"></textarea>
-    <div class="filters" style="margin:8px 0">
-      <button class="chip" id="pasteGo">取り込む</button>
-      <button class="chip" id="pasteClear" style="border-style:dashed">消す</button>
-    </div>
-    <div id="pasteBox2"></div>
-    <details class="dhelp">
-      <summary>どんな形式なら取り込めますか</summary>
-      <div class="qsrc" style="line-height:1.8;margin-top:8px">
-        <p style="margin:0 0 8px"><b>区切りはタブでもカンマでも構いません。</b>
-          Webページの表をコピーするとタブ区切りになるので、そのまま貼れます。
-          スペース区切り・全角スペースも読みます。桁区切りのカンマ(12,345,600)も、
-          タブ区切りならそのままで大丈夫です。</p>
-        <p style="margin:0 0 8px"><b>見出しに使える言葉</b>（一部でも含まれていれば拾います）</p>
-        <table class="wtab" style="margin-bottom:8px"><tbody>
-          <tr><td class="wl">日付</td><td class="wl">日付 / 年月日 / 週末 / 申込日 / 基準日</td></tr>
-          <tr><td class="wl">信用買残</td><td class="wl">信用買残 / 買残 / 融資残高</td></tr>
-          <tr><td class="wl">信用売残</td><td class="wl">信用売残 / 売残 / 貸株残高</td></tr>
-          <tr><td class="wl">信用倍率</td><td class="wl">信用倍率 / 倍率 / 貸借倍率</td></tr>
-          <tr><td class="wl">逆日歩</td><td class="wl">逆日歩 / 品貸料率</td></tr>
-        </tbody></table>
-        <p style="margin:0 0 8px"><b>見出しが無いときは</b>、
-          <code>日付, 信用買残, 信用売残</code> の順とみなします。</p>
-        <p style="margin:0 0 8px">日付は <code>2026/08/07</code> <code>2026-08-07</code>
-          <code>26/08/07</code> <code>08/07</code>(今年とみなす) <code>2026年8月7日</code> を読みます。</p>
-        <p style="margin:0"><b>取り込む前に必ず内容を表示します。</b>
-          違っていたら「取り込む」を押さずに閉じてください。</p>
-      </div>
-    </details>
   </div>
 
   <div class="card">
@@ -977,6 +995,15 @@ function fmtNum(v, cur){
   if(Math.abs(+v.toFixed(d)) >= 1000) d = 0;
   else if(Math.abs(+v.toFixed(d)) >= 100 && d > 1) d = 1;
   if(v === 0) d = 0;
+  /* Never round a real price away. Japanese equities tick in 0.5 above
+     ¥1,000, so ¥1,393.5 was printed as ¥1,394 — a number that matches no
+     quote anywhere. Widen only when the extra digits print the value
+     EXACTLY: a moving average of 2647.0073928 is not a 0.01 price and
+     stays at ¥2,647 rather than gaining meaningless decimals. */
+  for(let extra = d + 1; extra <= 2; extra++){
+    if(Math.abs(+v.toFixed(d) - v) < 1e-9) break;      /* already exact */
+    if(Math.abs(+v.toFixed(extra) - v) < 1e-9){ d = extra; break; }
+  }
   const s = v.toLocaleString('ja-JP', {minimumFractionDigits:d, maximumFractionDigits:d});
   if(cur === 'JPY') return '¥' + s;
   if(cur === 'USD') return '$' + s;
@@ -2675,7 +2702,9 @@ function layout(){
   if(state.toggles.adx)   subs.push({key:'adx',   title:'DMI / ADX(' + P.adx + ')'});
   if(state.toggles.lorentz) subs.push({key:'lorentz', title:'Lorentzian 予測'});
   if(state.toggles.shortPanel)  subs.push({key:'shortPanel',  title:'空売り残高(報告合計 %)'});
-  if(state.toggles.marginPanel) subs.push({key:'marginPanel', title:'信用残(買残 / 売残)'});
+  if(state.toggles.marginPanel) subs.push({key:'marginPanel',
+    title: (Ext.margin && Ext.margin.kind === 'loan')
+      ? '貸借残(融資 / 貸株・日証金)' : '信用残(買残 / 売残)'});
 
   /* Each panel can be stretched or squashed on its own. The scale is a
      multiplier the user sets by dragging the divider under a panel, kept
@@ -3438,7 +3467,7 @@ function paint(){
     ctx.beginPath(); ctx.arc(X, Y, 4.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
-  showTip(i, X);
+  showTip(i, X, state.hoverY);
 }
 /* ============================================================
    5. Tooltip, legend, signals, table
@@ -3458,7 +3487,7 @@ function fmtStamp(b, withYear){
 
 function hideTip(){ tip.style.opacity = 0; }
 
-function showTip(i, X){
+function showTip(i, X, Y){
   const b = state.raw.bars[i], d = state.ind, cur = state.raw.currency, T = state.toggles;
   if(Compare.active.length && state._cmpNorm){
     const rows2 = state._cmpNorm.map((a, k) => {
@@ -3475,7 +3504,9 @@ function showTip(i, X){
     let left2 = X + 14;
     if(left2 + tw2 > host2.clientWidth - 4) left2 = X - tw2 - 14;
     tip.style.left = clamp(left2, 4, Math.max(4, host2.clientWidth - tw2 - 4)) + 'px';
-    tip.style.top = '10px';
+    const band2 = visibleBand(host2);
+    tip.style.top = clamp(isNum(Y) ? Y - tip.offsetHeight / 2 : band2.top + 6,
+      band2.top + 6, Math.max(band2.top + 6, band2.bottom - tip.offsetHeight - 6)) + 'px';
     return;
   }
   const rows = [];
@@ -3528,36 +3559,68 @@ function showTip(i, X){
     extra.push(['主戦場', fmtNum(state._vp.vaLow, cur) + '〜' + fmtNum(state._vp.vaHigh, cur)]);
   }
   if(T.marginPanel && d.extMargin){
-    if(isNum(d.extMargin.buy[i]))  extra.push(['信用買残', fmtVol(d.extMargin.buy[i]) + '株']);
-    if(isNum(d.extMargin.sell[i])) extra.push(['信用売残', fmtVol(d.extMargin.sell[i]) + '株']);
-    if(isNum(d.extMargin.ratio[i])) extra.push(['信用倍率', d.extMargin.ratio[i].toFixed(2) + '倍']);
+    const ln = Ext.margin && Ext.margin.kind === 'loan';
+    if(isNum(d.extMargin.buy[i]))  extra.push([ln ? '融資残' : '信用買残', fmtVol(d.extMargin.buy[i]) + '株']);
+    if(isNum(d.extMargin.sell[i])) extra.push([ln ? '貸株残' : '信用売残', fmtVol(d.extMargin.sell[i]) + '株']);
+    if(isNum(d.extMargin.ratio[i])) extra.push([ln ? '貸借倍率' : '信用倍率', d.extMargin.ratio[i].toFixed(2) + '倍']);
   }
 
   const dateStr = b ? fmtStamp(b)
                     : '先行(' + (i - state.raw.bars.length + 1) + '本先)';
-  tip.innerHTML = `<div class="tdate">${dateStr}</div>${rows.join('')}`
-    + (extra.length ? '<hr>' + extra.map(([k,v])=>`<div class="trow"><span>${k}</span><span>${v}</span></div>`).join('') : '');
+  tip.innerHTML = `<div class="tdate">${dateStr}</div><div class="twrap">${rows.join('')}`
+    + (extra.length ? '<hr>' + extra.map(([k,v])=>`<div class="trow"><span>${k}</span><span>${v}</span></div>`).join('') : '')
+    + '</div>';
   tip.style.opacity = 1;
-  placeTip(X);
+  /* two columns once the list gets long: with every panel on it was 30 rows
+     tall and covered the price chart it was describing */
+  tip.classList.toggle('wide',
+    rows.length + extra.length >= 16 && $('#chartHost').clientWidth >= 560);
+  placeTip(X, Y);
 }
 
-/* Put the tooltip where it does not cover the bar being read. If neither
-   side has room (phone widths), drop it to the bottom of the chart instead
-   of parking it under the finger. */
-function placeTip(X){
+/* Put the tooltip where it does not cover the bar being read, and — the
+   part that was missing — inside the piece of the chart the reader can
+   actually SEE.
+
+   With every panel switched on the canvas is far taller than a screen. The
+   tooltip was pinned to `top: 10px`, i.e. the top of the whole canvas, so
+   the moment you scrolled down to look at the 空売り残高 or 信用残 panel the
+   values scrolled off with it and reading those panels told you nothing.
+   It now tracks the visible window. */
+function visibleBand(host){
+  const r = host.getBoundingClientRect();
+  const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+  /* header is sticky and overlaps the top of the chart */
+  const hd = document.querySelector('header');
+  const hdH = hd && getComputedStyle(hd).position === 'sticky'
+    ? hd.getBoundingClientRect().height : 0;
+  return {
+    top: Math.max(0, hdH - r.top),
+    bottom: Math.min(host.clientHeight, vh - r.top)
+  };
+}
+
+function placeTip(X, Y){
   const host = $('#chartHost'), tw = tip.offsetWidth, th = tip.offsetHeight;
   const W = host.clientWidth;
+  const band = visibleBand(host);
+  const lo = band.top + 6, hi = Math.max(lo, band.bottom - th - 6);
+
   const rightRoom = W - X - 18, leftRoom = X - 18;
-  let left, top = 10;
+  let left;
+  /* Anchored near the pointer, so on a tall chart it appears beside the
+     panel being read rather than a screen and a half above it. */
+  let top = isNum(Y) ? Y - th / 2 : lo;
   if(rightRoom >= tw)      left = X + 14;
   else if(leftRoom >= tw)  left = X - tw - 14;
   else {
+    /* no room either side: sit it at whichever end of the visible band is
+       further from the finger, so it never lands under it */
     left = clamp(X - tw/2, 4, Math.max(4, W - tw - 4));
-    const p = panel('main');
-    top = Math.max(4, (p ? p.y + p.h : LAY.h) - th - 6);   /* below the price panel */
+    top = (isNum(Y) && Y - band.top > band.bottom - Y) ? lo : hi;
   }
   tip.style.left = clamp(left, 4, Math.max(4, W - tw - 4)) + 'px';
-  tip.style.top  = clamp(top, 4, Math.max(4, LAY.h - th - 4)) + 'px';
+  tip.style.top  = clamp(top, lo, hi) + 'px';
 }
 
 function renderLegend(){
@@ -3878,8 +3941,7 @@ function renderSignals(){
     `<div class="sigitem">
        <span class="sigicon" style="background:${TONE[s.tone] || 'var(--ink-3)'}" aria-hidden="true">${ICON[s.tone] || ''}</span>
        <div class="sigbody">
-         <div class="sigtag">${esc(s.tag, 24)}</div>
-         <p class="sigttl">${esc(s.ttl, 120)}</p>
+         <p class="sigttl"><span class="sigtag">${esc(s.tag, 24)}</span>${esc(s.ttl, 120)}</p>
          <p class="sigtxt">${esc(s.txt, 400)}</p>
        </div>
      </div>`).join('');
@@ -4122,7 +4184,7 @@ const Tabs = {
     } else {
       /* an empty tab shows an empty chart, not the previous tab's */
       Ext.short = Ext.margin = null;
-      state.raw = demoData(); state.ind = computeAll(state.raw.bars, state.toggles, state.interval);
+      state.raw = demoData(); state.ind = recompute();
       visibleDefault();
       redraw(); applyQuoteStrip(); renderSignals(); renderTable();
       renderNews(null); renderShorts(null); renderMarginStatus(null); renderExtStatus();
@@ -4772,7 +4834,13 @@ function renderMarginStatus(status){
   if(status && status.loading){ box.innerHTML = '<p class="qsrc">読み込んでいます…</p>'; return; }
   const bits = [];
   if(status && status.error) bits.push(`<p class="qsrc">読み込めませんでした: ${esc(status.error, 200)}</p>`);
-  if(status && status.ok) bits.push(`<p class="qsrc">「${esc(status.name, 80)}」から ${+status.added || 0} 件を取り込みました。</p>`);
+  if(status && status.ok){
+    bits.push(status.loanOnly
+      ? `<p class="qsrc">「${esc(status.name, 80)}」は<b>貸借残(日証金)</b>でした。`
+        + `すでにある<b>信用残</b>とは別の統計なので、チャートには重ねず下に並べて出します。</p>`
+      : `<p class="qsrc">「${esc(status.name, 80)}」から ${+status.added || 0} 件を取り込みました。`
+        + (status.replaced ? '以前の貸借残(日証金)は、別の統計なので置き換えました。' : '') + `</p>`);
+  }
   const pts = Ext.margin ? Ext.margin.points : null;
   if(!pts || !pts.length){
     if(!bits.length) bits.push('<p class="qsrc">信用買残・売残のCSV(またはExcel)を読み込むと、推移をチャートに重ねます。'
@@ -4780,14 +4848,35 @@ function renderMarginStatus(status){
     box.innerHTML = bits.join('');
     return;
   }
+  const loanKind = (Ext.margin.kind || 'credit') === 'loan';
   const l = pts[pts.length-1], pv = pts.length > 1 ? pts[pts.length-2] : null;
   const d = `${l.d.slice(0,4)}/${l.d.slice(4,6)}/${l.d.slice(6,8)}`;
   const db = pv && isNum(l.buy) && isNum(pv.buy) ? l.buy - pv.buy : null;
-  bits.push(`<div class="shead">${d} 時点 ・ 買残 ${isNum(l.buy) ? fmtVol(l.buy) + '株' : '—'}`
-    + ` ・ 売残 ${isNum(l.sell) ? fmtVol(l.sell) + '株' : '—'}`
-    + ` ・ 信用倍率 ${isNum(l.ratio) ? l.ratio.toFixed(2) + '倍' : '—'}`
-    + (db === null ? '' : ` ・ 買残前回比 <span aria-hidden="true">${db > 0 ? '▲' : db < 0 ? '▼' : '＝'}</span> ${fmtVol(Math.abs(db))}株`)
+  const nBuy = loanKind ? '融資残' : '買残', nSell = loanKind ? '貸株残' : '売残';
+  const nRatio = loanKind ? '貸借倍率' : '信用倍率';
+  bits.push(`<div class="shead">${d} 時点 ・ ${nBuy} ${isNum(l.buy) ? fmtVol(l.buy) + '株' : '—'}`
+    + ` ・ ${nSell} ${isNum(l.sell) ? fmtVol(l.sell) + '株' : '—'}`
+    + ` ・ ${nRatio} ${isNum(l.ratio) ? l.ratio.toFixed(2) + '倍' : '—'}`
+    + (db === null ? '' : ` ・ ${nBuy}前回比 <span aria-hidden="true">${db > 0 ? '▲' : db < 0 ? '▼' : '＝'}</span> ${fmtVol(Math.abs(db))}株`)
     + '</div>');
+  bits.push(`<p class="qsrc" style="margin:5px 0 0">出所: ${esc(Ext.margin.src || '—', 60)}`
+    + (loanKind
+      ? ' ・ 日証金を通した分だけの<b>貸借残</b>です(市場全体の信用残ではありません)'
+      : ' ・ 市場全体の<b>信用残</b>(週次)です') + '</p>');
+
+  /* The JSF daily figure, when it is NOT the series. It is roughly a tenth
+     of the market-wide balance, so drawing it on the same axis produced a
+     line that fell off a cliff — it belongs beside the series, not in it. */
+  if(!loanKind && Ext.loan && (isNum(Ext.loan.buy) || isNum(Ext.loan.sell))){
+    const g = Ext.loan;
+    bits.push(`<div class="pprev" style="margin-top:9px">`
+      + `<b>日証金の貸借残(日次)</b> ${g.d.slice(0,4)}/${g.d.slice(4,6)}/${g.d.slice(6,8)} 時点`
+      + ` ・ 融資残 ${isNum(g.buy) ? fmtVol(g.buy) + '株' : '—'}`
+      + ` ・ 貸株残 ${isNum(g.sell) ? fmtVol(g.sell) + '株' : '—'}`
+      + ` ・ 貸借倍率 ${isNum(g.ratio) ? g.ratio.toFixed(2) + '倍' : '—'}`
+      + `<br><span class="qsrc">上の信用残とは<b>別の統計</b>です`
+      + `(日証金を通した分だけ)。桁が1つほど違うので、同じ線には引きません。</span></div>`);
+  }
   box.innerHTML = bits.join('');
 }
 
@@ -4852,8 +4941,12 @@ const Ext = {
     if(mine !== this.gen || this.codeKey() !== k) return;
     const s = cached.short;
     if(s){
-      const cleanRows = rows => (Array.isArray(rows) ? rows : []).slice(0, 120).map(h => ({
+        const cleanRows = rows => (Array.isArray(rows) ? rows : []).slice(0, 120).map(h => ({
         holder: cleanText(h && h.holder, 80),
+        /* the 委託者: without it two funds run by the same manager collapse
+           into one on the way out of the cache, and the total came back
+           smaller after every reload than it was before */
+        tr: cleanText(h && h.tr, 80),
         ratio: isNum(h && h.ratio) ? h.ratio : null,
         qty: isNum(h && h.qty) ? h.qty : null})).filter(r => r.holder);
       let reports = null;
@@ -4894,13 +4987,41 @@ const Ext = {
     this.short = {v: 2, reports: all, points: foldShortReports(all), src};
     this.saveShort(code);
   },
-  mergeMargin(points, src, code){
+  /* 信用残 and 貸借残 are two different statistics.
+
+       信用残 (東証/日経): the whole market's margin balance, weekly
+       貸借残 (日証金):    only the part financed through JSF, daily
+
+     For Aeon that is 6.4 million shares against 680 thousand — an order of
+     magnitude apart. Merging them into one series produced a line that fell
+     off a cliff on whichever day the other source last spoke, and a 信用倍率
+     of 522x computed across the two. So each series carries the kind it is,
+     and they are never averaged together: the weekly market-wide figure is
+     the series, and the daily JSF figure is shown beside it as its own
+     number rather than being drawn on the same axis. */
+  mergeMargin(points, src, code, kind){
+    kind = kind === 'loan' ? 'loan' : 'credit';
     src = cleanText(src, 60);
-    const map = new Map((this.margin ? this.margin.points : []).map(p => [p.d, p]));
+    const cur = this.margin;
+    const curKind = cur ? (cur.kind || 'credit') : null;
+    if(cur && curKind !== kind){
+      /* the market-wide series wins; the JSF daily figure does not overwrite it */
+      if(kind === 'loan') return {kept: curKind};
+      this.margin = {points: points.slice().sort((a,b)=> a.d.localeCompare(b.d)).slice(-400),
+                     src, kind};
+      this.saveMargin(code);
+      return {replaced: curKind};
+    }
+    const map = new Map((cur ? cur.points : []).map(p => [p.d, p]));
     for(const p of points) map.set(p.d, p);
-    this.margin = {points: [...map.values()].sort((a,b)=> a.d.localeCompare(b.d)).slice(-400), src};
+    this.margin = {points: [...map.values()].sort((a,b)=> a.d.localeCompare(b.d)).slice(-400),
+                   src, kind};
     this.saveMargin(code);
+    return {merged: true};
   },
+
+  /* the latest JSF daily figure, kept for display when it is not the series */
+  loan: null,
 
   clear(which){
     const k = this.codeKey();
@@ -4920,6 +5041,22 @@ const dkey = t => `${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${
    Balances are reported for a given date and stay valid until the next
    report, so the value is carried forward. Nothing is carried backwards:
    before the first report the series is simply empty. */
+/* Recompute the visible series. ALWAYS through here.
+
+   `state.ind = computeAll(...)` on its own throws away extShort/extMargin,
+   because those are not computed from the price bars — they are attached
+   afterwards by alignExt. Three call sites did exactly that, and the two
+   published-data panels went blank: on every auto-refresh (so also ~600ms
+   after every page reload, which is what it looked like), and every time an
+   indicator was switched on or off. The data itself was never lost — the
+   card beside the chart kept showing it — which is what made it look like a
+   drawing bug rather than a missing line of code. */
+function recompute(bars, toggles, interval){
+  return alignExt(computeAll(bars || state.raw.bars,
+                             toggles || state.toggles,
+                             interval || state.interval));
+}
+
 function alignExt(ind){
   if(!ind || !state.raw) return ind;
   const bars = state.raw.bars;
@@ -5437,9 +5574,12 @@ async function loadJSF(){
       ratio: isNum(fileRatio) ? fileRatio
            : (isNum(buy) && isNum(sell) && sell > 0) ? buy / sell : null
     };
-    Ext.mergeMargin([pt], '日証金 貸借取引残高(zandaka.csv)', code);
+    Ext.loan = {d: pt.d, buy: pt.buy, sell: pt.sell, ratio: pt.ratio,
+                src: '日証金 貸借取引残高(zandaka.csv)'};
+    const r = Ext.mergeMargin([pt], '日証金 貸借取引残高(zandaka.csv)', code, 'loan');
     afterExtUpdate();
-    renderMarginStatus({ok: true, added: 1, name: '日証金 ' + pt.d});
+    renderMarginStatus({ok: true, added: r && r.kept ? 0 : 1, name: '日証金 ' + pt.d,
+                        loanOnly: !!(r && r.kept)});
     return;
   }catch(e){ lastErr = e.message; }
 
@@ -5453,9 +5593,12 @@ async function loadJSF(){
         renderMarginStatus({error: '取得中に別の銘柄へ切り替わったため中止しました。'});
         return;
       }
-      Ext.mergeMargin([pt], '日証金 貸借取引残高');
+      Ext.loan = {d: pt.d, buy: pt.buy, sell: pt.sell, ratio: pt.ratio,
+                  src: '日証金 貸借取引残高'};
+      const r2 = Ext.mergeMargin([pt], '日証金 貸借取引残高', code, 'loan');
       afterExtUpdate();
-      renderMarginStatus({ok: true, added: 1, name: '日証金'});
+      renderMarginStatus({ok: true, added: r2 && r2.kept ? 0 : 1, name: '日証金',
+                          loanOnly: !!(r2 && r2.kept)});
       return;
     }catch(e){ lastErr = e.message; }
   }
@@ -5487,9 +5630,16 @@ async function loadMarginFile(file){
       renderMarginStatus({error: '読み込み中に別の銘柄へ切り替わったため中止しました。'});
       return;
     }
-    Ext.mergeMargin(pts, file.name);
+    /* Which statistic is in this file: 融資/貸株 is 日証金's, 信用買残/売残 is
+       the market's. Getting this wrong is what put two incompatible series
+       on one axis, so it is read off the headings rather than assumed. */
+    const head4k = text.slice(0, 4000);
+    const kind = (/融資|貸株|貸借/.test(head4k) && !/信用買残|信用売残/.test(head4k))
+      ? 'loan' : 'credit';
+    const r3 = Ext.mergeMargin(pts, file.name, code0, kind);
     afterExtUpdate();
-    renderMarginStatus({ok: true, added: pts.length, name: file.name});
+    renderMarginStatus({ok: true, added: r3 && r3.kept ? 0 : pts.length, name: file.name,
+                        loanOnly: !!(r3 && r3.kept), replaced: r3 && r3.replaced});
   }catch(e){
     renderMarginStatus({error: e.message});
   }
@@ -5624,8 +5774,9 @@ function drawMarginPanel(g){
   /* both series are share counts, so one axis is honest here */
   line(g, p, e.buy,  y, C.up, 2);
   line(g, p, e.sell, y, C.down, 2);
-  endLabel(g, p, e.buy,  y, C.up, '信用買残');
-  endLabel(g, p, e.sell, y, C.down, '信用売残');
+  const ln = Ext.margin && Ext.margin.kind === 'loan';
+  endLabel(g, p, e.buy,  y, C.up,   ln ? '融資残' : '信用買残');
+  endLabel(g, p, e.sell, y, C.down, ln ? '貸株残' : '信用売残');
   panelFrame(g, p);
   state._marginY = y;
 }
@@ -5829,7 +5980,7 @@ async function restoreWorkspace(){
     if(t.raw){
       state.raw = t.raw;
       setTickTz(t.raw.tz);
-      state.ind = alignExt(computeAll(t.raw.bars, state.toggles, state.interval));
+      state.ind = recompute(t.raw.bars);
       state.i0 = t.i0; state.i1 = t.i1;
       redraw(); applyQuoteStrip(); renderSignals(); renderTable(); renderCompareStats();
       updateExternalLinks();
@@ -8193,6 +8344,37 @@ function pasteNum(v){
   return neg ? -n : n;
 }
 
+/* A heading row can be WIDER than the rows under it. Nikkei's margin table
+   puts a 「（解説）」 link after every figure: seven heading cells, four cells
+   of data. Mapping columns by heading position then read 信用買残 out of the
+   信用倍率 column, and the numbers came out nonsense — buy 680,000 against
+   sell 1,300 and a 522x ratio.
+
+   So the heading is matched to the WIDTH of the data before it is used:
+   decorative cells are dropped until the two agree. If they cannot be made
+   to agree, that is said on screen — a wrong column is worse than no import. */
+const PASTE_NOISE = /^[（(\[]?(解説|説明|詳細|グラフ|チャート|比較|参考|注)?[)）\]]?$/;
+
+function alignHeader(cells, width){
+  const idx = cells.map((c, i) => ({c, i}));
+  if(!width || idx.length <= width)
+    return {cells: idx.map((x, i) => ({c: x.c, i})), fixed: false};
+  for(const keep of [x => x.c !== '' && !PASTE_NOISE.test(x.c), x => x.c !== '']){
+    const kept = idx.filter(keep);
+    if(kept.length === width) return {cells: kept.map((x, i) => ({c: x.c, i})), fixed: true};
+  }
+  return {cells: idx.map(x => ({c: x.c, i: x.i})), fixed: false, mismatch: true};
+}
+
+/* the number of cells most data rows actually have */
+function modalWidth(rows){
+  const n = new Map();
+  for(const r of rows) n.set(r.length, (n.get(r.length) || 0) + 1);
+  let best = 0, bestN = 0;
+  for(const [w, c] of n) if(c > bestN || (c === bestN && w > best)){ best = w; bestN = c; }
+  return best;
+}
+
 /* Read whatever was pasted. Never throws: the caller shows the result and
    the reasons, and the user decides whether to keep it. */
 function parsePasted(text){
@@ -8205,16 +8387,21 @@ function parsePasted(text){
   /* find a heading row in the first few lines */
   let map = null, start = 0;
   for(let i = 0; i < Math.min(lines.length, 8); i++){
-    const cells = pasteSplit(lines[i]).map(c => String(c).replace(/[\s"]/g, ''));
+    const raw = pasteSplit(lines[i]).map(c => String(c).replace(/[\s"]/g, ''));
+    /* how wide are the DATA rows below this one */
+    const body = lines.slice(i + 1, i + 12).map(pasteSplit).filter(r => pasteDate(r[0]));
+    const al = alignHeader(raw, modalWidth(body));
     const cand = {};
-    cells.forEach((c, j) => {
+    al.cells.forEach(h => {
       for(const k in PASTE_COLS)
-        if(cand[k] === undefined && PASTE_COLS[k].some(h => c.includes(h))) cand[k] = j;
+        if(cand[k] === undefined && PASTE_COLS[k].some(w => h.c.includes(w))) cand[k] = h.i;
     });
     if(cand.date !== undefined &&
        (cand.buy !== undefined || cand.sell !== undefined || cand.gyaku !== undefined)){
       map = cand; start = i + 1;
-      out.head = cells.filter(Boolean).slice(0, 8).join(' / ');
+      out.head = al.cells.map(x => x.c).filter(Boolean).slice(0, 8).join(' / ');
+      if(al.fixed) out.note = '見出しの「(解説)」などの余分な列を除いて、数字の並びに合わせました。';
+      if(al.mismatch) out.note = '見出しと数字の列数が合いません。読めた分だけ表示しています。';
       break;
     }
   }
@@ -8319,7 +8506,8 @@ function pasteImport(){
     ratio: isNum(r.ratio) ? r.ratio : null
   }));
   if(pts.length){
-    Ext.mergeMargin(pts, '貼り付け(手入力)', code);
+    /* a pasted 信用残 table is the market-wide statistic */
+    Ext.mergeMargin(pts, '貼り付け(手入力)', code, 'credit');
     afterExtUpdate();
   }
   /* the newest 逆日歩 on the paste, shown in its own card */
@@ -8555,7 +8743,15 @@ async function runSelfTests(){
     const c1 = crossedAt(a, b, 12, 1);
     return c1 && c1.dir === 1 ? true : '検出できませんでした';
   });
-  test('丸めてから桁数を決める', () => eq(fmtNum(999.96), '1,000'));
+  /* Two rules that have to hold together. A value that is not exact at any
+     printable precision is rounded by magnitude (an average of 999.9612…
+     is a four-digit number, not 1,000.0). A value that IS exact keeps its
+     digits, because ¥1,393.5 rounded to ¥1,394 is a price that exists
+     nowhere. */
+  test('端数のない値は桁を落として丸める', () => eq(fmtNum(999.9612345), '1,000'));
+  test('実際にある端数は消さない', () => eq(fmtNum(1393.5, 'JPY'), '¥1,393.5'));
+  test('平均値の細かい端数は増やさない', () => eq(fmtNum(2647.0073928247157), '2,647'));
+  test('整数はそのまま', () => eq(fmtNum(1394, 'JPY'), '¥1,394'));
   test('ドンチャンの上限≧下限', () => {
     const d = TA.donchian([3,1,4,1,5,9,2,6,5,3,5], [1,1,2,1,3,7,1,4,3,1,3], 5);
     return last(d.upper) >= last(d.lower);
@@ -9221,6 +9417,10 @@ function fillTab(tab, data){
   }
   const keepP = P;
   setPreset(tab.interval || '1d');
+  /* computeAll and NOT recompute(): this is a background tab holding a
+     different stock, and Ext currently holds the FOREGROUND stock's
+     balances. Tabs.restore aligns it against its own cache when the tab
+     is brought to the front. */
   tab.ind = computeAll(data.bars, tab.toggles || state.toggles, tab.interval || '1d');
   P = keepP;
   tab.pristine = false;
@@ -9360,7 +9560,12 @@ function onMove(e){
     return;
   }
   const i = clamp(iAtX(p, x), state.i0, state.i1);
-  if(i !== state.hover){ state.hover = i; paint(); }
+  /* where the pointer is vertically, so the tooltip can sit next to the
+     panel being read rather than at the top of a canvas taller than the screen */
+  const y = localY(e);
+  const moved = i !== state.hover || Math.abs((state.hoverY || 0) - y) > 8;
+  state.hoverY = y;
+  if(moved){ state.hover = i; paint(); }
 }
 
 /* Touch and mouse get different models on purpose: on a phone a single
@@ -9538,7 +9743,7 @@ $$('.chip[data-t]').forEach(btn => {
       /* both are computed on demand, so the series has to be run again */
       setBusy(true);
       setTimeout(() => {
-        state.ind = computeAll(state.raw.bars, state.toggles, state.interval);
+        state.ind = recompute();
         redraw(); renderSignals(); setBusy(false);
         if(k === 'lorentz' && on && state.ind.lorentz && !state.ind.lorentz.enoughData)
           notice(`Lorentzian は近傍探索の性質上、<b>800本以上</b>(できれば2000本)の学習データがほしい指標です。`
@@ -9706,7 +9911,7 @@ async function refreshQuietly(){
     if(!opValid(op) || !state.raw || state.raw.code !== sym) return;
     const keep = {i0: state.i0, i1: state.i1, grew: data.bars.length - state.raw.bars.length};
     state.raw = data;
-    state.ind = computeAll(data.bars, state.toggles, state.interval);
+    state.ind = recompute(data.bars);
     state.i0 = keep.i0 + Math.max(0, keep.grew);
     state.i1 = keep.i1 + Math.max(0, keep.grew);
     redraw(); applyQuoteStrip(); renderSignals(); renderTable();
@@ -9782,7 +9987,7 @@ function onTick(tick){
        that is over a second of blocked main thread per update */
     const light = Object.assign({}, state.toggles, {lorentz:false, osgfc:false, sizeflow:false});
     const keep = state.ind;
-    state.ind = alignExt(computeAll(state.raw.bars, light, state.interval));
+    state.ind = recompute(state.raw.bars, light);
     for(const k of ['lorentz','osgfc','sizeflow'])
       if(state.toggles[k] && keep && keep[k]) state.ind[k] = keep[k];
     if(what === 'new' && state.i1 >= state.raw.bars.length - 2) state.i1++;
@@ -9960,7 +10165,7 @@ function apply(data){
     setPreset(got); buildRanges(); showPreset(); syncControls();
   }
   state.raw = data;
-  state.ind = computeAll(data.bars, state.toggles, state.interval);
+  state.ind = recompute(data.bars);
   state.hover = -1;
   visibleDefault();
   redraw();
@@ -10061,7 +10266,7 @@ async function run(){
        && (state.raw.code === 'CSV' || state.raw.code === 'DEMO')){
       state.interval = prev.interval; state.range = prev.range;
       setPreset(state.interval); buildRanges(); showPreset(); syncControls();
-      state.ind = alignExt(computeAll(state.raw.bars, state.toggles, state.interval));
+      state.ind = recompute();
       redraw(); renderSignals(); renderTable();
       notice('読み込み済みのデータには足種・期間の切り替えは使えません(CSVは1種類の足で固定です)。'
            + ' 別の足種で見るには銘柄コードを入れて取得してください。', true);
@@ -10307,6 +10512,21 @@ $('#drvClientSave').addEventListener('click', () => {
 $('#watchBtn').addEventListener('click', () => refreshWatch(false));
 $('#watchForce').addEventListener('click', () => refreshWatch(true));
 $('#alertBarX').addEventListener('click', () => $('#alertBar').classList.add('hide'));
+
+/* the signal explanations are two lines each until asked for in full */
+$('#sigMore').addEventListener('click', () => {
+  const box = $('#signals'), on = !box.classList.contains('open');
+  box.classList.toggle('open', on);
+  const b = $('#sigMore');
+  b.textContent = on ? '説明をとじる' : '説明をひらく';
+  b.setAttribute('aria-pressed', String(on));
+  Store.set('sigOpen', on);
+});
+if(Store.get('sigOpen', false)){
+  $('#signals').classList.add('open');
+  $('#sigMore').textContent = '説明をとじる';
+  $('#sigMore').setAttribute('aria-pressed', 'true');
+}
 
 /* ---- the favourites drawer -------------------------------------------- */
 $('#favBox').addEventListener('toggle', () => { $('#favBox').dataset.touched = '1'; });
