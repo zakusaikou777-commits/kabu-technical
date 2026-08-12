@@ -399,6 +399,8 @@ td:first-child,th:first-child{text-align:left}
 .notice{font-size:13px;padding:11px 13px;border-radius:11px;border:1px solid var(--hairline);background:var(--surface-1);color:var(--ink-2);margin:0 0 16px;display:flex;gap:9px;align-items:flex-start}
 .notice b{color:var(--ink-1)}
 .notice.hide{display:none}
+.alertbar{border-color:var(--warn,#c98a12);background:color-mix(in srgb,var(--warn,#c98a12) 12%,var(--surface-1))}
+.alertbar b{color:var(--ink-1)}
 footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border-top:1px solid var(--hairline);margin-top:10px}
 .busy{opacity:.45;transition:opacity .15s}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -465,6 +467,16 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   <div class="notice" id="notice">
     <span aria-hidden="true">ℹ</span>
     <div id="noticeTxt"></div>
+  </div>
+
+  <!-- Alerts get their own box. They used to share the status line above,
+       which meant the next successful fetch silently wiped the one message
+       you actually wanted to see. -->
+  <div class="notice alertbar hide" id="alertBar" role="status">
+    <span aria-hidden="true">🔔</span>
+    <div id="alertBarTxt" style="flex:1"></div>
+    <button class="chip" id="alertBarX" aria-label="アラートの表示を閉じる"
+      style="padding:2px 9px;align-self:flex-start">閉じる</button>
   </div>
 
   <div class="filters" role="group" aria-label="表示設定">
@@ -586,6 +598,14 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   </div>
 
   <div class="card">
+    <h2>逆日歩(品貸料率)</h2>
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="shinaBtn">逆日歩を取得</button>
+    </div>
+    <div id="shinaBox"></div>
+  </div>
+
+  <div class="card">
     <h2>決算発表予定</h2>
     <div class="filters" style="margin-bottom:8px">
       <button class="chip" id="earnBtn">決算予定を取得</button>
@@ -609,6 +629,9 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <a id="lnkJsf" target="_blank" rel="noopener noreferrer">日証金 貸借取引残高(日次)</a>
       <a id="lnkTdnet" target="_blank" rel="noopener noreferrer">適時開示(TDnet)</a>
       <a id="lnkYahoo" target="_blank" rel="noopener noreferrer">Yahoo!ファイナンス</a>
+      <a id="lnkNkTrust" target="_blank" rel="noopener noreferrer">日経 信用残の推移</a>
+      <a id="lnkNkGyaku" target="_blank" rel="noopener noreferrer">日経 逆日歩・貸借残</a>
+      <a id="lnkNkYutai" target="_blank" rel="noopener noreferrer">日経 株主優待</a>
     </div>
     <p id="extNote"></p>
   </div>
@@ -2477,12 +2500,14 @@ function sanitizeScales(o){
   }
   return out;
 }
-function setPanelScale(key, v){
+function setPanelScale(key, v, dragging){
   const k = cleanText(key, 20);
   if(!k) return;
   const n = clamp(+v || 1, 0.4, 3.5);
   if(Math.abs(n - 1) < 0.02) delete panelScale[k]; else panelScale[k] = +n.toFixed(3);
-  Store.set('panelScale', panelScale);
+  /* while dragging, the write is deferred to the end: redraw()'s own rule is
+     that a gesture must not hit storage on every frame */
+  if(!dragging) Store.set('panelScale', panelScale);
   redraw();
 }
 function resetPanelScales(){ panelScale = Object.create(null); Store.set('panelScale', {}); redraw(); }
@@ -3300,7 +3325,7 @@ function showTip(i, X){
   if(Compare.active.length && state._cmpNorm){
     const rows2 = state._cmpNorm.map((a, k) => {
       const v = a[i];
-      return `<div class="trow"><span><span class="dotk" style="background:var(--cmp${k+1})"></span>`
+      return `<div class="trow"><span><span class="dotk" style="background:var(--cmp${(state._cmpAll[k]||{}).ci || k+1})"></span>`
         + `${esc(k === 0 ? (state.raw.code || '本銘柄') : state._cmpAll[k].label, 24)}</span>`
         + `<span>${isNum(v) ? v.toFixed(1) : '—'}</span></div>`;
     }).join('');
@@ -3403,7 +3428,7 @@ function renderLegend(){
     /* in comparison mode the candles are gone, so the legend describes the
        indexed lines instead of price marks */
     state._cmpAll.forEach((s2, k) => L.push(
-      `<span class="li"><i class="k" style="background:var(--cmp${k+1})"></i>`
+      `<span class="li"><i class="k" style="background:var(--cmp${s2.ci || k+1})"></i>`
       + `${esc(k === 0 ? (state.raw.code || '本銘柄') + '(基準)' : s2.label, 24)}</span>`));
     L.push('<span class="li" style="color:var(--ink-3)">表示開始を100とした指数 ・ 下のパネルは基準銘柄のもの</span>');
     $('#legend').innerHTML = L.join('');
@@ -3938,6 +3963,7 @@ const Tabs = {
       /* the short-selling / margin caches are per stock: reload them for THIS
          tab instead of leaving the previous tab's numbers under the chart */
       const mine = t;
+      resetEarnings();
       Ext.loadCache().then(() => {
         if(this.list[this.active] !== mine) return;
         state.ind = alignExt(state.ind);
@@ -4046,16 +4072,37 @@ const Compare = {
       this.renderChips(); redraw(); renderCompareStats();
       return;
     }
+    /* Two quick taps started two fetches, and both pushed — four chips could
+       become five, and the last one home won the colour slots. */
+    if(this.busy) return;
     if(this.active.length >= this.MAX){
       notice(`比較は同時に ${this.MAX} 本までです。どれかを外してから追加してください。`, true);
       return;
     }
     this.busy = true; this.renderChips();
+    /* the timeframe and stock this fetch was started for */
+    const iv = state.interval, rng = state.range, code = state.raw && state.raw.code;
     try{
-      const d = await fetchYahoo(sym, state.range, state.interval);
+      const d = await fetchYahoo(sym, rng, iv);
+      /* Yahoo quietly serves a coarser timeframe when it has no intraday
+         history for a symbol — ask an index for 5-minute bars over a year
+         and you get daily. Keying daily bars on a 5-minute grid matched
+         almost nothing, so the line was a staircase of carried-forward
+         values and the correlation next to it was arithmetic on noise.
+         Refuse it and say so, rather than draw something that looks fine. */
+      const got = d.granularity || iv;
+      if(got !== iv){
+        notice(`「${esc(label || sym, 24)}」には${esc(IV_LABEL[iv] || iv, 10)}のデータが無く、`
+             + `${esc(IV_LABEL[got] || got, 10)}しか返ってきませんでした。`
+             + `足種が違うものを重ねると相関がでたらめになるので比較には入れません。`, true);
+        return;
+      }
+      /* the user changed stock or timeframe while this was in the air */
+      if(state.interval !== iv || (state.raw && state.raw.code) !== code) return;
       const map = new Map();
-      for(const b of d.bars) map.set(this.key(b, state.interval), b.c);
-      this.active.push({sym, label: label || sym, map, name: d.name});
+      for(const b of d.bars) map.set(this.key(b, iv), b.c);
+      if(this.has(sym) || this.active.length >= this.MAX) return;
+      this.active.push({sym, label: label || sym, map, name: d.name, iv});
       notice('');
     }catch(e){
       notice(`比較データ「${esc(label || sym, 24)}」を取得できませんでした(${esc(e.message, 60)})。`
@@ -4072,20 +4119,32 @@ const Compare = {
     const wanted = this.active.map(a => ({sym: a.sym, label: a.label}));
     this.active = [];
     for(const w of wanted) await this.toggle(w.sym, w.label);
+    /* toggle() writes its own message per symbol and the next one wipes it,
+       so say once, at the end, what did not come back. */
+    const lost = wanted.filter(w => !this.has(w.sym));
+    if(lost.length){
+      notice(`この足種では比較できないものを外しました: `
+        + lost.map(w => esc(w.label || w.sym, 20)).join('、'), true);
+    }
   },
 
   /* aligned close series for the base timeline, forward-filled over holidays */
   seriesFor(bars, interval){
-    return this.active.map(a => {
-      const out = new Array(bars.length).fill(null);
-      let carry = null;
-      for(let i=0;i<bars.length;i++){
-        const v = a.map.get(this.key(bars[i], interval));
-        if(isNum(v)) carry = v;
-        out[i] = carry;
-      }
-      return {...a, values: out};
-    });
+    /* an entry fetched on another timeframe cannot be keyed against these
+       bars — drop it rather than align it wrongly */
+    return this.active
+      .map((a, i) => ({a, ci: i + 2}))          /* colour follows the chip, not the row */
+      .filter(x => !x.a.iv || x.a.iv === interval)
+      .map(({a, ci}) => {
+        const out = new Array(bars.length).fill(null);
+        let carry = null;
+        for(let i=0;i<bars.length;i++){
+          const v = a.map.get(this.key(bars[i], interval));
+          if(isNum(v)) carry = v;
+          out[i] = carry;
+        }
+        return {...a, ci, values: out};
+      });
   },
 
   renderChips(){
@@ -4109,7 +4168,7 @@ const Compare = {
 function drawCompareMain(g){
   const p = panel('main'), d = state.ind, nb = state.raw.bars.length;
   const series = Compare.seriesFor(state.raw.bars, state.interval);
-  const all = [{label: state.raw.name || state.raw.code, values: d.c, base: true}, ...series];
+  const all = [{label: state.raw.name || state.raw.code, values: d.c, base: true, ci: 1}, ...series];
 
   /* rebase each series at the first visible bar it has a value for */
   const idx = all.map(s => {
@@ -4144,11 +4203,10 @@ function drawCompareMain(g){
   }
 
   norm.forEach((a, k) => {
-    const col = cssVar('--cmp' + (k+1));
-    line(g, p, a, y, col, k === 0 ? 2.4 : 1.8);
+    line(g, p, a, y, cssVar('--cmp' + all[k].ci), k === 0 ? 2.4 : 1.8);
   });
   norm.forEach((a, k) => {
-    endLabel(g, p, a, y, cssVar('--cmp' + (k+1)),
+    endLabel(g, p, a, y, cssVar('--cmp' + all[k].ci),
       k === 0 ? String(state.raw.code || '本銘柄').slice(0,12) : String(all[k].label).slice(0,12));
   });
   panelFrame(g, p);
@@ -4200,7 +4258,7 @@ function renderCompareStats(){
       : Math.abs(r) < 0.7 ? (r > 0 ? '順相関' : '逆相関')
       : (r > 0 ? '強い順相関' : '強い逆相関');
     return `<tr>
-      <td style="text-align:left"><span class="dotk" style="background:var(--cmp${k+2})"></span>${esc(s.label, 24)}</td>
+      <td style="text-align:left"><span class="dotk" style="background:var(--cmp${s.ci || k+2})"></span>${esc(s.label, 24)}</td>
       <td>${chg === null ? '—' : (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%'}</td>
       <td>${r === null ? '—' : r.toFixed(2)}</td>
       <td style="text-align:left">${word}</td></tr>`;
@@ -4401,6 +4459,10 @@ async function findLatestShortFile(){
 const SHORT_COLS = {
   date:   ['計算年月日'],
   holder: ['商号・名称・氏名','商号','名称','氏名','報告者'],
+  /* 委託者・投資一任契約の相手方 — one asset manager files separately for
+     each fund it runs, and those rows share a 商号. Keyed on the name alone
+     the second row overwrote the first and the total came out short. */
+  trustor:['委託者','投資一任'],
   issuer: ['発行者名','銘柄名'],
   code:   ['銘柄コード','コード'],
   qty:    ['空売り残高数量','残高数量'],
@@ -4446,6 +4508,36 @@ function parseShortWorkbook(XLSX, buf, code4){
     if(cand.code !== undefined && cand.qty !== undefined){ hdr = i; map = cand; break; }
   }
   if(hdr < 0) throw new Error('ファイルの見出し行を認識できませんでした(様式が変わった可能性)');
+  /* Decide the scale ONCE for the whole file, not cell by cell.
+
+     Per cell there is an unresolvable case: 0.45 is a legitimate closing
+     report of 0.45%, and also the fraction form of 45%. Across the whole
+     file the answer is never in doubt — either some cell is formatted with
+     a % sign (so the column is percentages), or every reported balance in
+     a market-wide file is under 0.5, which cannot happen when 0.5% is the
+     threshold that makes a report exist at all. */
+  const rawAll = [], fmtAll = [];
+  for(let i = hdr + 1; i < rows.length; i++){
+    const r = rows[i]; if(!r) continue;
+    rawAll.push(r[map.ratio]);
+    fmtAll.push((fmtRows[i] || [])[map.ratio]);
+  }
+  const anyPct = fmtAll.some(v => /%/.test(String(v == null ? '' : v)));
+  let maxRaw = 0;
+  for(const v of rawAll){
+    const n = Number(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
+    if(isFinite(n) && n > maxRaw) maxRaw = n;
+  }
+  /* fractions only when nothing is percent-formatted AND the biggest value
+     in the entire file is below the reporting threshold */
+  const asFraction = !anyPct && maxRaw > 0 && maxRaw < 0.5;
+  const ratioOf = (raw, fmt) => {
+    if(anyPct) return pctFrom(raw, fmt);
+    const n = Number(String(raw == null ? '' : raw).replace(/[^0-9.\-]/g, ''));
+    if(!isFinite(n)) return pctFrom(raw, fmt);
+    return asFraction ? +(n * 100).toFixed(4) : n;
+  };
+
   const want = String(code4).replace(/\D/g,'').slice(0,4);
   const out = [];
   for(let i=hdr+1;i<rows.length;i++){
@@ -4453,11 +4545,16 @@ function parseShortWorkbook(XLSX, buf, code4){
     const cd = String(r[map.code] == null ? '' : r[map.code]).replace(/\D/g,'').slice(0,4);
     if(!cd || cd !== want) continue;
     const fr = fmtRows[i] || [];
+    const holder = String(r[map.holder] ?? '');
+    const trustor = map.trustor !== undefined ? String(r[map.trustor] ?? '') : '';
     out.push({
-      holder: String(r[map.holder] ?? ''),
+      holder,
+      /* the identity a balance is carried forward under */
+      key: (holder + '' + trustor).trim(),
+      trustor,
       issuer: String(r[map.issuer] ?? ''),
       qty: Number(String(fr[map.qty] || r[map.qty] || '').replace(/[^0-9.-]/g,'')),
-      ratio: pctFrom(r[map.ratio], fr[map.ratio]),
+      ratio: ratioOf(r[map.ratio], fr[map.ratio]),
       prevRatio: map.prevRatio !== undefined ? pctFrom(r[map.prevRatio], fr[map.prevRatio]) : NaN,
       date: r[map.date] instanceof Date ? r[map.date] : null
     });
@@ -4487,6 +4584,9 @@ function renderShorts(status){
     box.innerHTML = bits.join('');
     return;
   }
+  if(typeof legacyRescaled !== 'undefined' && legacyRescaled)
+    bits.push('<p class="qsrc">以前の版で保存したデータは<b>割合が100分の1で記録されていた</b>ため、'
+      + '読み込み時に補正しています。正確を期すなら「消す」→取得し直してください。</p>');
   const latest = pts[pts.length-1];
   const prev = pts.length > 1 ? pts[pts.length-2] : null;
   const d = `${latest.d.slice(0,4)}/${latest.d.slice(4,6)}/${latest.d.slice(6,8)}`;
@@ -4498,10 +4598,18 @@ function renderShorts(status){
     bits.push(`<div class="tscroll" style="padding:0"><table><thead><tr>
         <th scope="col" style="text-align:left">報告者(機関投資家など)</th>
         <th scope="col">残高割合</th><th scope="col">残高数量</th></tr></thead><tbody>`
-      + latest.holders.map(h => `<tr><td style="text-align:left">${esc(h.holder || '—', 80)}</td>
+      + latest.holders.map(h => `<tr><td style="text-align:left">${esc(h.holder || '—', 80)}
+          ${h.tr ? `<span class="qsrc" style="display:block">委託者: ${esc(h.tr, 60)}</span>` : ''}</td>
           <td>${isNum(h.ratio) ? h.ratio.toFixed(2) + '%' : '—'}</td>
           <td>${isNum(h.qty) ? Math.round(h.qty).toLocaleString('ja-JP') : '—'}</td></tr>`).join('')
       + '</tbody></table></div>');
+  /* Why this number can sit below the one on a site that has been
+     accumulating these files for years. Said here rather than in a FAQ. */
+  bits.push(`<p class="qsrc" style="margin:8px 0 0;line-height:1.7">`
+    + `JPXが出すのは<b>その日に提出された報告</b>で、残高の一覧ではありません。`
+    + `各報告者の最新の報告を持ち越して合計しています(0.5%を下回った報告＝解消として外す)。`
+    + `JPXの公開は<b>13ヶ月分</b>なので、それ以前に報告されたまま更新されていない残高は入りません。`
+    + `「1年分」で取り込むと差が縮みます。</p>`);
   } else {
     bits.push(`<p class="qsrc">${d} 時点でこの銘柄の報告はありませんでした。`
       + `<b>残高割合0.5%以上</b>のみが対象なので、報告なし＝空売りゼロではありません。</p>`);
@@ -4549,6 +4657,12 @@ function updateExternalLinks(){
   set('#lnkJsf',     jp ? `https://www.taisyaku.jp/app/stock?code=${code}` : 'https://www.taisyaku.jp/', jp);
   set('#lnkJpx',     JPX_SHORT_INDEX, jp);
   set('#lnkYahoo',   jp ? `https://finance.yahoo.co.jp/quote/${code}.T` : `https://finance.yahoo.com/quote/${encodeURIComponent(code)}`, !!code);
+  /* Nikkei has the weekly margin history, the 逆日歩 history and the
+     shareholder perks in one place each — but its robots.txt asks not to be
+     crawled, so these are links to open, not pages this tool reads. */
+  set('#lnkNkTrust', `https://www.nikkei.com/nkd/company/history/trust/?scode=${code}`, jp);
+  set('#lnkNkGyaku', `https://www.nikkei.com/nkd/company/history/gyakuhibu/?scode=${code}&ba=1`, jp);
+  set('#lnkNkYutai', `https://www.nikkei.com/nkd/company/yutai/?scode=${code}&ba=1`, jp);
   $('#extNote').textContent = jp
     ? '東証の銘柄別信用残は週次かつPDFのみです。日次で見たい場合は日証金の貸借取引残高(速報 18:30以降 / 確報 翌営業日11時ごろ)が最速ですが、'
     + '貸借銘柄のうち日証金を通した分だけなので、市場全体の信用残の一部である点にご注意ください。'
@@ -4572,8 +4686,10 @@ const Ext = {
   },
 
   /* --- cache: repeated use accumulates a longer history ---------------- */
+  gen: 0,
   async loadCache(){
     const k = this.codeKey();
+    const mine = ++this.gen;
     this.short = this.margin = null;
     if(!k) return;
     const okDate = d => /^\d{8}$/.test(String(d));
@@ -4581,6 +4697,10 @@ const Ext = {
        ever ran in this origin could have written them, so rows are
        re-validated on the way out. */
     const cached = await extLoadFromDB(k);
+    /* the user may have moved on during the read; landing another stock's
+       balances on this chart also poisons the cache, because saveShort()
+       keys off whatever codeKey() says at write time */
+    if(mine !== this.gen || this.codeKey() !== k) return;
     const s = cached.short;
     if(s){
       const cleanRows = rows => (Array.isArray(rows) ? rows : []).slice(0, 120).map(h => ({
@@ -4598,8 +4718,10 @@ const Ext = {
         reports = s.points.filter(p => p && okDate(p.d))
           .slice(-400).map(p => ({d: p.d, rows: cleanRows(p.holders)}));
       }
-      if(reports && reports.length)
+      if(reports && reports.length){
+        if(+s.v !== 2) reports = rescaleLegacyRatios(reports);
         this.short = {v: 2, reports, points: foldShortReports(reports), src: cleanText(s.src, 60)};
+      }
     }
     const m = cached.margin;
     if(m && Array.isArray(m.points)){
@@ -4609,26 +4731,26 @@ const Ext = {
       if(pts.length) this.margin = {points: pts, src: cleanText(m.src, 60)};
     }
   },
-  saveShort(){ if(this.codeKey() && this.short)  extSaveToDB('short',  this.codeKey(), this.short); },
-  saveMargin(){ if(this.codeKey() && this.margin) extSaveToDB('margin', this.codeKey(), this.margin); },
+  saveShort(code){ const k = code || this.codeKey(); if(k && this.short)  extSaveToDB('short',  k, this.short); },
+  saveMargin(code){ const k = code || this.codeKey(); if(k && this.margin) extSaveToDB('margin', k, this.margin); },
 
   /* what is stored is the REPORTS; the displayed series is folded from
      them every time, so adding an older month fixes the whole curve
      rather than only its tail */
-  mergeReports(reports, src){
+  mergeReports(reports, src, code){
     src = cleanText(src, 60);
     const map = new Map((this.short && this.short.reports ? this.short.reports : []).map(r => [r.d, r]));
     for(const r of reports) map.set(r.d, r);
     const all = [...map.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
     this.short = {v: 2, reports: all, points: foldShortReports(all), src};
-    this.saveShort();
+    this.saveShort(code);
   },
-  mergeMargin(points, src){
+  mergeMargin(points, src, code){
     src = cleanText(src, 60);
     const map = new Map((this.margin ? this.margin.points : []).map(p => [p.d, p]));
     for(const p of points) map.set(p.d, p);
     this.margin = {points: [...map.values()].sort((a,b)=> a.d.localeCompare(b.d)).slice(-400), src};
-    this.saveMargin();
+    this.saveMargin(code);
   },
 
   clear(which){
@@ -4652,14 +4774,20 @@ const dkey = t => `${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${
 function alignExt(ind){
   if(!ind || !state.raw) return ind;
   const bars = state.raw.bars;
+  /* A report dated the 5th applies to every bar from the 5th onward, not
+     only to a bar whose own key is exactly '…05'. Matching on equality
+     worked by luck on daily charts and failed completely on weekly and
+     monthly ones, where a bar is keyed by its first day: the panel froze
+     on whichever report happened to land on a bar start, or drew nothing
+     at all. Walking the two sorted lists together fixes both. */
   const build = (points, pick) => {
     if(!points || !points.length) return null;
-    const map = new Map(points.map(p => [p.d, p]));
+    const sorted = points.slice().sort((a, b) => String(a.d).localeCompare(String(b.d)));
     const out = new Array(bars.length).fill(null);
-    let carry = null;
-    for(let i=0;i<bars.length;i++){
-      const hit = map.get(barKey(bars[i]));   /* the bar's own market day */
-      if(hit) carry = hit;
+    let j = 0, carry = null;
+    for(let i = 0; i < bars.length; i++){
+      const key = barKey(bars[i]);
+      while(j < sorted.length && String(sorted[j].d) <= key){ carry = sorted[j]; j++; }
       out[i] = carry ? pick(carry) : null;
     }
     return out;
@@ -4698,10 +4826,42 @@ function alignExt(ind){
 function reportFromRows(rows, stamp){
   return {d: stamp, rows: rows.slice(0, 120).map(r => ({
     holder: cleanText(r.holder, 80),
+    /* the 委託者 that distinguishes two funds run by the same manager */
+    tr:     cleanText(r.trustor, 80),
     ratio: isNum(r.ratio) ? r.ratio : null,
     qty:   isNum(r.qty) ? r.qty : null
   })).filter(r => r.holder)};
 }
+
+/* One reported position = one (報告義務者, 委託者) pair. Older caches have
+   no 委託者 recorded; the name alone is the fallback. */
+function holderKey(r){
+  return (r.holder || '') + '\u0000' + (r.tr || '');
+}
+
+/* Anything stored by a build before the percentage fix holds the RAW cell
+   value — a fraction (0.0199) where a percentage (1.99) was meant. Reports
+   only exist at all because a position reached 0.5% of shares outstanding,
+   so a whole cache whose largest value is under 0.5 cannot be percentages.
+   That is the test, and it is the file's own disclosure rule rather than a
+   guess about magnitudes. */
+function rescaleLegacyRatios(reports){
+  let mx = 0, n = 0;
+  for(const r of reports) for(const row of r.rows || [])
+    if(isNum(row.ratio) && row.ratio > 0){ n++; if(row.ratio > mx) mx = row.ratio; }
+  /* A single sub-0.5% row is perfectly legal — it is the closing report
+     filed when a position drops through the threshold. Rescaling on that
+     alone would turn a real 0.45% into 45%. Only a cache with several
+     rows, ALL of them below the threshold, can be fractions. */
+  if(n < 3 || !(mx > 0) || mx >= 0.5) return reports;
+  legacyRescaled = true;
+  return reports.map(r => ({d: r.d, rows: (r.rows || []).map(row => ({
+    holder: row.holder,
+    ratio: isNum(row.ratio) ? +(row.ratio * 100).toFixed(4) : null,
+    qty: row.qty
+  }))}));
+}
+let legacyRescaled = false;
 
 /* reports (any order) -> one point per report date, each carrying the
    running state of every reporter */
@@ -4715,15 +4875,17 @@ function foldShortReports(reports){
          An unreadable one is not — it says nothing, so the previous
          balance stands rather than being silently wiped. */
       if(!isNum(r.ratio)) continue;
-      if(r.ratio <= 0) held.delete(r.holder);
-      else held.set(r.holder, {ratio: r.ratio, qty: isNum(r.qty) ? r.qty : null});
+      const k = holderKey(r);
+      if(r.ratio <= 0) held.delete(k);
+      else held.set(k, {ratio: r.ratio, qty: isNum(r.qty) ? r.qty : null,
+                        holder: r.holder, tr: r.tr || ''});
     }
     let ratio = 0, qty = 0;
     for(const v of held.values()){ ratio += v.ratio; qty += (v.qty || 0); }
     out.push({
       d: day.d, ratio: +ratio.toFixed(4), qty,
-      holders: [...held.entries()].sort((a, b) => b[1].ratio - a[1].ratio)
-        .slice(0, 60).map(([holder, v]) => ({holder, ratio: v.ratio, qty: v.qty}))
+      holders: [...held.values()].sort((a, b) => b.ratio - a.ratio)
+        .slice(0, 60).map(v => ({holder: v.holder, tr: v.tr, ratio: v.ratio, qty: v.qty}))
     });
   }
   return out;
@@ -4829,15 +4991,27 @@ async function loadShortSeries(maxDays, months){
     };
     await Promise.all([worker(), worker()]);
     if(!got.length) throw new Error('どの日のファイルも取得できませんでした');
+    /* Merge into what is on DISK for this code, so a long crawl cannot
+       overwrite the accumulated history with only the days it just
+       fetched — and so the work still lands if the user has moved on. */
+    const base = await extLoadFromDB(code);
+    const keep = new Map((((base.short && base.short.reports) || [])).map(r => [r.d, r]));
+    for(const r of got) keep.set(r.d, r);
+    const all = [...keep.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+    const rec = {v: 2, reports: all, points: foldShortReports(all), src: 'JPX 空売り残高報告'};
+    await extSaveToDB('short', code, rec);
     if(Ext.codeKey() !== code){
-      renderShorts({error: '取得中に別の銘柄へ切り替わったため取り込みを中止しました。'});
+      renderShorts({error: '表示中の銘柄が変わったため画面には反映していません'
+        + `(${got.length}日分は保存済みで、次にこの銘柄を開いたときに出ます)。`});
       return;                       /* never file 9984's rows under 7203 */
     }
-    Ext.mergeReports(got, 'JPX 空売り残高報告');
+    Ext.short = rec;
     afterExtUpdate();
     renderShorts({ok: true, added: got.length, failed});
   }catch(e){
     renderShorts({error: e.message});
+  }finally{
+    shortBusy = false;
   }
 }
 
@@ -4865,7 +5039,7 @@ async function loadShortFiles(files){
       renderShorts({error: '読み込み中に別の銘柄へ切り替わったため中止しました。'});
       return;
     }
-    Ext.mergeReports(got, `読み込み ${files.length} ファイル`);
+    Ext.mergeReports(got, `読み込み ${files.length} ファイル`, code);
     afterExtUpdate();
     renderShorts({ok: true, added: got.length, failed: bad});
   }catch(e){
@@ -4933,6 +5107,8 @@ function parseMarginCSV(text){
    with JavaScript, so what comes back over a relay has no numbers in it.
    The bulk file is the real source, and it is one request for the lot. */
 const JSF_CSV = 'https://www.taisyaku.jp/data/zandaka.csv';
+/* the same publisher's daily 品貸料率 (逆日歩) table */
+const JSF_SHINA = 'https://www.taisyaku.jp/data/shina.csv';
 const JSF_URLS = code => [
   `https://www.taisyaku.jp/app/stock?code=${code}`,
   `https://www.taisyaku.jp/search/stock/${code}`,
@@ -4971,8 +5147,96 @@ async function fetchJSFTable(){
     if(!/^[0-9A-Z]{4}$/.test(code) || rows.has(code)) continue;
     rows.set(code, c);
   }
-  jsfCache = {rows, iDate, iBuy, iSell, at: Date.now()};
+  /* the extra columns worth having: what is actually lent out, and the
+     ratio between the two sides */
+  const iNet   = find(/差引.*残高|貸借残/, /金額|代金/);
+  const iRatio = find(/貸借倍率|信用倍率/);
+  jsfCache = {rows, iDate, iBuy, iSell, iNet, iRatio, at: Date.now()};
   return jsfCache;
+}
+
+/* ---- 逆日歩 (品貸料率) -----------------------------------------------
+   Japan Securities Finance publishes this as its own daily CSV, so it does
+   not have to be scraped from anybody's website. It is the rate a short
+   seller pays when lendable stock runs short — the number that tells you a
+   squeeze is being priced, which the balance alone does not.
+   --------------------------------------------------------------------- */
+let shinaCache = null;
+
+async function fetchShinaTable(){
+  if(shinaCache && Date.now() - shinaCache.at < 3600e3) return shinaCache;
+  const buf = await relayFetchBinary(JSF_SHINA, 20000);
+  let text = new TextDecoder('shift_jis', {fatal: false}).decode(buf);
+  if((text.match(/�/g) || []).length > 40)
+    text = new TextDecoder('utf-8', {fatal: false}).decode(buf);
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+
+  /* the file opens with a title and a note, so the header is found by
+     content rather than assumed to be the first row */
+  let head = -1, cols = null;
+  for(let i = 0; i < Math.min(lines.length, 12); i++){
+    const cells = splitLine(lines[i]).map(c => String(c).replace(/["\s]/g, ''));
+    const find = re => cells.findIndex(c => re.test(c));
+    const code = find(/銘柄コード|^コード$/);
+    const rate = find(/品貸料率|逆日歩|貸借料率/);
+    if(code >= 0 && rate >= 0){ head = i; cols = {code, rate, date: find(/日付|申込日|適用日|年月日/),
+      name: find(/銘柄名|銘柄/)}; break; }
+  }
+  if(head < 0) throw new Error('品貸料率ファイルの見出しを読み取れませんでした');
+
+  const rows = new Map();
+  for(let i = head + 1; i < lines.length; i++){
+    const c = splitLine(lines[i]);
+    const code = String(c[cols.code] || '').replace(/["\s]/g, '');
+    if(!/^[0-9A-Z]{4}$/.test(code) || rows.has(code)) continue;
+    rows.set(code, c);
+  }
+  shinaCache = {rows, cols, at: Date.now()};
+  return shinaCache;
+}
+
+async function loadShina(){
+  const code = Ext.codeKey();
+  if(!/^[0-9A-Z]{4}$/.test(code)){
+    renderShina({error: '逆日歩(品貸料率)は日本の貸借銘柄のみです。'});
+    return;
+  }
+  renderShina({loading: true});
+  try{
+    const t = await fetchShinaTable();
+    if(Ext.codeKey() !== code) return;
+    const row = t.rows.get(code);
+    if(!row){
+      renderShina({none: true});
+      return;
+    }
+    const rate = toNum(row[t.cols.rate]);
+    const dt = t.cols.date >= 0 ? parseJPDate(row[t.cols.date]) : null;
+    renderShina({ok: true, code, rate: isNum(rate) ? rate : null,
+                 date: dt ? dkey(dt) : null});
+  }catch(e){
+    renderShina({error: cleanText(e.message, 90)});
+  }
+}
+
+function renderShina(st){
+  const box = $('#shinaBox');
+  if(!box) return;
+  if(!st){ box.innerHTML = '<p class="qsrc">「逆日歩を取得」で日本証券金融の当日の品貸料率を調べます。</p>'; return; }
+  if(st.loading){ box.innerHTML = '<p class="qsrc">日証金の品貸料率を取得しています…</p>'; return; }
+  if(st.error){ box.innerHTML = `<p class="qsrc">取得できませんでした: ${esc(st.error, 120)}</p>`; return; }
+  if(st.none){
+    box.innerHTML = '<p class="qsrc">当日の品貸料率一覧にこの銘柄はありませんでした。'
+      + '<b>逆日歩が付いていない</b>(貸株が不足していない)か、貸借銘柄でない場合です。</p>';
+    return;
+  }
+  const d = st.date ? `${st.date.slice(0,4)}/${st.date.slice(4,6)}/${st.date.slice(6,8)}` : '当日';
+  box.innerHTML = `<div class="earnnext"><b>品貸料率(逆日歩): `
+    + `${isNum(st.rate) ? esc(st.rate.toFixed(2), 10) + ' 円/株・日' : '—'}</b>`
+    + ` <span class="qsrc">${esc(d, 12)} 時点</span></div>`
+    + `<p class="qsrc" style="margin:6px 0 0">日本証券金融の品貸料率一覧より。`
+    + `売り方が買い方に払う調達コストで、<b>付いている＝貸株が不足している</b>目安です。`
+    + `逆日歩は事後に確定するため、速報値と最終値が異なることがあります。</p>`;
 }
 
 function scrapeJSF(html){
@@ -5016,12 +5280,15 @@ async function loadJSF(){
     const sell = t.iSell >= 0 ? toNum(row[t.iSell]) : NaN;
     if(!isNum(buy) && !isNum(sell)) throw new Error('残高の数字が空でした');
     const dt = t.iDate >= 0 ? parseJPDate(row[t.iDate]) : null;
+    const fileRatio = t.iRatio >= 0 ? toNum(row[t.iRatio]) : NaN;
     const pt = {
       d: dt ? dkey(dt) : dkey(new Date()),
       buy: isNum(buy) ? buy : null, sell: isNum(sell) ? sell : null,
-      ratio: (isNum(buy) && isNum(sell) && sell > 0) ? buy / sell : null
+      /* prefer the publisher's own 貸借倍率 over our division */
+      ratio: isNum(fileRatio) ? fileRatio
+           : (isNum(buy) && isNum(sell) && sell > 0) ? buy / sell : null
     };
-    Ext.mergeMargin([pt], '日証金 貸借取引残高(zandaka.csv)');
+    Ext.mergeMargin([pt], '日証金 貸借取引残高(zandaka.csv)', code);
     afterExtUpdate();
     renderMarginStatus({ok: true, added: 1, name: '日証金 ' + pt.d});
     return;
@@ -5135,12 +5402,14 @@ async function autoFetchExt(){
   if(navigator.onLine === false) return;
   const today = dkey(new Date());
   const mark = 'autoExt.' + code;
-  if(Store.get(mark, '') === today) return;        /* already tried today */
-  Store.set(mark, today);
+  if(Store.get(mark, '') === today) return;        /* already succeeded today */
+  if(shortBusy) return;                            /* a manual crawl is running */
 
+  let worked = false;
   const fresh = pts => pts && pts.length && pts[pts.length - 1].d >= today;
   try{
     if(!fresh(Ext.short && Ext.short.points)) await loadShortSeries(10, 1);
+    worked = true;
   }catch(e){}
   if(Ext.codeKey() !== code) return;
   try{
@@ -5148,6 +5417,8 @@ async function autoFetchExt(){
   }catch(e){}
   if(Ext.codeKey() !== code) return;
   try{ await loadEarnings(); }catch(e){}
+  /* only now, so an interrupted or failed attempt is retried next time */
+  if(worked) Store.set(mark, today);
 }
 
 /* ============================================================
@@ -5635,7 +5906,17 @@ async function applyBundle(raw, mode){
   if(b.supply){
     for(const code in b.supply){
       const v = b.supply[code];
-      if(v && v.short)  { await DB.set('short.' + code, v.short); added++; }
+      if(v && v.short){
+        /* rebuild the displayed series from the filings, the same way the
+           live cache does — writing a folded snapshot back would lose the
+           difference between "no filing" and "position closed" */
+        const reports = cleanReports(v.short.reports);
+        if(reports.length){
+          await DB.set('short.' + code, {v: 2, reports, points: foldShortReports(reports),
+            src: cleanText(v.short.src, 60)});
+          added++;
+        }
+      }
       if(v && v.margin) { await DB.set('margin.' + code, v.margin); added++; }
     }
     await Ext.loadCache();
@@ -5977,6 +6258,26 @@ function cleanPoint(kind, p){
   return {d: String(p.d), buy: isNum(p.buy) ? p.buy : null,
           sell: isNum(p.sell) ? p.sell : null, ratio: isNum(p.ratio) ? p.ratio : null};
 }
+/* Short-selling data is stored as the FILINGS, with the displayed series
+   folded from them. Sending only the folded series across loses the
+   difference between "no filing that day" and "filed a closure", and a
+   round trip through the sync then resurrects closed positions forever.
+   So `reports` travels, and `points` is rebuilt at the far end. */
+function cleanReports(list){
+  return (Array.isArray(list) ? list : []).slice(-400).map(r => {
+    if(!r || !/^\d{8}$/.test(String(r.d))) return null;
+    return {d: String(r.d), rows: (Array.isArray(r.rows) ? r.rows : []).slice(0, 120).map(h => ({
+      holder: cleanText(h && h.holder, 80),
+      /* dropping this on the way through the sync merged two funds run by
+         the same manager into one, and the total came back smaller than it
+         went out */
+      tr: cleanText(h && h.tr, 80),
+      ratio: isNum(h && h.ratio) ? h.ratio : null,
+      qty: isNum(h && h.qty) ? h.qty : null
+    })).filter(h => h.holder)};
+  }).filter(Boolean);
+}
+
 function cleanSupply(sup){
   const out = Object.create(null);
   if(!sup || typeof sup !== 'object') return out;
@@ -5985,7 +6286,15 @@ function cleanSupply(sup){
     if(!code) continue;
     for(const kind of ['short','margin']){
       const inc = sup[raw] && sup[raw][kind];
-      if(!inc || !Array.isArray(inc.points)) continue;
+      if(!inc) continue;
+      if(kind === 'short'){
+        const reports = cleanReports(inc.reports);
+        if(!reports.length) continue;
+        out[code] = out[code] || {};
+        out[code].short = {v: 2, reports, src: cleanText(inc.src, 60)};
+        continue;
+      }
+      if(!Array.isArray(inc.points)) continue;
       const points = inc.points.slice(-400).map(p => cleanPoint(kind, p)).filter(Boolean);
       if(!points.length) continue;
       out[code] = out[code] || {};
@@ -6001,7 +6310,27 @@ async function mergeSupplyIn(raw0){
   const sup = cleanSupply(raw0);
   let n = 0, touched = false;
   for(const code of Object.keys(sup)){
-    for(const kind of ['short','margin']){
+    /* short: merge the filings by date, then refold */
+    const sh = sup[code].short;
+    if(sh){
+      let cur = null;
+      try { cur = await DB.get('short.' + code); } catch(e){}
+      const have = (cur && Array.isArray(cur.reports)) ? cur.reports : [];
+      const map = new Map(have.map(r => [r.d, r]));
+      let added = 0;
+      for(const r of sh.reports) if(!map.has(r.d)){ map.set(r.d, r); added++; }
+      if(added){
+        const reports = [...map.values()]
+          .sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+        try{
+          await DB.set('short.' + code, {v: 2, reports,
+            points: foldShortReports(reports),
+            src: cleanText(sh.src, 60) || (cur && cur.src) || ''});
+          n += added; touched = true;
+        }catch(e){}
+      }
+    }
+    for(const kind of ['margin']){
       const inc = sup[code][kind];
       if(!inc) continue;
       let cur = null;
@@ -6898,14 +7227,32 @@ function crossState(fast, slow, n){
 }
 
 async function refreshWatch(force){
-  if(watchBusy) return;
+  /* 「今すぐ全部取り直す」 was a dead button while a refresh was running:
+     it returned in silence and looked broken. Say what is happening. */
+  if(watchBusy){
+    const m = $('#watchMsg');
+    if(m && force) m.textContent = '取得中です。終わってからもう一度押してください。';
+    return;
+  }
+  /* Alerts can name a stock that is not starred — the form deliberately
+     offers the one on screen. Fetch those as well, or they would show as
+     「動作中」 and never once be evaluated. */
   const list = Book.favs.slice(0, 40);
+  const have = new Set(list.map(f => f.code));
+  for(const a of Alerts.list){
+    if(a.on && a.code && !have.has(a.code) && list.length < 60){
+      have.add(a.code);
+      list.push({code: a.code, name: a.code, alertOnly: true});
+    }
+  }
   if(!list.length){
     $('#watchBody').innerHTML = '<p class="qsrc">★で登録した銘柄がここに並びます。</p>';
     return;
   }
   watchBusy = true;
+  /* both buttons, or the one that is still lit reads as "this one works" */
   $('#watchBtn').disabled = true;
+  if($('#watchForce')) $('#watchForce').disabled = true;
   const keep = new Map(watchRows.map(r => [r.code, r]));
   const todo = list.filter(f => {
     const had = keep.get(f.code);
@@ -6918,7 +7265,8 @@ async function refreshWatch(force){
       (d, t) => { $('#watchMsg').textContent = `${t}銘柄を取得しています… ${d}/${t}`; });
     got.forEach((r, i) => keep.set(todo[i].code, r && !r.error
       ? r : {code: todo[i].code, name: todo[i].name, error: (r && r.error) || '取得できません', at: Date.now()}));
-    watchRows = list.map(f => keep.get(f.code) || {code: f.code, name: f.name, error: '未取得'});
+    watchRows = list.map(f => Object.assign({alertOnly: !!f.alertOnly},
+      keep.get(f.code) || {code: f.code, name: f.name, error: '未取得'}));
     renderWatch();
     const bad = watchRows.filter(r => r.error).length;
     $('#watchMsg').textContent = `${new Date().toLocaleTimeString('ja-JP')} 時点`
@@ -6927,6 +7275,7 @@ async function refreshWatch(force){
   }finally{
     watchBusy = false;
     $('#watchBtn').disabled = false;
+    if($('#watchForce')) $('#watchForce').disabled = false;
   }
 }
 
@@ -6950,7 +7299,8 @@ function renderWatch(){
   const val = r => key === 'name' ? (r.name || r.code)
              : key === 'cross' ? (r.cross ? r.cross.dir : 0)
              : (isNum(r[key]) ? r[key] : -Infinity);
-  const rows = watchRows.slice().sort((a, b) => {
+  /* the extras fetched only to service an alert are not part of the list */
+  const rows = watchRows.filter(r => !r.alertOnly).sort((a, b) => {
     if(a.error && !b.error) return 1;
     if(b.error && !a.error) return -1;
     const x = val(a), y = val(b);
@@ -7051,7 +7401,10 @@ function checkAlerts(rows){
   for(const a of Alerts.list){
     if(!a.on) continue;
     const r = byCode.get(a.code);
-    if(!r) continue;
+    /* An error row says nothing about the condition. Treating "no reason
+       found" as "the condition cleared" re-armed the alert on a timeout
+       and then fired it again on the next good quote. */
+    if(!r || r.error) continue;
     const why = alertFires(a, r);
     if(why && !a.hit){
       a.hit = Date.now(); changed = true;
@@ -7066,9 +7419,23 @@ function checkAlerts(rows){
 }
 
 function announceAlerts(fired){
-  const lines = fired.map(f =>
-    `${f.r.name || f.a.code}: ${ALERT_KINDS[f.a.kind].t.replace(/\(.*/, '')} — ${f.why}`);
-  notice('<b>アラート</b><br>' + lines.map(l => esc(l, 90)).join('<br>'), false);
+  /* sanitizeAlerts blanks a kind it does not recognise (an alert synced from
+     a newer build), and ALERT_KINDS[''] is undefined — reading .t off it threw
+     here and took the whole announcement down with it. */
+  const lines = fired.map(f => {
+    const k = owns(ALERT_KINDS, f.a && f.a.kind) ? ALERT_KINDS[f.a.kind] : null;
+    return `${(f.r && f.r.name) || (f.a && f.a.code) || '銘柄'}: `
+         + `${k ? k.t.replace(/\(.*/, '') : '条件'} — ${f.why}`;
+  });
+  /* NOT notice(): that box is the shared status line, and the next thing to
+     finish loading calls notice('') and wipes the alert before it has been
+     read. Alerts get a box nobody else writes to, and it stays until the
+     user closes it. */
+  const bar = $('#alertBar'), txt = $('#alertBarTxt');
+  if(bar && txt){
+    txt.innerHTML = '<b>アラート</b><br>' + lines.map(l => esc(l, 90)).join('<br>');
+    bar.classList.remove('hide');
+  }
   const box = $('#alertFired');
   if(box){
     box.classList.remove('hide');
@@ -7196,10 +7563,14 @@ function forwardStats(closes, idx, horizon){
   }
   if(!rets.length) return null;
   const sorted = rets.slice().sort((a, b) => a - b);
-  const med = sorted[Math.floor(sorted.length / 2)];
+  /* a median on an even-length sample is the average of the two middles.
+     Taking the upper one alone biased every buy rule up and every sell
+     rule down — on small samples by whole percentage points. */
+  const mid = sorted.length >> 1;
+  const med = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
-  const win = rets.filter(r => r > 0).length / rets.length * 100;
-  return {n: rets.length, med, mean, win,
+  const up = rets.filter(r => r > 0).length / rets.length * 100;
+  return {n: rets.length, med, mean, up,
           best: sorted[sorted.length - 1], worst: sorted[0]};
 }
 
@@ -7226,7 +7597,12 @@ function runSignalHistory(horizon){
     if(!s) continue;
     /* "edge" is against the baseline, in the direction the rule claims */
     const edge = base ? (s.med - base.med) * (r.dir >= 0 ? 1 : -1) : null;
-    rows.push({key: r.k, title: r.t, dir: r.dir, ...s, edge,
+    /* And so is the hit rate. `up` is "the price rose"; for a SELL rule
+       that is the rule being wrong. Showing 76% next to 売り when the
+       signal failed 76% of the time was the worst kind of wrong: it read
+       as an endorsement. */
+    const win = r.dir >= 0 ? s.up : 100 - s.up;
+    rows.push({key: r.k, title: r.t, dir: r.dir, ...s, edge, win,
                weak: s.n < MIN_SAMPLE});
   }
   rows.sort((a, b) => {
@@ -7248,14 +7624,14 @@ function renderSignalHistory(res){
     + `${esc(res.iv, 8)} ${res.bars}本のうち、シグナルが出た次の<b>${res.horizon}${esc(res.unit, 4)}後</b>の`
     + `値動きです。比較のため、<b>どの足でもいい適当な地点</b>から同じ${res.horizon}${esc(res.unit, 4)}を`
     + `見たときの中央値は <b class="${tone(b && b.med)}">${pct(b && b.med)}%</b>`
-    + `(上がった割合 ${b ? b.win.toFixed(0) : '—'}%)でした。`
+    + `(上がった割合 ${b ? b.up.toFixed(0) : '—'}%)でした。`
     + `<b>これを超えていなければ、そのシグナルはこの銘柄では何も見つけていません。</b></p>`;
 
   const rows = res.rows.map(r => `<tr class="${r.weak ? 'hweak' : ''}">
       <td class="wl">${esc(r.title, 30)}
         <span class="hdir">${r.dir > 0 ? '買い' : '売り'}</span></td>
       <td class="wnum">${r.n}回</td>
-      <td class="wnum ${tone(r.med)}">${pct(r.med)}%</td>
+      <td class="wnum ${tone(r.dir >= 0 ? r.med : -r.med)}">${pct(r.med)}%</td>
       <td class="wnum">${r.win.toFixed(0)}%</td>
       <td class="wnum ${tone(r.edge)}"><b>${pct(r.edge)}%</b></td>
       <td class="wnum hsm">${pct(r.worst)} / ${pct(r.best)}</td>
@@ -7263,12 +7639,14 @@ function renderSignalHistory(res){
 
   box.innerHTML = head
     + '<div class="tscroll"><table class="wtab"><thead><tr>'
-    + '<th class="wl">シグナル</th><th>回数</th><th>中央値</th><th>勝率</th>'
+    + '<th class="wl">シグナル</th><th>回数</th><th>中央値</th><th>的中率</th>'
     + '<th>基準との差</th><th>最悪 / 最良</th></tr></thead><tbody>'
     + (rows || '<tr><td colspan="6" class="qsrc">十分な回数が出たシグナルがありませんでした。</td></tr>')
     + '</tbody></table></div>'
     + `<p class="qsrc" style="margin:10px 0 0;line-height:1.7">`
-    + `薄い行は<b>${MIN_SAMPLE}回未満</b>で、勝率にほとんど意味がありません。`
+    + `「的中率」は<b>そのシグナルが主張した向きに動いた割合</b>です`
+    + `(売りシグナルなら下がった割合)。`
+    + `薄い行は<b>${MIN_SAMPLE}回未満</b>で、的中率にほとんど意味がありません。`
     + `いずれも手数料・スリッページを含まず、いま画面に出ている期間だけを後から当てはめた結果です。`
     + `将来こうなるという意味ではありません。</p>`;
 }
@@ -7541,9 +7919,20 @@ async function loadEarnings(){
     renderEarnings(earnings);
     redraw();
   }catch(e){
-    earnings = null;
+    /* a failure on one stock must not delete the marker another tab is
+       showing */
+    if(Ext.codeKey() === code) earnings = null;
     renderEarnings({error: cleanText(e.message, 90)});
   }
+}
+
+/* Called whenever the chart changes stock. The card is per-stock state and
+   was being left behind: Apple's chart kept showing Toyota's earnings date. */
+function resetEarnings(){
+  const code = Ext.codeKey();
+  if(earnings && earnings.code === code){ renderEarnings(earnings); return; }
+  earnings = null;
+  renderEarnings(null);
 }
 
 function renderEarnings(st){
@@ -8457,11 +8846,25 @@ function opBackground(op){
 }
 function fillTab(tab, data){
   tab.raw = data;
+  /* the same correction apply() makes: if the source gave a different
+     timeframe, the tab has to record THAT, or it comes back later
+     labelled and parameterised as something it is not */
+  if(data.granularity && owns(IV_RANGES, data.granularity) && data.granularity !== tab.interval){
+    tab.interval = data.granularity;
+    const allowed = IV_RANGES[tab.interval];
+    if(!allowed.includes(tab.range)) tab.range = allowed[allowed.length - 1];
+  }
+  const keepP = P;
+  setPreset(tab.interval || '1d');
   tab.ind = computeAll(data.bars, tab.toggles || state.toggles, tab.interval || '1d');
+  P = keepP;
   tab.pristine = false;
   tab.code = data.code;
   tab.label = data.code && data.code !== 'DEMO' ? data.code : (tab.symbol || '新規');
-  tab.i0 = 0; tab.i1 = Math.max(0, data.bars.length - 1);
+  /* the same default window a foreground load gets, not the whole series */
+  const fits = Math.max(40, Math.min(data.bars.length, 320));
+  tab.i1 = Math.max(0, data.bars.length - 1);
+  tab.i0 = Math.max(0, data.bars.length - fits);
   Tabs.render();
   saveWorkspaceSoon();
 }
@@ -8478,6 +8881,15 @@ const hostEl = $('#chartHost');
 const GRIP = 9;
 let sizing = null;
 
+function endSizing(){
+  if(!sizing) return;
+  const key = sizing.key;
+  sizing = null;
+  cv.style.cursor = '';
+  Store.set('panelScale', panelScale);        /* written once, at the end */
+  saveWorkspaceSoon();
+}
+
 function panelAtEdge(y){
   if(!LAY) return null;
   for(const p of LAY.panels){
@@ -8491,30 +8903,69 @@ function localY(e){
   return (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
 }
 
+/* setPointerCapture throws if the pointer is already gone — a finger lifted
+   between the browser queuing pointerdown and this handler running, which
+   really happens on a fast tap. The throw aborted the rest of the handler,
+   so preventDefault never ran and the app was left half-way into a drag. */
+function grabPointer(id){
+  try{ cv.setPointerCapture && cv.setPointerCapture(id); }catch(err){}
+}
+
+/* Where the divider under a panel actually ended up after the last layout. */
+function dividerY(key){
+  const p = LAY && LAY.panels.find(q => q.key === key);
+  return p ? p.y + p.h : null;
+}
+
 cv.addEventListener('pointermove', e => {
   if(sizing || e.pointerType === 'touch') return;
   cv.style.cursor = panelAtEdge(localY(e)) ? 'row-resize' : '';
 });
 cv.addEventListener('pointerdown', e => {
+  if(sizing) return;
+  /* the handle also has to be inside the plot, not out in the price gutter */
+  const x = localX(e);
   const p = panelAtEdge(localY(e));
-  if(!p) return;
-  sizing = {key: p.key, y0: localY(e), h0: p.h, base: p.h / (panelScale[p.key] || 1)};
+  if(!p || x < p.x || x > p.x + p.w) return;
+  sizing = {key: p.key, id: e.pointerId, y0: localY(e), h0: p.h,
+            base: p.h / (panelScale[p.key] || 1)};
   drag = null;
-  cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
+  grabPointer(e.pointerId);
   e.preventDefault();
   e.stopPropagation();
 }, true);      /* capture: this has to win over pan and pinch */
 addEventListener('pointermove', e => {
-  if(!sizing) return;
-  const dy = localY(e) - sizing.y0;
-  setPanelScale(sizing.key, (sizing.h0 + dy) / sizing.base);
+  if(!sizing || e.pointerId !== sizing.id) return;   /* a second finger is not this drag */
+  /* Follow the divider to where the finger is, measured against where the
+     divider ACTUALLY landed — not against the arithmetic.
+
+     Growing a sub-panel can shrink the price panel above it, because the
+     whole chart is kept inside one screenful. Everything below then moves
+     up by as much as the panel grew, so the divider stayed put while the
+     finger walked away from it and the drag felt dead. Correcting against
+     the measured position converges in a frame or two whatever the layout
+     decides to do with the space. */
+  const want = localY(e);
+  const cur = dividerY(sizing.key);
+  if(cur === null){ e.preventDefault(); return; }
+  const d = want - cur;
+  if(Math.abs(d) >= 0.5 && sizing.base > 0){
+    setPanelScale(sizing.key, (panelScale[sizing.key] || 1) + d / sizing.base, true);
+  }
   e.preventDefault();
 }, {passive: false});
-addEventListener('pointerup', () => {
-  if(!sizing) return;
-  sizing = null;
-  saveWorkspaceSoon();
+addEventListener('pointerup', e => {
+  if(sizing && e.pointerId === sizing.id) endSizing();
 });
+/* A vertical touch-drag is a page scroll, and the browser takes the pointer
+   away with pointercancel. Without this the app stayed stuck in "resizing"
+   forever: taps stopped reading values and every mouse move dragged the
+   panel. */
+addEventListener('pointercancel', e => {
+  if(sizing && e.pointerId === sizing.id) endSizing();
+});
+addEventListener('blur', () => endSizing());
+cv.addEventListener('lostpointercapture', () => endSizing());
 cv.addEventListener('dblclick', e => {
   const p = panelAtEdge(localY(e));
   if(p){ setPanelScale(p.key, 1); e.stopPropagation(); }
@@ -8554,7 +9005,7 @@ cv.addEventListener('pointerdown', e => {
   if(sizing) return;
   if(e.pointerType === 'touch') { onMove(e); return; }
   drag = {x: localX(e), active: true};
-  cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
+  grabPointer(e.pointerId);
 });
 cv.addEventListener('pointermove', e => {
   if(sizing) return;
@@ -8582,7 +9033,7 @@ cv.addEventListener('wheel', e => {
 /* pinch zoom */
 let pinch = null;
 cv.addEventListener('touchstart', e => {
-  if(e.touches.length === 1 && panelAtEdge(localY(e))) return;   /* a resize, not a read */
+  if(sizing) return;                    /* a resize is under way; not a gesture */
   if(e.touches.length === 2){
     pinch = {
       d: Math.abs(e.touches[0].clientX - e.touches[1].clientX) || 1,
@@ -8620,7 +9071,16 @@ cv.addEventListener('touchend', e => {
   pinch = null;
   const now = performance.now();
   if(now - pinchedRecently < 600){ lastTap = 0; return; }   /* tail of a pinch */
-  if(now - lastTap < 320){ visibleDefault(); redraw(); lastTap = 0; }
+  if(now - lastTap < 320){
+    /* on a divider this means "reset this panel", the same as a mouse
+       double-click; anywhere else it means "reset the zoom" */
+    const t = e.changedTouches && e.changedTouches[0];
+    const y = t ? t.clientY - cv.getBoundingClientRect().top : -1;
+    const p = y >= 0 ? panelAtEdge(y) : null;
+    if(p) setPanelScale(p.key, 1);
+    else { visibleDefault(); redraw(); }
+    lastTap = 0;
+  }
   else lastTap = now;
 });
 
@@ -8790,6 +9250,10 @@ $('#go').addEventListener('click', () => run());
    wider search (Yahoo) happens only when 分析 is pressed.
    --------------------------------------------------------------------- */
 let sugDebounce = null;
+/* hideSuggest lives in section 15 and cannot see this timer, so the timer
+   is cancelled here too — otherwise a list dismissed with Escape or by
+   pressing 分析 popped straight back open 110ms later. */
+const hideSuggestNow = () => { if(sugDebounce){ clearTimeout(sugDebounce); sugDebounce = null; } hideSuggest(); };
 $('#sym').addEventListener('input', () => {
   const v = $('#sym').value.trim();
   if(sugDebounce) clearTimeout(sugDebounce);
@@ -8807,7 +9271,7 @@ $('#sym').addEventListener('keydown', e => {
     if(moveSuggest(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
     return;
   }
-  if(e.key === 'Escape'){ hideSuggest(); return; }
+  if(e.key === 'Escape'){ hideSuggestNow(); return; }
   if(e.key === 'Enter'){
     e.preventDefault();
     if(sugAt >= 0){ takeSuggest(sugAt); return; }
@@ -8820,7 +9284,7 @@ $('#symSug').addEventListener('click', e => {
 });
 /* clicking away closes it, but not when the click was the list itself */
 addEventListener('pointerdown', e => {
-  if(!e.target.closest('.symwrap')) hideSuggest();
+  if(!e.target.closest('.symwrap')) hideSuggestNow();
 });
 $('#csvBtn').addEventListener('click', () => $('#csvFile').click());
 $('#csvFile').addEventListener('change', async e => {
@@ -8866,12 +9330,15 @@ let pollCount = 0, pollChanged = 0;
 
 async function refreshQuietly(){
   if(!state.raw || state.raw.code === 'DEMO' || state.raw.code === 'CSV') return;
-  if(!$('#sym').value.trim()) return;
+  /* the symbol ON THE CHART, not whatever half-typed text is in the box:
+     the poller was quietly replacing the chart with a different company */
+  const sym = state.raw.code;
+  if(!sym) return;
   const op = beginOp('refresh');
   const was = state.raw.bars[state.raw.bars.length - 1].c;
   try{
-    const data = await loadSymbol($('#sym').value, state.range, state.interval);
-    if(!opValid(op)) return;                    /* landed on a different tab */
+    const data = await loadSymbol(sym, state.range, state.interval);
+    if(!opValid(op) || !state.raw || state.raw.code !== sym) return;
     const keep = {i0: state.i0, i1: state.i1, grew: data.bars.length - state.raw.bars.length};
     state.raw = data;
     state.ind = computeAll(data.bars, state.toggles, state.interval);
@@ -8884,9 +9351,27 @@ async function refreshQuietly(){
     if(moved) pollChanged++;
     liveState('poll', `${new Date().toLocaleTimeString('ja-JP')} 取得${pollCount}回`
       + (moved ? ' ・更新あり' : ' ・変化なし') + marketNote());
+    /* the alert card promises this happens on every auto-update */
+    checkAlerts([quoteRowFromState()]);
   }catch(e){
     if(opValid(op)) liveState('error', '更新失敗(' + cleanText(e.message, 24) + ')');
   }
+}
+
+/* the chart's own state, in the shape the alert checker expects */
+function quoteRowFromState(){
+  if(!state.raw || !state.ind) return {code: '', error: 'なし'};
+  const n = state.raw.bars.length - 1;
+  const d = state.ind;
+  const prev = n > 0 ? d.c[n-1] : d.c[n];
+  return {
+    code: state.raw.code, name: state.raw.name, currency: state.raw.currency,
+    price: d.c[n], rsi: d.rsi ? d.rsi[n] : null,
+    chg: prev ? (d.c[n] / prev - 1) * 100 : 0,
+    gap25: isNum(d.ma[1][n]) && d.ma[1][n] ? (d.c[n] / d.ma[1][n] - 1) * 100 : null,
+    cross: crossState(d.ma[0], d.ma[1], n),
+    at: Date.now()
+  };
 }
 
 /* the one-line answer to "why is nothing happening" */
@@ -9057,6 +9542,7 @@ function applyQuoteStrip(){
 function apply(data){
   /* belt and braces: anything reaching the renderer is stamped, whoever
      built it */
+  const key = String(data && data.code || '').replace(/\.T$/, '');
   if(data && data.bars && data.bars.length && !data.bars[0].k) stampBars(data.bars, data.tz || null);
   setTickTz(data && data.tz);
   /* If the source gave us a different timeframe from the one requested, the
@@ -9078,7 +9564,9 @@ function apply(data){
   renderTable();
   renderCompareStats();
   updateExternalLinks();
+  resetEarnings();
   Ext.loadCache().then(() => {
+    if(!state.raw || Ext.codeKey() !== key) return;   /* moved on while reading */
     state.ind = alignExt(state.ind);
     renderExtStatus(); renderShorts(null); renderMarginStatus(null);
     if(Ext.short || Ext.margin){ redraw(); renderSignals(); }
@@ -9096,11 +9584,17 @@ function apply(data){
 
 /* ---- main flow ------------------------------------------------------ */
 async function run(){
-  if($('#go').disabled) return;                 /* Enter used to bypass this */
+  if($('#go').disabled){
+    /* A pick made while a load was in flight used to stay armed and then
+       hijack the NEXT run — clicking a favourite loaded whatever had been
+       chosen from the suggestion list minutes earlier. */
+    pendingPick = null;
+    return;
+  }
   let raw = $('#sym').value;
   if($('#liveSel').value === 'stream' && Stream.state !== 'off') Stream.disconnect();
   if(!raw.trim()){ notice('銘柄名か銘柄コードを入力してください(例: トヨタ、7203、ドル円、AAPL)', true); return; }
-  hideSuggest();
+  hideSuggestNow();
 
   /* Turn whatever was typed into one symbol. A name that matches several
      companies stops here and asks rather than picking one. */
@@ -9132,6 +9626,7 @@ async function run(){
   notice('');
   const op = beginOp('load');
   const prev = {interval: state.interval, range: state.range};
+  const askedRange = state.range;
   try{
     const data = await loadSymbol(raw, state.range, state.interval);
     if(!opValid(op)){
@@ -9140,7 +9635,7 @@ async function run(){
     }
     apply(data);
     const swapped = data.asked && data.granularity && data.asked !== data.granularity
-      ? `<b>${esc(RANGE_LABEL[state.range] || state.range, 8)}</b>では提供元が`
+      ? `<b>${esc(RANGE_LABEL[askedRange] || askedRange, 8)}</b>では提供元が`
         + `<b>${esc(IV_LABEL[data.granularity] || data.granularity, 8)}</b>のデータしか返さないため、`
         + `${esc(IV_LABEL[data.granularity] || '', 8)}として表示しています。`
         + `指標(移動平均・RSI・一目均衡表など)も${esc(IV_LABEL[data.granularity] || '', 8)}基準で計算しています。`
@@ -9243,6 +9738,7 @@ $('#short260').addEventListener('click', () => {
   loadShortSeries(250, 13);
 });
 $('#earnBtn').addEventListener('click', () => loadEarnings());
+$('#shinaBtn').addEventListener('click', () => loadShina());
 $('#autoExt').addEventListener('change', e => Store.set('autoExt', e.target.checked ? 1 : 0));
 $('#shortFileBtn').addEventListener('click', () => $('#shortFile').click());
 $('#shortFile').addEventListener('change', e => {
@@ -9405,6 +9901,7 @@ $('#drvClientSave').addEventListener('click', () => {
 /* ---- watchlist -------------------------------------------------------- */
 $('#watchBtn').addEventListener('click', () => refreshWatch(false));
 $('#watchForce').addEventListener('click', () => refreshWatch(true));
+$('#alertBarX').addEventListener('click', () => $('#alertBar').classList.add('hide'));
 $('#watchBody').addEventListener('click', e => {
   const th = e.target.closest('th[data-sk]');
   if(th){
