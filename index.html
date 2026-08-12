@@ -8,7 +8,7 @@
      "a bad script can only talk to the sixteen places this tool uses".
      Anything added to the fetch code has to be added here too — the
      self-test ("通信まわりの安全性") fails if the two drift apart. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <!-- strict-origin rather than no-referrer: Google's sign-in needs to see which
      origin is asking, but the ticker you are looking at lives in the path and
      query, and those are never sent. -->
@@ -123,7 +123,24 @@ input[type=text], select{
   font:inherit; font-size:14px; color:var(--ink-1); background:var(--surface-1);
   border:1px solid var(--hairline); border-radius:10px; padding:8px 10px; min-height:40px;
 }
+/* The drop-down list is drawn by the operating system, and on Windows and
+   Linux it stays white even when the page is in dark mode. The options were
+   inheriting the page's white text, so the list read as blank. */
+select option, select optgroup{background:var(--surface-1); color:var(--ink-1)}
 input[type=text]{width:150px}
+
+/* ---------- symbol suggestions ---------- */
+.symwrap{position:relative;display:inline-block}
+.symwrap input[type=text]{width:190px}
+#symSug{position:absolute;z-index:60;top:calc(100% + 5px);left:0;min-width:100%;max-width:min(92vw,360px);
+  max-height:min(58vh,340px);overflow-y:auto;background:var(--surface-1);border:1px solid var(--hairline);
+  border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);padding:5px}
+.sugnote{font-size:11.5px;color:var(--ink-2);padding:6px 8px 5px;line-height:1.5}
+.sugitem{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;
+  border:0;background:transparent;border-radius:9px;padding:8px 9px;min-height:auto;text-align:left}
+.sugitem:hover,.sugitem.on{background:var(--wash)}
+.sugname{font-size:13.5px;font-weight:600;color:var(--ink-1);line-height:1.35}
+.sugmeta{font-size:11px;color:var(--ink-2)}
 input[type=text]:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible{
   outline:2px solid var(--down); outline-offset:2px;
 }
@@ -209,6 +226,11 @@ button.icon{min-width:40px;padding:8px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .live[data-s="live"] .dot,.live[data-s="connecting"] .dot{animation:pulse 1.6s ease-in-out infinite}
 select.mini{font-size:13px;min-height:36px;padding:6px 8px;border-radius:10px}
+/* it used to be transparent and borderless, which read as plain text rather
+   than as something you could change */
+select.livesel{min-height:30px;padding:3px 6px;font-size:12.5px;background:var(--page);
+  border:1px solid var(--hairline);color:var(--ink-1)}
+#liveTxt{color:var(--ink-2);font-variant-numeric:tabular-nums}
 
 /* ---------- tabs ---------- */
 #tabs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 0 0}
@@ -252,6 +274,42 @@ textarea.code{width:100%;min-height:84px;font:12px/1.5 ui-monospace,SFMono-Regul
 .opt{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-2);margin:2px 14px 2px 0}
 .opt input{width:16px;height:16px;accent-color:var(--down)}
 .hide{display:none!important}
+
+/* ---------- printed report ----------
+   Off-screen rather than display:none, because a canvas snapshot and an
+   <img> inside a hidden subtree do not always lay out before print fires. */
+#report{position:absolute;left:-10000px;top:0;width:190mm;color:#000;background:#fff;
+  font-family:var(--font);font-size:10px;line-height:1.45}
+#report .rtitle{font-size:17px;font-weight:700}
+#report .rcode{font-size:12px;font-weight:600;color:#555;margin-left:6px}
+#report .rsub{font-size:9.5px;color:#555;margin:2px 0 7px;border-bottom:1px solid #ccc;padding-bottom:5px}
+/* the canvas is tall when several indicator panels are open; capped so the
+   sheet stays one page, which is the whole promise of this feature */
+#rptChart{text-align:center}
+#rptChart img{max-width:100%;max-height:99mm;width:auto;height:auto;display:inline-block;
+  border:1px solid #ddd;border-radius:4px}
+#rptVerdict{margin:8px 0 5px;font-size:11px}
+#rptSignals{list-style:none;margin:0 0 8px;padding:0;
+  display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}
+#rptSignals li{font-size:8.6px;line-height:1.4;break-inside:avoid}
+#report .rtone{display:inline-block;min-width:2.6em;margin-right:4px;padding:0 3px;border-radius:3px;
+  font-size:7.6px;font-weight:700;color:#fff;text-align:center;background:#777}
+#report .rt-bull{background:#b3332f} #report .rt-bear{background:#1d5fa8}
+#report .rt-warn{background:#8a6100} #report .rt-flat{background:#666}
+#report .rcols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#report .rh{font-size:9px;font-weight:700;margin:0 0 3px;border-bottom:1px solid #ccc}
+#report pre{margin:0;font:7.8px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;
+  word-break:break-all}
+#rptFoot{margin-top:8px;padding-top:5px;border-top:1px solid #ccc;font-size:8px;color:#555}
+
+@media print{
+  @page{size:A4 portrait;margin:10mm}
+  html,body{background:#fff!important}
+  body.printing>*{display:none!important}
+  body.printing>#report{display:block!important}
+  body.printing #report{position:static!important;left:auto!important;width:auto!important}
+  body.printing{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 
 /* ---------- Drive sync ---------- */
 #driveBox{border:1px solid var(--hairline);border-radius:12px;background:var(--page);padding:12px 13px;margin:0 0 6px}
@@ -323,7 +381,12 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   <div class="wrap hrow">
     <h1>テクニカル分析<span class="sub">Technical Analysis</span></h1>
     <div class="spacer"></div>
-    <input type="text" id="sym" value="7203" placeholder="7203 / AAPL" aria-label="銘柄コード" autocomplete="off" spellcheck="false" enterkeyhint="search">
+    <div class="symwrap">
+      <input type="text" id="sym" value="7203" placeholder="トヨタ / 7203 / ドル円 / AAPL"
+             aria-label="銘柄名または銘柄コード" autocomplete="off" spellcheck="false" enterkeyhint="search"
+             role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="symSug">
+      <div id="symSug" class="hide" role="listbox" aria-label="候補"></div>
+    </div>
     <button class="primary" id="go">分析</button>
     <button class="icon" id="favBtn" aria-pressed="false" title="お気に入りに追加">☆</button>
     <label for="layoutSel" class="sr">画面レイアウト</label>
@@ -381,13 +444,13 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <span class="live" id="liveBox" data-s="off">
       <i class="dot" aria-hidden="true"></i>
       <label for="liveSel" class="sr">自動更新</label>
-      <select class="mini" id="liveSel" style="border:0;background:transparent;padding:0;min-height:auto">
+      <select class="mini livesel" id="liveSel">
         <option value="off">更新: 手動</option>
         <option value="30">30秒ごと</option>
         <option value="60">60秒ごと</option>
         <option value="stream">ストリーム</option>
       </select>
-      <span id="liveTxt" style="color:var(--ink-3)"></span>
+      <span id="liveTxt"></span>
     </span>
     <span class="live" id="saveBox"><i class="dot" aria-hidden="true"></i><span id="saveState"></span></span>
     <button class="chip" data-t="ma" aria-pressed="true"><i class="sw" style="background:var(--ma2)"></i>移動平均</button>
@@ -571,6 +634,21 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </p>
   </div>
 
+  <div class="card">
+    <h2>1枚にまとめて書き出す</h2>
+    <p class="qsrc" style="margin:0 0 10px">いま表示しているチャートとシグナル判定、指標の数値を1ページにまとめます。
+      <b>数値は画像ではなく文字として入る</b>ので、PDFをAIに読ませたときに値をそのまま読み取れます。</p>
+    <div class="filters" style="margin-bottom:6px">
+      <button class="chip" id="rptPrint">PDFにする(印刷 → PDFに保存)</button>
+      <button class="chip" id="rptCopy" style="border-style:dashed">文字だけコピー</button>
+      <button class="chip" id="rptTxt" style="border-style:dashed">.txt で保存</button>
+    </div>
+    <p class="qsrc" id="rptMsg" style="margin:0"></p>
+    <p class="qsrc" style="margin:8px 0 0;line-height:1.7">
+      印刷ダイアログの「送信先」で <b>PDFに保存</b>(iPhoneは共有 →「PDFとして保存」)を選んでください。
+    </p>
+  </div>
+
   <div class="card hide" id="selfWrap">
     <h2>セルフテスト結果</h2>
     <div class="verdict" id="selfSummary"></div>
@@ -595,6 +673,19 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <b>その運営者には、あなたのIPアドレスと「どの銘柄を見たか」が渡ります。</b>気になる場合は「CSVを読み込む」だけを使えば通信は一切発生しません。
     Excel解析ライブラリ(SheetJS)はCDNから読み込みますが、改ざん検知(SRI)を付けてあるため、内容が1バイトでも異なれば読み込みを拒否します。
   </footer>
+</div>
+
+<!-- the printed sheet: hidden on screen, and the only thing on paper -->
+<div id="report" aria-hidden="true">
+  <div id="rptHead"></div>
+  <div id="rptChart"></div>
+  <div id="rptVerdict"></div>
+  <ul id="rptSignals"></ul>
+  <div class="rcols">
+    <div><div class="rh">指標の数値</div><pre id="rptFacts"></pre></div>
+    <div><div class="rh">直近20本</div><pre id="rptTail"></pre></div>
+  </div>
+  <div id="rptFoot"></div>
 </div>
 
 <script>
@@ -941,9 +1032,49 @@ const PRESETS = {
   }
 };
 const isIntradayIv = iv => /^\d+(m|h)$/.test(iv || '');
+
+/* An MA(25) means twenty-five BARS. Calling it 「25日線」 is only true on a
+   daily chart; on the monthly chart it is a bit over two years. The unit
+   travels with the timeframe so the labels cannot lie. */
+const IV_UNIT  = {'1m':'分','5m':'本','15m':'本','30m':'本','1h':'時間',
+                  '1d':'日','1wk':'週','1mo':'ヶ月'};
+const IV_LABEL = {'1m':'1分足','5m':'5分足','15m':'15分足','30m':'30分足','1h':'1時間足',
+                  '1d':'日足','1wk':'週足','1mo':'月足'};
+
 let P = Object.assign({}, PRESETS.daily);
 function setPreset(interval){
   P = Object.assign({}, isIntradayIv(interval) ? PRESETS.intraday : PRESETS.daily);
+  P.unit  = IV_UNIT[interval] || '本';
+  P.label = (IV_LABEL[interval] || '日足') + '向け';
+}
+setPreset('1d');
+
+/* What the data ACTUALLY is, read from the bars rather than from what we
+   asked for. Yahoo silently coarsens some range/interval combinations —
+   ask for daily over the full history of an old listing and you can get
+   weekly or monthly back — and every indicator would then be computed on
+   one timeframe while the screen claimed another. */
+function detectInterval(bars){
+  if(!bars || bars.length < 8) return null;
+  const gaps = [];
+  const from = Math.max(1, bars.length - 120);
+  for(let i = from; i < bars.length; i++){
+    const d = bars[i].t - bars[i-1].t;
+    if(d > 0) gaps.push(d);
+  }
+  if(gaps.length < 5) return null;
+  gaps.sort((a, b) => a - b);
+  const med = gaps[Math.floor(gaps.length / 2)];
+  const M = 60e3, H = 3600e3, D = 86400e3;
+  /* generous bands: holidays, half days and DST all move the median a little */
+  if(med <= 3 * M)        return '1m';
+  if(med <= 10 * M)       return '5m';
+  if(med <= 22 * M)       return '15m';
+  if(med <= 45 * M)       return '30m';
+  if(med <= 6 * H)        return '1h';
+  if(med <= 3.5 * D)      return '1d';    /* daily medians sit at 1 day, Fri→Mon at 3 */
+  if(med <= 12 * D)       return '1wk';
+  return '1mo';
 }
 
 /* OSGFC settings — the dialog defaults from the original study */
@@ -1648,8 +1779,16 @@ async function fetchYahoo(sym, range, interval){
   const tz = /^[A-Za-z_]+\/[A-Za-z_+\-0-9]+$/.test(m.exchangeTimezoneName || '')
     ? m.exchangeTimezoneName : null;
   stampBars(bars, tz);
+  /* What came back is not always what was asked for. Yahoo answers
+     range=max&interval=1d for a long-listed stock with weekly or monthly
+     bars, and it says so in meta.dataGranularity — but the bars themselves
+     are the ground truth, so both are consulted and the bars win. */
+  const said = owns(IV_LABEL, m.dataGranularity) ? m.dataGranularity : null;
+  const seen = detectInterval(bars);
   return {
     bars, tz,
+    granularity: seen || said || interval,
+    asked: interval,
     name: cleanText(m.longName || m.shortName || m.symbol || sym, 60),
     code: cleanSymbol(m.symbol) || sym,
     currency: /^[A-Z]{3}$/.test(m.currency || '') ? m.currency : (/\.T$/.test(sym) ? 'JPY' : 'USD'),
@@ -2952,12 +3091,15 @@ function buildSignals(){
     add('クロス', m5 >= m25 ? 'MA5がMA25の上' : 'MA5がMA25の下',
       '直近12本でクロスは発生していません。', m5 >= m25 ? 'bull' : 'bear', m5 >= m25 ? 0.5 : -0.5);
 
-  /* 3. price vs MA25 */
+  /* 3. price vs the middle moving average.
+     Named from the live preset, not hard-coded: on a monthly chart MA25 is
+     twenty-five months, and calling it 「25日線」 would be false. */
   if(isNum(m25)) {
     const gap = (d.c[n] - m25) / m25 * 100;
-    add('位置', `25日線から ${gap >= 0 ? '+' : ''}${gap.toFixed(1)}%`,
+    const maName = P.ma[1] + P.unit + '線';
+    add('位置', `${maName}から ${gap >= 0 ? '+' : ''}${gap.toFixed(1)}%`,
       Math.abs(gap) > 12 ? '乖離が大きく、平均へ戻る動き(リバウンド/調整)が起きやすい水準です。'
-                         : '25日線の近辺で推移しています。',
+                         : `${maName}の近辺で推移しています。`,
       Math.abs(gap) > 12 ? 'warn' : (gap >= 0 ? 'bull' : 'bear'), clamp(gap/10, -1, 1));
   }
   /* 4. RSI */
@@ -3691,12 +3833,26 @@ function renderCompareStats(){
    ============================================================ */
 
 /* ---- news: Google News RSS ------------------------------------------ */
+/* Two goes at it. The long query is better when it works, but a relay that
+   is having a slow day times out on it and the short one often still
+   lands — and 9 seconds was simply not enough for a proxied RSS fetch. */
+function newsQueries(name, code){
+  const num = code && /^\d{4}/.test(code) ? code.replace(/\.T$/, '') : '';
+  const long = [name, num, '株価'].filter(Boolean).join(' ');
+  const short = name || num;
+  return long === short ? [long] : [long, short];
+}
+
 async function fetchNews(name, code){
-  const q = [name, code && /^\d{4}/.test(code) ? code.replace(/\.T$/,'') : '', '株価']
-              .filter(Boolean).join(' ');
-  const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(q)
-            + '&hl=ja&gl=JP&ceid=JP:ja';
-  const xml = await relayFetch(url, {text: true, timeout: 9000});
+  const qs = newsQueries(name, code);
+  let xml = null, lastErr = null;
+  for(let i = 0; i < qs.length; i++){
+    const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(qs[i])
+              + '&hl=ja&gl=JP&ceid=JP:ja';
+    try { xml = await relayFetch(url, {text: true, timeout: i ? 12000 : 18000}); break; }
+    catch(e){ lastErr = e; }
+  }
+  if(!xml) throw lastErr || new Error('取得できませんでした');
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
   const items = Array.from(doc.querySelectorAll('item')).slice(0, 12).map(it => {
     const g = t => { const e = it.querySelector(t); return e ? e.textContent : ''; };
@@ -3719,8 +3875,14 @@ function renderNews(items){
   const card = $('#newsCard'), box = $('#newsList');
   if(!items){ box.innerHTML = '<p class="qsrc">「ニュースを取得」を押すと関連記事を検索します。</p>'; return; }
   if(items.error){
+    /* a dead end is not an answer: give the one-tap route to the same search */
+    const nm = state.raw ? (state.raw.name || state.raw.code) : '';
+    const q = encodeURIComponent([nm, '株価'].filter(Boolean).join(' '));
     box.innerHTML = `<p class="qsrc">取得できませんでした(${esc(items.error, 80)})。`
-      + `ニュースも株価と同じ中継サーバー経由なので、本体の取得が通らない環境では動きません。</p>`;
+      + `ニュースも株価と同じ中継サーバー経由なので、混んでいると時間切れになります。`
+      + `もう一度押すと通ることがあります。</p>`
+      + `<p style="margin:8px 0 0"><a class="chip" target="_blank" rel="noopener noreferrer"`
+      + ` href="https://news.google.com/search?q=${q}&hl=ja&gl=JP&ceid=JP:ja">Googleニュースで開く ↗</a></p>`;
     return;
   }
   const now = Date.now();
@@ -4120,7 +4282,7 @@ async function findShortFiles(){
 
 async function loadShortSeries(maxDays){
   const code = Ext.codeKey();
-  if(!/^\d{4}$/.test(code)){
+  if(!/^[0-9A-Z]{4}$/.test(code)){
     renderShorts({error: '空売り残高報告は日本株(東証4桁コード)のみの制度です。'});
     return;
   }
@@ -4250,11 +4412,53 @@ function parseMarginCSV(text){
    Their site is a JavaScript app, so this scrape may simply not find the
    numbers. It fails loudly and hands over to the file importer.
    --------------------------------------------------------------------- */
+/* Japan Securities Finance publishes one CSV a day covering every stock —
+   Shift-JIS, ~37 columns, one row per issue. Scraping the per-stock page
+   used to be the only route and it does not work: that page draws its table
+   with JavaScript, so what comes back over a relay has no numbers in it.
+   The bulk file is the real source, and it is one request for the lot. */
+const JSF_CSV = 'https://www.taisyaku.jp/data/zandaka.csv';
 const JSF_URLS = code => [
   `https://www.taisyaku.jp/app/stock?code=${code}`,
   `https://www.taisyaku.jp/search/stock/${code}`,
   `https://www.taisyaku.jp/app/stock/${code}`
 ];
+
+/* the whole-market file, kept for the session so switching stocks does not
+   pull three megabytes again */
+let jsfCache = null;
+
+async function fetchJSFTable(){
+  if(jsfCache) return jsfCache;
+  const buf = await relayFetchBinary(JSF_CSV, 20000);
+  let text;
+  try { text = new TextDecoder('shift_jis', {fatal: false}).decode(buf); }
+  catch(e){ text = new TextDecoder('utf-8', {fatal: false}).decode(buf); }
+  if((text.match(/�/g) || []).length > 40)
+    text = new TextDecoder('utf-8', {fatal: false}).decode(buf);
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  if(lines.length < 10) throw new Error('日証金のファイルが空でした');
+
+  const head = splitLine(lines[0]).map(c => String(c).replace(/["\s]/g, ''));
+  const find = (re, avoid) => head.findIndex(h => re.test(h) && !(avoid && avoid.test(h)));
+  const iCode = find(/銘柄コード|^コード$/);
+  const iDate = find(/申込日|公表日|基準日|年月日/);
+  /* 株数 not 金額: the two live side by side in this file */
+  const iBuy  = find(/融資.*残高/, /金額|代金/);
+  const iSell = find(/貸株.*残高/, /金額|代金/);
+  if(iCode < 0 || (iBuy < 0 && iSell < 0))
+    throw new Error('日証金ファイルの見出しを読み取れませんでした(様式変更の可能性)');
+
+  const rows = new Map();
+  for(let i = 1; i < lines.length; i++){
+    const c = splitLine(lines[i]);
+    const code = String(c[iCode] || '').replace(/["\s]/g, '');
+    if(!/^[0-9A-Z]{4}$/.test(code) || rows.has(code)) continue;
+    rows.set(code, c);
+  }
+  jsfCache = {rows, iDate, iBuy, iSell, at: Date.now()};
+  return jsfCache;
+}
 
 function scrapeJSF(html){
   /* strip markup, then read the number that follows each label */
@@ -4277,12 +4481,38 @@ function scrapeJSF(html){
 
 async function loadJSF(){
   const code = Ext.codeKey();
-  if(!/^\d{4}$/.test(code)){
+  if(!/^[0-9A-Z]{4}$/.test(code)){
     renderMarginStatus({error: '日証金の貸借取引残高は日本株(東証4桁コード)のみです。'});
     return;
   }
-  renderMarginStatus({loading: true});
+  renderMarginStatus({loading: true, msg: '日証金の当日ファイルを取得しています…'});
   let lastErr = '取得できませんでした';
+
+  /* the bulk CSV first — it is the route that actually works */
+  try{
+    const t = await fetchJSFTable();
+    const row = t.rows.get(code);
+    if(!row) throw new Error('この銘柄は貸借銘柄ではないため、日証金の残高はありません');
+    if(Ext.codeKey() !== code){
+      renderMarginStatus({error: '取得中に別の銘柄へ切り替わったため中止しました。'});
+      return;
+    }
+    const buy  = t.iBuy  >= 0 ? toNum(row[t.iBuy])  : NaN;
+    const sell = t.iSell >= 0 ? toNum(row[t.iSell]) : NaN;
+    if(!isNum(buy) && !isNum(sell)) throw new Error('残高の数字が空でした');
+    const dt = t.iDate >= 0 ? parseJPDate(row[t.iDate]) : null;
+    const pt = {
+      d: dt ? dkey(dt) : dkey(new Date()),
+      buy: isNum(buy) ? buy : null, sell: isNum(sell) ? sell : null,
+      ratio: (isNum(buy) && isNum(sell) && sell > 0) ? buy / sell : null
+    };
+    Ext.mergeMargin([pt], '日証金 貸借取引残高(zandaka.csv)');
+    afterExtUpdate();
+    renderMarginStatus({ok: true, added: 1, name: '日証金 ' + pt.d});
+    return;
+  }catch(e){ lastErr = e.message; }
+
+  /* the per-stock page, kept only as a long shot */
   for(const url of JSF_URLS(code)){
     try{
       const html = await relayFetch(url, {text: true, timeout: 10000});
@@ -5595,6 +5825,423 @@ async function initDrive(){
   try { await syncNow(); } catch(e){}
 }
 /* ============================================================
+   15. Finding a symbol from Japanese
+   Typing 7203 is fine if you already know it is Toyota. This file
+   is what lets you type トヨタ, ドル円 or ビットコイン instead.
+
+   Two layers, in this order:
+     1. a built-in table — instant, works offline, and cannot send
+        what you are searching for to anybody
+     2. Yahoo's own search, only if the table found nothing, and only
+        for what you actually typed
+   The table is [code, name, ...aliases] for stocks and
+   [symbol, name, kind, ...aliases] for everything else — arrays
+   rather than objects because 600 of them go in one file.
+   ============================================================ */
+
+/* Japanese listed companies: Nikkei 225 + JPX-Nikkei 400 + Nikkei 500,
+   cross-checked between the three published constituent lists. */
+const JP_STOCKS = [["1332","ニッスイ","日本水産","にっすい"],["1333","Umios","マルハニチロ","ウミオス"],["1379","ホクト","Hokuto","ほくと"],["1414","ショーボンドホールディングス","ショーボンド","Shobond"],["141A","トライアルホールディングス","トライアル","Trial"],["1518","三井松島ホールディングス","三井松島","みつい松島"],["1605","INPEX","インペックス","国際石油開発"],["1662","石油資源開発","JAPEX"],["1663","K&Oエナジーグループ","K&Oエナジー","ケイアンドオー"],["1719","安藤・間","安藤ハザマ","あんどうはざま","安藤間"],["1721","コムシスホールディングス","コムシス","COMSYS"],["1801","大成建設","たいせい建設"],["1802","大林組","おおばやし"],["1803","清水建設","しみず建設"],["1808","長谷工コーポレーション","長谷工","はせこう"],["1812","鹿島建設","鹿島","かじま"],["1820","西松建設","にしまつ建設"],["1860","戸田建設","とだ建設"],["1878","大東建託","だいとう建託"],["1885","東亜建設工業","東亜建設","とうあ建設"],["1893","五洋建設","ごよう建設"],["1911","住友林業","すみりん"],["1925","大和ハウス工業","大和ハウス","ダイワハウス"],["1928","積水ハウス","セキスイハウス"],["1942","関電工","かんでんこう"],["1944","きんでん","近畿電気工事"],["1951","エクシオグループ","エクシオ","協和エクシオ"],["1959","クラフティア","九電工","きゅうでんこう"],["1961","三機工業","さんき"],["1963","日揮ホールディングス","日揮","にっき"],["1969","高砂熱学工業","高砂熱学","たかさご"],["1980","ダイダン","Daidan"],["2002","日清製粉グループ本社","日清製粉","にっしんせいふん"],["2121","MIXI","ミクシィ","mixi","モンスト","モンスターストライク"],["2124","ジェイエイシーリクルートメント","JACリクルートメント","JAC"],["2127","日本M&Aセンターホールディングス","日本M&Aセンター","M&Aセンター"],["2154","オープンアップグループ","オープンアップ","夢真"],["215A","タイミー","Timee"],["2181","パーソルホールディングス","パーソル","テンプスタッフ"],["2201","森永製菓","森永","もりなが"],["2206","江崎グリコ","グリコ","ポッキー"],["2212","山崎製パン","ヤマザキ","ヤマザキパン"],["2222","寿スピリッツ","ことぶきスピリッツ"],["2229","カルビー","Calbee","じゃがりこ"],["2264","森永乳業","もりなが乳業"],["2267","ヤクルト本社","ヤクルト","Yakult"],["2269","明治ホールディングス","明治","meiji","めいじ"],["2282","日本ハム","ニッポンハム","日ハム"],["2317","システナ","Systena"],["2327","日鉄ソリューションズ","NSSOL"],["2331","ALSOK","綜合警備保障","アルソック"],["2337","いちご","Ichigo"],["2371","カカクコム","価格コム","食べログ","価格.com"],["2379","ディップ","バイトル","dip"],["2384","SBSホールディングス","SBS"],["2413","エムスリー","M3"],["2432","ディー・エヌ・エー","DeNA","ディーエヌエー","デナ","モバゲー"],["2433","博報堂DYホールディングス","博報堂","博報堂DY","はくほうどう"],["2492","インフォマート","Infomart"],["2501","サッポロビール","サッポロ","Sapporo","サッポロHD"],["2502","アサヒグループホールディングス","アサヒビール","アサヒ","Asahi","スーパードライ"],["2503","キリンホールディングス","キリン","Kirin","きりん"],["2531","宝ホールディングス","宝HD","宝酒造","タカラ"],["2579","コカ・コーラ ボトラーズジャパンホールディングス","コカコーラ","コカ・コーラ","CCBJI","コカ・コーラ ボトラーズジャパン","コカコーラ ボトラーズジャパンホールディングス"],["2587","サントリービバレッジ&フード","サントリー","サントリー食品","BOSS","伊右衛門"],["2593","伊藤園","おーいお茶","いとうえん"],["2607","不二製油","ふじせいゆ"],["2670","エービーシー・マート","ABCマート","エービーシーマート"],["2678","アスクル","Askul","ロハコ"],["2681","ゲオホールディングス","ゲオ","GEO","セカンドストリート"],["2685","アンドエスティHD","アダストリア","アンドエスティ","グローバルワーク","ニコアンド"],["268A","リガク・ホールディングス","リガク","Rigaku","リガクホールディングス"],["2695","くら寿司","くらずし"],["2702","日本マクドナルドホールディングス","マクドナルド","マック","マクド","McDonald","日本マクドナルド"],["2726","パルグループホールディングス","パルグループ","3COINS","スリーコインズ","パル"],["2730","エディオン","Edion"],["2767","円谷フィールズホールディングス","円谷","フィールズ","ウルトラマン","円谷フィールズ"],["2768","双日","そうじつ"],["2784","アルフレッサ ホールディングス","アルフレッサ","Alfresa"],["2801","キッコーマン","Kikkoman"],["2802","味の素","あじのもと","Ajinomoto"],["2809","キユーピー","キューピー","Kewpie"],["2810","ハウス食品グループ本社","ハウス食品","ハウス","バーモントカレー"],["2811","カゴメ","Kagome"],["285A","キオクシアホールディングス","キオクシア","Kioxia","東芝メモリ"],["2871","ニチレイ","Nichirei"],["2875","東洋水産","マルちゃん","まるちゃん"],["2897","日清食品ホールディングス","日清食品","カップヌードル","チキンラーメン"],["2914","日本たばこ産業","JT","日本たばこ","ジェイティ"],["3003","ヒューリック","Hulic"],["3038","神戸物産","業務スーパー","ぎょうむスーパー"],["3048","ビックカメラ","ビック"],["3064","MonotaRO","モノタロウ","monotaro"],["3086","J.フロント リテイリング","Jフロント","大丸","松坂屋"],["3088","マツキヨココカラ&カンパニー","マツキヨ","マツモトキヨシ","ココカラファイン"],["3092","ZOZO","ゾゾ","ゾゾタウン"],["3099","三越伊勢丹ホールディングス","三越伊勢丹","三越","伊勢丹"],["3105","日清紡ホールディングス","日清紡","にっしんぼう"],["3107","ダイワボウホールディングス","ダイワボウ","大和紡績"],["3110","日東紡績","日東紡","にっとうぼう"],["3116","トヨタ紡織","とよた紡織"],["3132","マクニカホールディングス","マクニカ","Macnica"],["3148","クリエイトSDホールディングス","クリエイトSD","クリエイト"],["3186","ネクステージ","Nextage"],["3197","すかいらーくホールディングス","すかいらーく","ガスト","バーミヤン","ジョナサン"],["3231","野村不動産ホールディングス","野村不動産","野村不"],["3288","オープンハウスグループ","オープンハウス","Openhouse"],["3289","東急不動産ホールディングス","東急不動産","東急不"],["3291","飯田グループホールディングス","飯田グループ","いいだ","一建設","飯田"],["3349","コスモス薬品","コスモス"],["3382","セブン&アイ・ホールディングス","セブン&アイ","セブンイレブン","セブン","7&i","セブンアンドアイ"],["3387","クリエイト・レストランツ・ホールディングス","クリレス","クリエイト・レストランツ","クリエイトレストランツホールディングス"],["3391","ツルハホールディングス","ツルハ","ツルハドラッグ"],["3397","トリドールホールディングス","トリドール","丸亀製麺","まるがめ"],["3401","帝人","ていじん","Teijin"],["3402","東レ","とうれ","Toray"],["3405","クラレ","Kuraray"],["3407","旭化成","あさひかせい","Asahikasei"],["3436","SUMCO","サムコ"],["3465","ケイアイスター不動産","ケイアイスター","KIスター"],["3498","霞ヶ関キャピタル","かすみがせき"],["3543","コメダホールディングス","コメダ","コメダ珈琲"],["3563","FOOD & LIFE COMPANIES","スシロー","FOOD&LIFE","フードアンドライフ"],["3591","ワコールホールディングス","ワコール","Wacoal"],["3626","TIS","ティーアイエス"],["3635","コーエーテクモホールディングス","コーエーテクモ","コーエー","テクモ"],["3659","ネクソン","Nexon"],["3697","SHIFT","シフト"],["3765","ガンホー・オンライン・エンターテイメント","ガンホー","パズドラ","Gungho","ガンホーオンラインエンターテイメント"],["3769","GMOペイメントゲートウェイ","GMOペイメント","GMO-PG"],["3774","インターネットイニシアティブ","IIJ","アイアイジェイ"],["3778","さくらインターネット","さくら"],["3791","IGポート","プロダクションIG"],["3861","王子ホールディングス","王子製紙","王子HD","おうじ","王子"],["3863","日本製紙","にほんせいし"],["3865","北越コーポレーション","北越紀州製紙"],["3923","ラクス","楽楽精算","Rakus","らくす"],["3941","レンゴー","Rengo"],["3962","チェンジホールディングス","チェンジ","Change"],["3994","マネーフォワード","マネフォ","MoneyForward"],["4004","レゾナック・ホールディングス","レゾナック","昭和電工","Resonac","レゾナックホールディングス"],["4005","住友化学","住化"],["4021","日産化学","にっさん化学"],["4042","東ソー","とうそー"],["4043","トクヤマ","Tokuyama"],["4061","デンカ","Denka","電気化学工業"],["4062","イビデン","Ibiden"],["4063","信越化学工業","信越化学","信越","シンエツ"],["4091","日本酸素ホールディングス","日本酸素","大陽日酸","にっぽん酸素"],["4118","カネカ","Kaneka"],["4151","協和キリン","きょうわキリン"],["417A","ブルーゾーンホールディングス","ヤオコー","ブルーゾーン","Yaoko"],["4180","Appier Group","Appier","アピア"],["4182","三菱瓦斯化学","三菱ガス化学","三菱瓦斯","MGC"],["4183","三井化学","みつい化学"],["4186","東京応化工業","東京応化","とうきょうおうか","TOK"],["4188","三菱ケミカルグループ","三菱ケミカル","三菱ケミカルHD","みつびしケミカル"],["4194","ビジョナル","ビズリーチ","BizReach"],["4202","ダイセル","Daicel"],["4203","住友ベークライト","住ベ"],["4204","積水化学工業","積水化学","セキスイ"],["4205","日本ゼオン","ゼオン"],["4206","アイカ工業","Aica"],["4208","UBE","宇部興産","ユービーイー"],["4272","日本化薬","にほん化薬"],["4307","野村総合研究所","野村総研","NRI","のむら総研"],["4324","電通グループ","電通","Dentsu","でんつう"],["4373","シンプレクス・ホールディングス","シンプレクス","Simplex","シンプレクスホールディングス"],["4385","メルカリ","Mercari"],["4401","ADEKA","アデカ"],["4403","日油","にちゆ"],["4443","Sansan","サンサン","Eight"],["4452","花王","Kao","かおう"],["4483","JMDC","ジェイエムディーシー"],["4502","武田薬品工業","武田","武田薬品","Takeda","たけだ"],["4503","アステラス製薬","アステラス","Astellas"],["4506","住友ファーマ","大日本住友"],["4507","塩野義製薬","塩野義","シオノギ","しおのぎ"],["4516","日本新薬","にほん新薬"],["4519","中外製薬","中外","ちゅうがい"],["4523","エーザイ","Eisai"],["4527","ロート製薬","ロート"],["4528","小野薬品工業","小野薬品","おの薬品","オプジーボ"],["4530","久光製薬","久光","サロンパス","ひさみつ"],["4536","参天製薬","参天","さんてん"],["4540","ツムラ","Tsumura","漢方"],["4543","テルモ","Terumo"],["4544","H.U.グループホールディングス","HUグループ","エイチユー","H.U."],["4552","JCRファーマ","JCR"],["4565","ネクセラファーマ","そーせい","ネクセラ","Nxera"],["4568","第一三共","だいいちさんきょう"],["4578","大塚ホールディングス","大塚HD","大塚製薬","オオツカ","大塚"],["4587","ペプチドリーム","ペプドリ"],["4612","日本ペイントホールディングス","日本ペイント","ニッペ","にっぺ"],["4613","関西ペイント","カンペ"],["4626","太陽ホールディングス","太陽インキ","太陽"],["4631","DIC","ディーアイシー","大日本インキ"],["4661","オリエンタルランド","ディズニー","OLC","オリラン"],["4666","パーク24","タイムズ","Times"],["4676","フジ・メディア・ホールディングス","フジテレビ","フジ・メディア","フジMH","フジメディアホールディングス"],["4680","ラウンドワン","ラウワン","Round1"],["4681","リゾートトラスト","エクシブ"],["4684","オービック","Obic"],["4686","ジャストシステム","一太郎","スマイルゼミ"],["4689","LINEヤフー","ヤフー","LINE","Yahoo","ラインヤフー"],["4704","トレンドマイクロ","ウイルスバスター","TrendMicro"],["4722","フューチャー","Future"],["4732","ユー・エス・エス","USS","ユーエスエス"],["4733","オービックビジネスコンサルタント","OBC","奉行"],["4751","サイバーエージェント","サイバー","CA","ABEMA"],["4755","楽天グループ","楽天","Rakuten","らくてん"],["4768","大塚商会","おおつか商会"],["4812","電通総研","ISID","電通国際情報サービス"],["4816","東映アニメーション","東映アニメ","プリキュア","ドラゴンボール"],["4887","サワイグループホールディングス","サワイ","沢井製薬"],["4901","富士フイルムホールディングス","富士フイルム","Fujifilm","フジフイルム"],["4902","コニカミノルタ","コニミノ","Konica"],["4911","資生堂","Shiseido","しせいどう"],["4912","ライオン","Lion"],["4922","コーセーホールディングス","コーセー","KOSE"],["4927","ポーラ・オルビスホールディングス","ポーラ","オルビス","POLA","ポーラ・オルビス","ポーラオルビスホールディングス"],["4967","小林製薬","こばやし製薬"],["4980","デクセリアルズ","Dexerials"],["5016","JX金属","JX","ジェイエックス金属"],["5019","出光興産","出光","いでみつ","昭和シェル"],["5020","ENEOSホールディングス","ENEOS","エネオス","JXTG"],["5021","コスモエネルギーホールディングス","コスモ石油","コスモエネルギー"],["5032","ANYCOLOR","にじさんじ","エニーカラー"],["5076","インフロニア・ホールディングス","インフロニア","前田建設","インフロニアホールディングス"],["5101","横浜ゴム","ヨコハマタイヤ"],["5105","TOYO TIRE","トーヨータイヤ","TOYOTIRE","東洋ゴム"],["5108","ブリヂストン","ブリジストン","Bridgestone"],["5110","住友ゴム工業","住友ゴム","ダンロップ","Dunlop"],["5201","AGC","旭硝子","エージーシー"],["5214","日本電気硝子","電気硝子","NEG"],["5233","太平洋セメント","たいへいようセメント"],["5253","カバー","ホロライブ","Cover","hololive"],["5301","東海カーボン","とうかいカーボン"],["5332","TOTO","トートー","トート"],["5333","NGK","日本ガイシ","日本碍子","ガイシ"],["5334","日本特殊陶業","NGKスパークプラグ","特殊陶"],["5344","MARUWA","マルワ"],["5393","ニチアス","Nichias"],["5401","日本製鉄","日鉄","にっぽんせいてつ","新日鉄"],["5406","神戸製鋼所","神戸製鋼","コウベルコ","KOBELCO"],["5411","JFEホールディングス","JFE","ジェイエフイー"],["5423","東京製鐵","東京製鉄","とうきょう製鉄"],["543A","ARCHION","アーチオン","日野","日野自動車","三菱ふそう"],["5444","大和工業","やまと工業"],["5463","丸一鋼管","まるいち鋼管"],["5471","大同特殊鋼","だいどう特殊鋼"],["547A","ムニノバホールディングス","アイフル","ムニノバ","Aiful"],["5631","日本製鋼所","日鋼","にっこう"],["5706","三井金属","三井金属鉱業"],["5711","三菱マテリアル","三菱マテ"],["5713","住友金属鉱山","住友鉱山","住金鉱"],["5714","DOWAホールディングス","DOWA","ドーワ","同和鉱業"],["5726","大阪チタニウムテクノロジーズ","大阪チタニウム","大阪チタン","OTC"],["5741","UACJ","古河スカイ"],["5801","古河電気工業","古河電工","ふるかわ電工"],["5802","住友電気工業","住友電工","すみでん"],["5803","フジクラ","Fujikura"],["5805","SWCC","昭和電線"],["5830","いよぎんホールディングス","伊予銀行","いよぎん"],["5831","しずおかフィナンシャルグループ","静岡銀行","しずぎん","しずおかFG","しずおか"],["5832","ちゅうぎんフィナンシャルグループ","中国銀行","ちゅうぎん","ちゅうぎんFG"],["5838","楽天銀行","らくてん銀行"],["5844","京都フィナンシャルグループ","京都銀行","京都FG","きょうぎん","京都"],["5857","AREホールディングス","ARE","アサヒホールディングス"],["5901","東洋製罐グループホールディングス","東洋製罐","とうよう製罐"],["5929","三和ホールディングス","三和シヤッター","三和HD","三和"],["5938","LIXIL","リクシル","トステム"],["5947","リンナイ","Rinnai"],["5991","日本発條","ニッパツ","日本発条","にっぱつ"],["6005","三浦工業","ミウラ"],["6098","リクルートホールディングス","リクルート","Recruit","リクルートHD"],["6101","ツガミ","Tsugami"],["6103","オークマ","Okuma"],["6113","アマダ","Amada"],["6134","FUJI","富士機械"],["6136","オーエスジー","OSG"],["6141","DMG森精機","森精機","もりせいき"],["6146","ディスコ","Disco"],["6178","日本郵政","郵政","ゆうせい"],["6254","野村マイクロ・サイエンス","野村マイクロ","のむらマイクロ","野村マイクロサイエンス"],["6268","ナブテスコ","Nabtesco"],["6269","三井海洋開発","MODEC"],["6273","SMC","エスエムシー"],["6301","小松製作所","コマツ","Komatsu","小松"],["6302","住友重機械工業","住友重機","住重"],["6305","日立建機","ひたち建機"],["6315","TOWA","トーワ"],["6323","ローツェ","Rorze","ろーつぇ"],["6326","クボタ","Kubota"],["6361","荏原製作所","荏原","エバラ"],["6367","ダイキン工業","ダイキン","Daikin"],["6368","オルガノ","Organo"],["6370","栗田工業","クリタ","Kurita"],["6383","ダイフク","Daifuku"],["6407","CKD","シーケーディー"],["6412","平和","へいわ","PGM"],["6417","SANKYO","三共"],["6432","竹内製作所","たけうち"],["6436","アマノ","Amano"],["6448","ブラザー工業","ブラザー","Brother"],["6457","グローリー","Glory"],["6460","セガサミーホールディングス","セガサミー","セガ","サミー","Sega"],["6465","ホシザキ","Hoshizaki"],["6471","日本精工","NSK"],["6472","NTN","エヌティーエヌ"],["6473","ジェイテクト","JTEKT"],["6479","ミネベアミツミ","ミネベア","ミツミ","Minebea"],["6481","THK","ティーエイチケー"],["6501","日立製作所","日立","Hitachi","ひたち"],["6503","三菱電機","三菱電","みつびしでんき"],["6504","富士電機","ふじでんき"],["6506","安川電機","安川","やすかわ"],["6507","シンフォニアテクノロジー","シンフォニア","神鋼電機"],["6508","明電舎","めいでんしゃ"],["6525","KOKUSAI ELECTRIC","国際電気","KOKUSAI","こくさいエレクトリック"],["6526","ソシオネクスト","Socionext"],["6532","ベイカレント","Baycurrent"],["6544","ジャパンエレベーターサービスホールディングス","ジャパンエレベーター","JES","ジャパンエレベーターサービス"],["6586","マキタ","Makita"],["6590","芝浦メカトロニクス","芝浦"],["6592","マブチモーター","マブチ"],["6594","ニデック","日本電産","Nidec"],["6632","JVCケンウッド","ケンウッド","ビクター"],["6645","オムロン","Omron"],["6674","ジーエス・ユアサ コーポレーション","GSユアサ","ジーエスユアサ","ユアサ","ジーエスユアサ コーポレーション"],["6701","日本電気","NEC","エヌイーシー"],["6702","富士通","Fujitsu","ふじつう"],["6703","沖電気工業","沖電気","OKI","おきでんき"],["6723","ルネサスエレクトロニクス","ルネサス","Renesas"],["6724","セイコーエプソン","エプソン","Epson"],["6728","アルバック","Ulvac"],["6740","ジャパンディスプレイ","JDI"],["6752","パナソニックホールディングス","パナソニック","Panasonic","パナ"],["6753","シャープ","Sharp"],["6754","アンリツ","Anritsu"],["6758","ソニーグループ","ソニー","Sony","ソニーG"],["6762","TDK","ティーディーケー"],["6770","アルプスアルパイン","アルプス","アルパイン"],["6787","メイコー","Meiko"],["6806","ヒロセ電機","ヒロセ"],["6807","日本航空電子工業","日本航空電子","JAE"],["6841","横河電機","横河","よこがわ"],["6845","アズビル","Azbil","山武"],["6849","日本光電工業","日本光電","にほんこうでん"],["6856","堀場製作所","堀場","ほりば"],["6857","アドバンテスト","アドテスト","Advantest"],["6861","キーエンス","Keyence"],["6869","シスメックス","Sysmex"],["6871","日本マイクロニクス","マイクロニクス"],["6902","デンソー","Denso"],["6920","レーザーテック","レーテク","Lasertec"],["6923","スタンレー電気","スタンレー","Stanley"],["6925","ウシオ電機","ウシオ","Ushio"],["6951","日本電子","JEOL"],["6952","カシオ計算機","カシオ","Casio","G-SHOCK"],["6954","ファナック","Fanuc"],["6963","ローム","Rohm"],["6965","浜松ホトニクス","浜ホト","はままつホトニクス"],["6966","三井ハイテック","みついハイテック"],["6971","京セラ","Kyocera"],["6976","太陽誘電","たいよう誘電"],["6981","村田製作所","村田","ムラタ","Murata"],["6988","日東電工","ニットー","Nitto"],["7003","三井E&S","三井造船"],["7004","カナデビア","日立造船","ひたち造船"],["7011","三菱重工業","三菱重工","MHI","みつびしじゅうこう"],["7012","川崎重工業","川崎重工","カワジュウ","KHI"],["7013","IHI","アイエイチアイ"],["7148","FPG","エフピージー"],["7164","全国保証","ぜんこく保証"],["7167","めぶきフィナンシャルグループ","めぶき","常陽銀行","足利銀行","めぶきFG"],["7173","東京きらぼしフィナンシャルグループ","きらぼし銀行","東京きらぼし","東京きらぼしFG"],["7180","九州フィナンシャルグループ","九州FG","肥後銀行","鹿児島銀行","九州"],["7181","かんぽ生命保険","かんぽ","かんぽ生命","簡保"],["7182","ゆうちょ銀行","ゆうちょ","郵貯"],["7186","横浜フィナンシャルグループ","横浜銀行","コンコルディア","横浜FG","浜銀","横浜"],["7189","西日本フィナンシャルホールディングス","西日本シティ銀行","西日本FH","西日本フィナンシャル","西日本","西日本FG"],["7201","日産自動車","日産","Nissan","にっさん"],["7202","いすゞ自動車","いすゞ","イスズ","Isuzu"],["7203","トヨタ自動車","トヨタ","Toyota","とよた"],["7211","三菱自動車工業","三菱自動車","三菱自","ミツビシ自動車"],["7224","新明和工業","新明和","しんめいわ"],["7231","トピー工業","トピー"],["7240","NOK","エヌオーケー"],["7259","アイシン","Aisin","アイシン精機"],["7261","マツダ","Mazda","まつだ"],["7267","本田技研工業","ホンダ","Honda","ほんだ","本田"],["7269","スズキ","Suzuki","すずき"],["7270","SUBARU","スバル","Subaru"],["7272","ヤマハ発動機","ヤマハ発","YamahaMotor"],["7276","小糸製作所","小糸","こいと"],["7282","豊田合成","トヨタ合成"],["7309","シマノ","Shimano"],["7313","テイ・エス テック","テイエステック","TSTech","テイエス テック"],["7327","第四北越フィナンシャルグループ","第四北越","だいしほくえつ","第四北越FG"],["7337","ひろぎんホールディングス","広島銀行","ひろぎん"],["7419","ノジマ","Nojima"],["7453","良品計画","無印良品","無印","MUJI"],["7532","パン・パシフィック・インターナショナルホールディングス","ドンキ","ドン・キホーテ","PPIH","パンパシ","パン・パシフィック・インターナショナル"],["7545","西松屋チェーン","西松屋","にしまつや"],["7550","ゼンショーホールディングス","ゼンショー","すき家","はま寿司","ココス"],["7564","ワークマン","Workman"],["7581","サイゼリヤ","サイゼ"],["7599","IDOM","ガリバー","イドム"],["7616","コロワイド","牛角","かっぱ寿司"],["7649","スギホールディングス","スギ薬局","スギHD","スギ"],["7701","島津製作所","島津","しまづ"],["7729","東京精密","とうきょうせいみつ"],["7731","ニコン","Nikon"],["7733","オリンパス","Olympus"],["7735","SCREENホールディングス","SCREEN","スクリーン","大日本スクリーン"],["7740","タムロン","Tamron"],["7741","HOYA","ホーヤ","ホヤ"],["7747","朝日インテック","あさひインテック"],["7751","キヤノン","キャノン","Canon"],["7752","リコー","Ricoh"],["7762","シチズン時計","シチズン","Citizen"],["7832","バンダイナムコホールディングス","バンナム","バンダイナムコ","ガンダム","バンダイ","ナムコ"],["7844","マーベラス","Marvelous"],["7867","タカラトミー","トミカ","プラレール","トミー"],["7911","TOPPANホールディングス","凸版印刷","TOPPAN","とっぱん"],["7912","大日本印刷","DNP","だいにっぽん印刷"],["7936","アシックス","Asics"],["7951","ヤマハ","Yamaha","やまは"],["7956","ピジョン","Pigeon"],["7974","任天堂","にんてんどう","Nintendo","ニンテンドー","任天"],["7984","コクヨ","Kokuyo"],["7988","ニフコ","Nifco"],["7994","オカムラ","Okamura"],["8001","伊藤忠商事","伊藤忠","いとうちゅう"],["8002","丸紅","まるべに"],["8015","豊田通商","豊通"],["8020","兼松","かねまつ"],["8031","三井物産","三井物","みついぶっさん"],["8035","東京エレクトロン","東エレク","TEL","東京エレク"],["8050","セイコーグループ","セイコー","Seiko"],["8053","住友商事","住商","すみともしょうじ"],["8056","BIPROGY","日本ユニシス","ユニシス"],["8058","三菱商事","三菱商","みつびししょうじ"],["8060","キヤノンマーケティングジャパン","キヤノンMJ","キヤノンマーケティング"],["8078","阪和興業","はんわ"],["8088","岩谷産業","イワタニ","いわたに"],["8098","稲畑産業","いなばた"],["8111","ゴールドウイン","ノースフェイス","Goldwin"],["8113","ユニ・チャーム","ユニチャーム","Unicharm"],["8130","サンゲツ","Sangetsu"],["8133","伊藤忠エネクス","エネクス"],["8136","サンリオ","Sanrio","ハローキティ","キティ"],["8154","加賀電子","かが電子"],["8174","日本瓦斯","ニチガス"],["8194","ライフコーポレーション","ライフ","Life"],["8227","しまむら","Shimamura"],["8233","高島屋","たかしまや"],["8242","エイチ・ツー・オー リテイリング","H2Oリテイリング","阪急百貨店","阪神百貨店","エイチツーオー リテイリング"],["8252","丸井グループ","丸井","マルイ","OIOI"],["8253","クレディセゾン","セゾン","セゾンカード","クレセゾン"],["8267","イオン","Aeon","いおん"],["8282","ケーズホールディングス","ケーズデンキ","ケーズ"],["8304","あおぞら銀行","あおぞら"],["8306","三菱UFJフィナンシャル・グループ","三菱UFJ","MUFG","三菱UFJFG","三菱UFJ銀行","三菱UFJフィナンシャルグループ"],["8308","りそなホールディングス","りそな","Resona"],["8309","三井住友トラストグループ","三井住友トラスト","住友信託","三井住友信託銀行"],["8316","三井住友フィナンシャルグループ","三井住友","SMFG","三井住友FG","三井住友銀行"],["8331","千葉銀行","ちばぎん"],["8334","群馬銀行","ぐんぎん"],["8341","七十七銀行","しちじゅうしち"],["8354","ふくおかフィナンシャルグループ","福岡銀行","ふくおかFG","十八親和銀行","ふくおか"],["8358","スルガ銀行","するが"],["8359","八十二長野銀行","八十二銀行","はちじゅうに","長野銀行"],["8361","大垣共立銀行","おおがき共立"],["8377","ほくほくフィナンシャルグループ","北陸銀行","北海道銀行","ほくほく","ほくほくFG"],["8410","セブン銀行","セブン銀"],["8411","みずほフィナンシャルグループ","みずほ","みずほFG","MHFG","みずほ銀行"],["8418","山口フィナンシャルグループ","山口銀行","山口FG","もみじ銀行","山口"],["8424","芙蓉総合リース","芙蓉リース"],["8425","みずほリース","みずほりーす"],["8439","東京センチュリー","TC"],["8473","SBIホールディングス","SBI","エスビーアイ"],["8566","リコーリース","りこーりーす"],["8570","イオンフィナンシャルサービス","イオンフィナンシャル","イオンカード","イオンFS"],["8585","オリエントコーポレーション","オリコ"],["8591","オリックス","Orix"],["8593","三菱HCキャピタル","三菱HC"],["8601","大和証券グループ本社","大和証券","大和","Daiwa"],["8604","野村ホールディングス","野村","Nomura","野村證券"],["8616","東海東京フィナンシャル・ホールディングス","東海東京フィナンシャル","東海東京フィナンシャルホールディングス"],["8628","松井証券","まつい"],["8630","SOMPOホールディングス","SOMPO","損保ジャパン","ソンポ"],["8697","日本取引所グループ","JPX","日本取引所","東証"],["8698","マネックスグループ","マネックス","Monex"],["8725","MS&ADインシュアランスグループホールディングス","MS&AD","三井住友海上","あいおい","MS&ADインシュアランス"],["8729","ソニーフィナンシャルグループ","ソニー生命","ソニーFG","ソニーフィナンシャル","ソニー損保"],["8750","第一ライフグループ","第一生命","第一ライフ","だいいちせいめい"],["8766","東京海上ホールディングス","東京海上","東海上","とうきょうかいじょう"],["8795","T&Dホールディングス","T&D","太陽生命","大同生命"],["8801","三井不動産","三井不","ららぽーと"],["8802","三菱地所","みつびしじしょ"],["8804","東京建物","とうきょうたてもの"],["8830","住友不動産","住友不","すみふ"],["8848","レオパレス21","レオパレス","Leopalace"],["8850","スターツコーポレーション","スターツ","Starts"],["8876","リログループ","リロケーション"],["8919","カチタス","Katitas"],["8923","トーセイ","Tosei"],["8934","サンフロンティア不動産","サンフロンティア","さんふろんてぃあ"],["9001","東武鉄道","東武","スカイツリー"],["9003","相鉄ホールディングス","相鉄","そうてつ"],["9005","東急","東急電鉄","とうきゅう"],["9006","京浜急行電鉄","京急","京浜急行","けいきゅう"],["9007","小田急電鉄","小田急","おだきゅう"],["9008","京王電鉄","京王","けいおう"],["9009","京成電鉄","京成","けいせい"],["9020","東日本旅客鉄道","JR東日本","JR東","ジェイアール東日本"],["9021","西日本旅客鉄道","JR西日本","JR西"],["9022","東海旅客鉄道","JR東海","ジェイアール東海"],["9023","東京地下鉄","東京メトロ","メトロ","営団"],["9024","西武ホールディングス","西武","せいぶ","西武鉄道"],["9031","西日本鉄道","西鉄","にしてつ"],["9041","近鉄グループホールディングス","近鉄","きんてつ","近畿日本鉄道"],["9042","阪急阪神ホールディングス","阪急","阪神","はんきゅう","阪急阪神"],["9044","NANKAI","南海","南海電鉄","なんかい"],["9045","京阪ホールディングス","京阪","けいはん"],["9048","名古屋鉄道","名鉄","めいてつ"],["9064","ヤマトホールディングス","ヤマト運輸","クロネコ","ヤマト"],["9065","山九","さんきゅう"],["9069","センコーグループホールディングス","センコー","Senko"],["9076","セイノーホールディングス","西濃運輸","セイノー","カンガルー"],["9101","日本郵船","郵船","ゆうせん"],["9104","商船三井","しょうせんみつい","MOL"],["9107","川崎汽船","川崎汽","Kライン"],["9110","NSユナイテッド海運","NSユナイテッド","エヌエスユナイテッド"],["9142","九州旅客鉄道","JR九州"],["9143","SGホールディングス","佐川急便","SG","佐川"],["9147","NIPPON EXPRESSホールディングス","日本通運","日通","NX","NIPPON EXPRESS"],["9166","GENDA","ゲンダ","GiGO"],["9201","日本航空","JAL","ジャル"],["9202","ANAホールディングス","ANA","全日空","アナ"],["9301","三菱倉庫","みつびし倉庫"],["9303","住友倉庫","すみとも倉庫"],["9336","大栄環境","だいえい環境"],["9364","上組","かみぐみ"],["9401","TBSホールディングス","TBS","ティービーエス"],["9404","日本テレビホールディングス","日テレ","日本テレビ"],["9412","スカパーJSAT","スカパー"],["9418","U-NEXT HOLDINGS","U-NEXT","ユーネクスト","USEN"],["9432","NTT","日本電信電話","エヌティティ"],["9433","KDDI","au","ケーディーディーアイ"],["9434","ソフトバンク","SB","Softbank"],["9435","光通信","ひかり通信"],["9436","沖縄セルラー電話","沖縄セルラー","おきなわセルラー"],["9449","GMOインターネットグループ","GMO","GMOインターネット"],["9468","KADOKAWA","カドカワ","角川"],["9501","東京電力ホールディングス","東電","東京電力","とうでん"],["9502","中部電力","ちゅうでん"],["9503","関西電力","かんでん"],["9504","中国電力","ちゅうごく電力"],["9505","北陸電力","りくでん"],["9506","東北電力","とうほく電力"],["9507","四国電力","よんでん"],["9508","九州電力","きゅうでん"],["9509","北海道電力","ほくでん"],["9513","電源開発","Jパワー","ジェイパワー"],["9519","レノバ","Renova"],["9531","東京瓦斯","東京ガス","東ガス","とうきょうガス"],["9532","大阪瓦斯","大阪ガス","大ガス","Daigas"],["9533","東邦瓦斯","東邦ガス","とうほうガス"],["9552","クオンツ総研ホールディングス","M&A総研","クオンツ総研","エムアンドエー総研"],["9601","松竹","しょうちく"],["9602","東宝","とうほう","ゴジラ"],["9603","エイチ・アイ・エス","HIS","エイチアイエス"],["9605","東映","とうえい"],["9613","NTTデータグループ","NTTデータ","エヌティティデータ","NTTData"],["9616","共立メンテナンス","ドーミーイン"],["9682","DTS","ディーティーエス"],["9684","スクウェア・エニックス・ホールディングス","スクエニ","スクウェア・エニックス","ドラクエ","FF","スクウェアエニックスホールディングス"],["9697","カプコン","Capcom","モンハン","バイオハザード"],["9706","日本空港ビルデング","日本空港ビル","羽田空港","空港ビル"],["9719","SCSK","エスシーエスケー"],["9735","セコム","Secom"],["9744","メイテックグループホールディングス","メイテック","Meitec"],["9759","NSD","エヌエスディー"],["9766","コナミグループ","コナミ","Konami"],["9831","ヤマダホールディングス","ヤマダ電機","ヤマダ","Yamada"],["9843","ニトリホールディングス","ニトリ","Nitori"],["9861","吉野家ホールディングス","吉野家","よしのや"],["9934","因幡電機産業","因幡電機","いなば電機"],["9936","王将フードサービス","餃子の王将","王将","おうしょう"],["9962","ミスミグループ本社","ミスミ","Misumi"],["9983","ファーストリテイリング","ユニクロ","ファストリ","Uniqlo","GU"],["9984","ソフトバンクグループ","ソフトバンクG","SBG","ソフトバンクGP"],["9987","スズケン","Suzuken"],["9989","サンドラッグ","Sundrug"]];
+
+/* Everything that is not a Japanese share: FX, crypto, commodities,
+   US Treasury yields, indices and ETFs. Verified against Yahoo's own
+   pages — symbols that could not be confirmed were left out rather
+   than shipped to 404. */
+const ASSETS = [["USDJPY=X","ドル円","fx","ドル/円","USDJPY","米ドル円","ドルエン"],["EURJPY=X","ユーロ円","fx","ユーロ/円","EURJPY","欧州ユーロ円"],["EURUSD=X","ユーロドル","fx","ユーロ/ドル","EURUSD","ユーロ米ドル"],["GBPJPY=X","ポンド円","fx","ポンド/円","GBPJPY","英ポンド円"],["GBPUSD=X","ポンドドル","fx","ポンド/ドル","GBPUSD","英ポンドドル","ケーブル"],["AUDJPY=X","豪ドル円","fx","オージー円","AUDJPY","オーストラリアドル円"],["NZDJPY=X","NZドル円","fx","ニュージーランドドル円","NZDJPY","キウイ円"],["CADJPY=X","カナダドル円","fx","カナダ円","CADJPY","加ドル円"],["CHFJPY=X","スイスフラン円","fx","フラン円","CHFJPY","スイス円"],["CNYJPY=X","人民元円","fx","元円","CNYJPY","中国元円","人民元"],["KRWJPY=X","韓国ウォン円","fx","ウォン円","KRWJPY","ウォン"],["TRYJPY=X","トルコリラ円","fx","リラ円","TRYJPY","トルコリラ"],["MXNJPY=X","メキシコペソ円","fx","ペソ円","MXNJPY","メキシコペソ"],["ZARJPY=X","南アフリカランド円","fx","ランド円","南アランド円","ZARJPY","南アフリカランド"],["DX-Y.NYB","ドルインデックス","fx","ドル指数","DXY","ドルインデクス","米ドル指数"],["BTC-USD","ビットコイン／ドル","crypto","BTC","BTCUSD","ビット","ビットコイン","ビットコインドル"],["BTC-JPY","ビットコイン／円","crypto","BTC","BTCJPY","ビット","ビットコイン","ビットコイン円"],["ETH-USD","イーサリアム／ドル","crypto","ETH","ETHUSD","イーサ","イーサリアム","イーサリアムドル"],["ETH-JPY","イーサリアム／円","crypto","ETH","ETHJPY","イーサ","イーサリアム","イーサリアム円"],["XRP-USD","リップル／ドル","crypto","XRP","XRPUSD","エックスアールピー","リップル","リップルドル"],["XRP-JPY","リップル／円","crypto","XRP","XRPJPY","エックスアールピー","リップル","リップル円"],["SOL-USD","ソラナ／ドル","crypto","SOL","SOLUSD","ソラナ","ソラナドル","ソラーナ"],["SOL-JPY","ソラナ／円","crypto","SOL","SOLJPY","ソラナ","ソラナ円","ソラーナ"],["DOGE-USD","ドージコイン／ドル","crypto","DOGE","DOGEUSD","ドージ","ドージコイン","ドージコインドル"],["DOGE-JPY","ドージコイン／円","crypto","DOGE","DOGEJPY","ドージ","ドージコイン","ドージコイン円"],["ADA-USD","カルダノ／ドル","crypto","ADA","ADAUSD","エイダ","エイダコイン","カルダノ"],["ADA-JPY","カルダノ／円","crypto","ADA","ADAJPY","エイダ","エイダコイン","カルダノ"],["BNB-USD","バイナンスコイン／ドル","crypto","BNB","BNBUSD","バイナンス","バイナンスコイン","バイナンスコインドル"],["BNB-JPY","バイナンスコイン／円","crypto","BNB","BNBJPY","バイナンス","バイナンスコイン","バイナンスコイン円"],["CL=F","WTI原油","commodity","原油","WTI","石油","クルード"],["BZ=F","ブレント原油","commodity","ブレント","北海ブレント","Brent"],["GC=F","金（ゴールド）","commodity","金","ゴールド","gold","金先物","キン"],["SI=F","銀（シルバー）","commodity","銀","シルバー","silver","銀先物"],["PL=F","プラチナ","commodity","白金","platinum","プラチナ先物"],["HG=F","銅","commodity","カッパー","copper","銅先物"],["NG=F","天然ガス","commodity","ガス","ナチュラルガス","天然ガス先物"],["ZC=F","とうもろこし","commodity","コーン","トウモロコシ","corn"],["ZW=F","小麦","commodity","こむぎ","ウィート","wheat"],["ZS=F","大豆","commodity","だいず","ソイビーン","soybean"],["^IRX","米13週国債利回り","bond","米13週","13週財務省証券","短期金利","IRX","米短期債"],["^FVX","米5年債利回り","bond","米5年債","5年債利回り","FVX","米国5年債"],["^TNX","米10年債利回り","bond","米10年債","10年債利回り","TNX","米国10年債","長期金利"],["^TYX","米30年債利回り","bond","米30年債","30年債利回り","TYX","米国30年債","超長期金利"],["^N225","日経平均株価","index","日経平均","日経225","日経","N225","にっけい"],["^GSPC","S&P500","index","SP500","エスアンドピー500","米国株指数"],["^IXIC","ナスダック総合指数","index","ナスダック","ナスダック総合","NASDAQ","ナスダック指数"],["^NDX","ナスダック100","index","NDX","NASDAQ100","ナス100"],["^DJI","NYダウ（ダウ平均）","index","ダウ","NYダウ","ダウ平均","ダウ工業株30種","DJIA"],["^RUT","ラッセル2000","index","ラッセル","RUT","米小型株"],["^VIX","VIX指数（恐怖指数）","index","VIX","恐怖指数","ビックス","ボラティリティ指数"],["^FTSE","FTSE100（英国）","index","FTSE100","イギリス株","英国株価指数","フッツィー"],["^GDAXI","DAX（ドイツ）","index","DAX","ダックス","ドイツ株","ドイツ株価指数"],["^FCHI","CAC40（フランス）","index","CAC40","カック40","フランス株","フランス株価指数"],["^HSI","ハンセン指数（香港）","index","ハンセン","ハンセン指数","香港株","HSI"],["000001.SS","上海総合指数","index","上海総合","上海株","中国株","上海指数"],["^KS11","韓国総合株価指数（KOSPI）","index","KOSPI","コスピ","韓国株","韓国総合株価指数"],["^BSESN","SENSEX（インド）","index","SENSEX","センセックス","インド株","ムンバイ"],["^BVSP","ボベスパ指数（ブラジル）","index","ボベスパ","ブラジル株","BOVESPA","ブラジル指数"],["1321.T","NEXT FUNDS 日経225連動型ETF","etf","日経225ETF","1321","日経ETF","ノムラ日経225"],["1306.T","NEXT FUNDS TOPIX連動型ETF","etf","TOPIX ETF","1306","トピックスETF","東証株価指数ETF"],["1655.T","iShares S&P500 ETF（東証上場）","etf","1655","S&P500 ETF","米国株ETF","iシェアーズS&P500"],["1545.T","NEXT FUNDS NASDAQ-100 ETF（為替ヘッジなし）","etf","1545","ナスダック100ETF","NASDAQ100 ETF","ナスダックETF"],["1540.T","純金上場信託（現物国内保管型）","etf","1540","金ETF","純金上場信託","ゴールドETF"],["1489.T","NEXT FUNDS 日経平均高配当株50指数ETF","etf","1489","高配当ETF","日経高配当50","高配当株ETF"],["1478.T","iShares MSCI ジャパン高配当ETF","etf","1478","高配当ETF","MSCI高配当","日本高配当ETF"],["1591.T","NEXT FUNDS JPX日経400連動型ETF","etf","1591","JPX400 ETF","JPX日経400","日経400ETF"],["2516.T","東証グロース250 ETF","etf","2516","グロース250","マザーズETF","グロースETF"],["SPY","SPDR S&P500 ETF","etf","SPY","スパイダー","S&P500 ETF","スパイ"],["VOO","バンガード S&P500 ETF","etf","VOO","バンガードS&P500","ブイオーオー"],["QQQ","インベスコ QQQ（ナスダック100）","etf","QQQ","キューキューキュー","ナスダック100ETF"],["VTI","バンガード 全米株式 ETF","etf","VTI","全米株式","バンガード全米","ブイティーアイ"],["VT","バンガード 全世界株式 ETF","etf","VT","全世界株式","オルカンETF","バンガード全世界"],["IVV","iShares コア S&P500 ETF","etf","IVV","iシェアーズS&P500","コアS&P500"],["GLD","SPDR ゴールド・シェア","etf","GLD","金ETF","ゴールドETF","スパイダーゴールド"],["TLT","iShares 米国債20年超 ETF","etf","TLT","米国債ETF","長期国債ETF","20年超米国債"],["ARKK","ARK イノベーション ETF","etf","ARKK","アーク","アークイノベーション","ARK"]];
+
+/* ---- matching -------------------------------------------------------
+   Japanese input arrives in whatever the IME produced: half-width kana,
+   full-width latin, kana instead of kanji. Everything is folded to one
+   shape before comparing, so ｿﾆｰ, ソニー and Sony all meet.
+   --------------------------------------------------------------------- */
+const KATA_HALF = 'ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ';
+const KATA_FULL = 'ヲァィゥェォャュョッーアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン';
+
+function foldKey(s){
+  let out = String(s == null ? '' : s).trim().toLowerCase();
+  /* full-width latin and digits -> ASCII */
+  out = out.replace(/[！-～]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xfee0));
+  /* half-width katakana -> full width, voiced marks folded in */
+  out = out.replace(/[ｦ-ﾝ][ﾞﾟ]?/g, m => {
+    const i = KATA_HALF.indexOf(m[0]);
+    let base = i >= 0 ? KATA_FULL[i] : m[0];
+    if(m[1] === 'ﾞ') base = String.fromCharCode(base.charCodeAt(0) + 1);
+    else if(m[1] === 'ﾟ') base = String.fromCharCode(base.charCodeAt(0) + 2);
+    return base;
+  });
+  /* hiragana -> katakana, so とよた matches トヨタ */
+  out = out.replace(/[ぁ-ゖ]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+  /* punctuation and spacing carry no meaning in a company name */
+  return out.replace(/[\s　・･,，.。\-‐－ー/／()（）「」『』&＆]/g, '');
+}
+
+/* built once, on first use — 600 entries is not worth doing at start-up */
+let SYM_INDEX = null;
+function symIndex(){
+  if(SYM_INDEX) return SYM_INDEX;
+  SYM_INDEX = [];
+  for(const row of JP_STOCKS){
+    const [code, name] = row;
+    SYM_INDEX.push({
+      y: code + '.T', code, name, kind: 'jp', jp: true,
+      keys: [foldKey(code), foldKey(name)].concat(row.slice(2).map(foldKey)).filter(Boolean)
+    });
+  }
+  for(const row of ASSETS){
+    const [y, name, kind] = row;
+    SYM_INDEX.push({
+      y, code: y, name, kind, jp: false,
+      keys: [foldKey(y), foldKey(name)].concat(row.slice(3).map(foldKey)).filter(Boolean)
+    });
+  }
+  return SYM_INDEX;
+}
+
+const KIND_LABEL = {jp:'日本株', fx:'為替', crypto:'暗号資産', commodity:'商品',
+                    bond:'債券利回り', index:'指数', etf:'ETF'};
+
+/* Ranked: an exact hit beats a prefix, a prefix beats "contains". Without
+   the ranking, typing 「トヨタ」 put トヨタ紡織 above トヨタ自動車. */
+function searchLocal(q, limit){
+  const k = foldKey(q);
+  if(!k) return [];
+  const hits = [];
+  for(const e of symIndex()){
+    let best = 0;
+    for(const key of e.keys){
+      if(key === k){ best = 3; break; }
+      if(key.startsWith(k)) best = Math.max(best, 2);
+      else if(k.length >= 2 && key.includes(k)) best = Math.max(best, 1);
+    }
+    if(best) hits.push({e, score: best, len: e.name.length});
+  }
+  hits.sort((a, b) => b.score - a.score || a.len - b.len || a.e.code.localeCompare(b.e.code));
+  return hits.slice(0, limit || 8).map(h => Object.assign({score: h.score}, h.e));
+}
+
+/* Only reached when the table has nothing. It sends the search word to
+   Yahoo through the same relays as the price data, so it is behind the
+   same privacy note — hence "table first, network second" and never both. */
+async function searchYahoo(q){
+  const url = 'https://query1.finance.yahoo.com/v1/finance/search'
+            + '?q=' + encodeURIComponent(q) + '&quotesCount=8&newsCount=0'
+            + '&lang=ja-JP&region=JP';
+  const j = await relayFetch(url, {timeout: 9000});
+  const list = (j && Array.isArray(j.quotes)) ? j.quotes : [];
+  return list.map(r => {
+    const y = cleanSymbol(r.symbol);
+    if(!y) return null;
+    const t = String(r.quoteType || '').toUpperCase();
+    return {
+      y, code: y,
+      name: cleanText(r.longname || r.shortname || y, 60),
+      kind: t === 'CURRENCY' ? 'fx' : t === 'CRYPTOCURRENCY' ? 'crypto'
+          : t === 'INDEX' ? 'index' : t === 'ETF' ? 'etf'
+          : /\.T$/.test(y) ? 'jp' : 'foreign',
+      exch: cleanText(r.exchDisp || r.exchange, 20),
+      jp: /\.T$/.test(y), remote: true
+    };
+  }).filter(Boolean);
+}
+
+/* ---- what happens when you press 分析 --------------------------------
+   Returns either {pick} (go straight there) or {options} (ask), never a
+   guess dressed up as an answer.
+   --------------------------------------------------------------------- */
+async function resolveInput(raw){
+  const s = String(raw || '').trim();
+  if(!s) return {options: [], error: '銘柄名かコードを入力してください'};
+
+  /* an explicit ticker is never second-guessed */
+  const direct = normalizeSymbol(s);
+  const looksLikeTicker = /^[0-9A-Za-z][0-9A-Za-z.^=\-]*$/.test(s);
+  if(direct && looksLikeTicker && (/^\d{3}[0-9A-Za-z]$/.test(s) || /[.^=]/.test(s) || /^[A-Za-z]{1,6}$/.test(s))){
+    const known = searchLocal(s, 1);
+    if(known.length && known[0].score === 3) return {pick: known[0]};
+    return {pick: {y: direct.y, code: direct.y, name: direct.label, kind: direct.jp ? 'jp' : 'foreign', jp: direct.jp}};
+  }
+
+  const local = searchLocal(s, 8);
+  if(local.length === 1) return {pick: local[0]};
+  if(local.length && local[0].score === 3) return {pick: local[0]};
+  if(local.length) return {options: local};
+
+  /* nothing known — ask Yahoo, and say so if that fails too */
+  try{
+    const remote = await searchYahoo(s);
+    if(remote.length === 1) return {pick: remote[0]};
+    if(remote.length) return {options: remote};
+  }catch(e){
+    return {options: [], error: '検索できませんでした(' + cleanText(e.message, 40) + ')。'
+      + '銘柄コード(例 7203、AAPL、USDJPY=X)で入力してみてください'};
+  }
+  return {options: [], error: '「' + cleanText(s, 20) + '」に一致する銘柄が見つかりませんでした'};
+}
+
+/* ---- suggestions under the box -------------------------------------- */
+let sugTimer = null, sugList = [], sugAt = -1;
+
+function renderSuggest(items, note){
+  const box = $('#symSug');
+  if(!box) return;
+  sugList = items || [];
+  sugAt = -1;
+  if(!sugList.length && !note){ box.classList.add('hide'); box.innerHTML = ''; return; }
+  box.classList.remove('hide');
+  box.innerHTML = (note ? `<div class="sugnote">${esc(note, 120)}</div>` : '')
+    + sugList.map((e, i) =>
+      `<button class="sugitem" data-i="${i}" role="option">
+         <span class="sugname">${esc(e.name, 40)}</span>
+         <span class="sugmeta">${esc(KIND_LABEL[e.kind] || e.exch || '海外', 10)} ・ ${esc(e.code, 16)}</span>
+       </button>`).join('');
+}
+function hideSuggest(){
+  const box = $('#symSug');
+  if(box){ box.classList.add('hide'); box.innerHTML = ''; }
+  sugList = []; sugAt = -1;
+}
+function moveSuggest(d){
+  if(!sugList.length) return false;
+  sugAt = sugAt < 0 ? (d > 0 ? 0 : sugList.length - 1)
+                    : (sugAt + d + sugList.length) % sugList.length;
+  const items = $$('#symSug .sugitem');
+  items.forEach((b, i) => b.classList.toggle('on', i === sugAt));
+  if(items[sugAt]) items[sugAt].scrollIntoView({block: 'nearest'});
+  return true;
+}
+function takeSuggest(i){
+  const e = sugList[i];
+  if(!e) return;
+  hideSuggest();
+  $('#sym').value = e.code;
+  pendingPick = e;
+  run();
+}
+
+/* set when the user chose from a list, so run() does not search again */
+let pendingPick = null;
+/* ============================================================
+   16. One-page report (print / save as PDF)
+   Built for a reader that is not a human: the chart goes in as a
+   picture, but every number that produced it also goes in as TEXT,
+   so a model reading the PDF gets values rather than pixels it has
+   to guess at. Printing is the browser's own "save as PDF" — no
+   library, no extra origin in the CSP, and the text stays selectable
+   (a rasterised page would have to be OCR'd).
+   ============================================================ */
+
+const RPT_TONE = {bull: '強気', bear: '弱気', warn: '注意', flat: '中立'};
+
+function rptNum(v, digits){
+  return isNum(v) ? v.toFixed(digits === undefined ? 2 : digits) : '—';
+}
+
+/* The machine-readable half. Deliberately flat "key: value" lines rather
+   than a table — it survives copy-paste and PDF text extraction, which
+   reorder table cells. */
+function reportFacts(){
+  const d = state.ind, b = state.raw.bars, n = b.length - 1, cur = state.raw.currency;
+  const L = [];
+  const put = (k, v) => L.push(k + ': ' + v);
+  put('銘柄', `${state.raw.name}(${state.raw.code})`);
+  put('通貨', cur || '—');
+  put('データ元', state.raw.source);
+  put('足種', IV_LABEL[state.interval] || state.interval);
+  put('期間', (RANGE_LABEL[state.range] || state.range) + ' / ' + b.length + '本');
+  put('最終足', fmtStamp(b[n]));
+  put('始値/高値/安値/終値', [b[n].o, b[n].h, b[n].l, b[n].c].map(x => rptNum(x)).join(' / '));
+  put('前足比', n > 0 && b[n-1].c
+      ? `${(d.c[n] - d.c[n-1]).toFixed(2)} (${((d.c[n]/d.c[n-1] - 1) * 100).toFixed(2)}%)` : '—');
+  put('出来高', isNum(b[n].v) ? String(Math.round(b[n].v)) : '—');
+
+  P.ma.forEach((p, i) => put(`MA${p}(${p}${P.unit})`, rptNum(d.ma[i][n])));
+  if(d.bb) put(`ボリンジャー(${P.bb[0]},${P.bb[1]}σ) 上/中/下`,
+    [d.bb.upper[n], d.bb.mid[n], d.bb.lower[n]].map(x => rptNum(x)).join(' / '));
+  if(d.don) put(`ドンチャン(${P.donchian}) 上/下`,
+    [d.don.upper[n], d.don.lower[n]].map(x => rptNum(x)).join(' / '));
+  if(d.bb && isNum(d.bb.pctb[n])) put('%B', rptNum(d.bb.pctb[n], 3));
+  put(`RSI(${P.rsi})`, rptNum(d.rsi[n], 1));
+  if(d.macd) put(`MACD(${P.macd.join(',')}) 線/シグナル/ヒスト`,
+    [d.macd.line[n], d.macd.signal[n], d.macd.hist[n]].map(x => rptNum(x, 3)).join(' / '));
+  if(d.stoch) put(`ストキャス(${P.stoch.join(',')}) %K/%D`,
+    [d.stoch.k[n], d.stoch.d[n]].map(x => rptNum(x, 1)).join(' / '));
+  if(d.dmi) put(`DMI/ADX(${P.adx}) +DI/-DI/ADX`,
+    [d.dmi.pdi[n], d.dmi.ndi[n], d.dmi.adx[n]].map(x => rptNum(x, 1)).join(' / '));
+  if(d.atr) put(`ATR(${P.atr})`, rptNum(d.atr[n]));
+  if(d.ich){
+    const ic = d.ich;
+    put('一目 転換/基準', [ic.tenkan[n], ic.kijun[n]].map(x => rptNum(x)).join(' / '));
+    put('一目 先行A/B(当該足)', [ic.spanA[n], ic.spanB[n]].map(x => rptNum(x)).join(' / '));
+    const above = isNum(ic.spanA[n]) && isNum(ic.spanB[n])
+      ? (d.c[n] > Math.max(ic.spanA[n], ic.spanB[n]) ? '雲の上'
+        : d.c[n] < Math.min(ic.spanA[n], ic.spanB[n]) ? '雲の下' : '雲の中') : '—';
+    put('一目 価格と雲', above);
+  }
+  if(d.st) put('スーパートレンド', isNum(d.st.line[n])
+    ? rptNum(d.st.line[n]) + (d.st.dir[n] > 0 ? '(上昇)' : '(下降)') : '—');
+  if(d.vwap) put('VWAP', rptNum(d.vwap[n]));
+  if(d.cmf) put(`CMF(${P.cmf})`, rptNum(d.cmf[n], 3));
+  if(d.mfi) put(`MFI(${P.mfi})`, rptNum(d.mfi[n], 1));
+  if(d.osgfc) put('OSGFC 線/上限/下限/方向', isNum(d.osgfc.filter[n])
+    ? [d.osgfc.filter[n], d.osgfc.upper[n], d.osgfc.lower[n]].map(x => rptNum(x)).join(' / ')
+      + ' / ' + (d.osgfc.dir[n] > 0 ? '上' : d.osgfc.dir[n] < 0 ? '下' : '—') : '—');
+  if(d.lorentz && isNum(d.lorentz.sig[n]))
+    put('Lorentzian 判定', d.lorentz.sig[n] > 0 ? '買い寄り' : d.lorentz.sig[n] < 0 ? '売り寄り' : '中立');
+  if(d.extShort && isNum(d.extShort.ratio[n])) put('空売り残高(合計%)', rptNum(d.extShort.ratio[n], 2));
+  if(d.extMargin){
+    if(isNum(d.extMargin.buy[n]))  put('信用買残', String(Math.round(d.extMargin.buy[n])));
+    if(isNum(d.extMargin.sell[n])) put('信用売残', String(Math.round(d.extMargin.sell[n])));
+    if(isNum(d.extMargin.ratio[n])) put('信用倍率', rptNum(d.extMargin.ratio[n], 2));
+  }
+  return L;
+}
+
+/* the last 20 bars as text, so a model can check the trend itself rather
+   than trusting our summary of it */
+function reportTail(count){
+  const b = state.raw.bars, n = b.length;
+  const from = Math.max(0, n - (count || 20));
+  const rows = [];
+  for(let i = from; i < n; i++){
+    rows.push([fmtDate(b[i], true), b[i].o, b[i].h, b[i].l, b[i].c, Math.round(b[i].v || 0)]
+      .map(String).join('\t'));
+  }
+  return rows;
+}
+
+function buildReport(){
+  if(!state.raw) throw new Error('先に銘柄を読み込んでください');
+  const rep = $('#report');
+  if(rep) rep.style.fontSize = '';        /* every build starts from full size */
+  const sig = buildSignals();
+  const when = new Date();
+  const stamp = `${when.getFullYear()}/${String(when.getMonth()+1).padStart(2,'0')}/`
+              + `${String(when.getDate()).padStart(2,'0')} `
+              + `${String(when.getHours()).padStart(2,'0')}:${String(when.getMinutes()).padStart(2,'0')}`;
+
+  /* the chart exactly as it is on screen, at print resolution */
+  let img = '';
+  try { img = cv.toDataURL('image/png'); } catch(e){ img = ''; }
+
+  const verdict = sig.score >= 3 ? '強気寄り' : sig.score <= -3 ? '弱気寄り' : '中立';
+  const facts = reportFacts();
+
+  $('#rptHead').innerHTML =
+    `<div class="rtitle">${esc(state.raw.name, 60)} <span class="rcode">${esc(state.raw.code, 20)}</span></div>`
+    + `<div class="rsub">${esc(IV_LABEL[state.interval] || '', 8)} ・ `
+    + `${esc(RANGE_LABEL[state.range] || state.range, 8)} ・ ${state.raw.bars.length}本 ・ `
+    + `${esc(state.raw.source, 40)} ・ 出力 ${esc(stamp, 20)}</div>`;
+
+  $('#rptChart').innerHTML = img
+    ? `<img alt="チャート" src="${esc(img, 4000000)}">`
+    : '<p class="rnote">チャート画像を取り込めませんでした。</p>';
+
+  $('#rptVerdict').innerHTML =
+    `<b>総合: ${esc(verdict, 10)}</b>(スコア ${sig.score.toFixed(1)}) — `
+    + `下の${sig.items.length}項目を機械的に集計した結果です。売買推奨ではありません。`;
+
+  $('#rptSignals').innerHTML = sig.items.map(s =>
+    `<li><span class="rtone rt-${esc(s.tone, 6)}">${esc(RPT_TONE[s.tone] || '—', 4)}</span>`
+    + `<b>${esc(s.tag, 12)}: ${esc(s.ttl, 60)}</b> ${esc(s.txt, 160)}</li>`).join('');
+
+  $('#rptFacts').textContent = facts.join('\n');
+  $('#rptTail').textContent = '日付\t始値\t高値\t安値\t終値\t出来高\n' + reportTail(20).join('\n');
+  $('#rptFoot').textContent =
+    '投資判断の助言ではありません。シグナルは各指標の定義どおりの機械的な判定です。'
+    + ' 数値は上記データ元の値をそのまま用いています。';
+  fitOnePage();
+  return {verdict, score: sig.score, items: sig.items.length, facts};
+}
+
+/* It is called a one-page report, so it has to be one page whatever is
+   switched on. How tall the sheet comes out depends on how many indicator
+   panels are open and how many signals fired, so rather than guess a
+   chart height that works for the common case, measure and shrink:
+   the chart first (it loses the least by being smaller), then rows off the
+   price table. */
+/* A4 less 10mm margins, then 8mm of slack: browsers round page boxes and
+   add their own header space, and being 2mm over costs a whole extra sheet */
+const A4_CONTENT_PX = (277 - 8) / 25.4 * 96;
+
+function fitOnePage(){
+  const rep = $('#report'), img = $('#rptChart img');
+  if(!rep) return;
+  const tooTall = () => rep.getBoundingClientRect().height > A4_CONTENT_PX;
+  if(img){
+    for(const mm of [99, 88, 78, 68, 58, 48]){
+      img.style.maxHeight = mm + 'mm';
+      if(!tooTall()) return;
+    }
+  }
+  for(const rows of [14, 10, 6]){
+    $('#rptTail').textContent = '日付\t始値\t高値\t安値\t終値\t出来高\n' + reportTail(rows).join('\n');
+    if(!tooTall()) return;
+  }
+  /* still over: better a slightly small sheet than a stray second page */
+  rep.style.fontSize = '9px';
+}
+
+/* The height of the sheet is not known until the chart image has decoded —
+   a fresh <img> measures as zero — so anything that cares about the page
+   fitting has to wait for it and measure again. */
+async function reportReady(){
+  const r = buildReport();
+  const im = $('#rptChart img');
+  if(im && !im.complete){
+    await new Promise(res => {
+      let done = false;
+      const fin = () => { if(!done){ done = true; res(); } };
+      im.onload = fin; im.onerror = fin;
+      setTimeout(fin, 1500);
+    });
+  }
+  if(im && im.decode) { try { await im.decode(); } catch(e){} }
+  fitOnePage();
+  return r;
+}
+
+async function printReport(){
+  await reportReady();
+  document.body.classList.add('printing');
+  await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+  try { window.print(); }
+  finally { setTimeout(() => document.body.classList.remove('printing'), 400); }
+}
+
+/* The same content as a plain text file. A PDF is what you hand a person;
+   this is what you paste into a chat window. */
+function reportText(){
+  const r = buildReport();
+  const sig = buildSignals();
+  return [
+    '# ' + state.raw.name + '(' + state.raw.code + ') テクニカル分析',
+    '',
+    '## 基本情報', ...r.facts,
+    '',
+    '## シグナル判定(機械的な集計・売買推奨ではありません)',
+    '総合: ' + r.verdict + '(スコア ' + sig.score.toFixed(1) + ')',
+    ...sig.items.map(s => `- [${RPT_TONE[s.tone] || '—'}] ${s.tag}: ${s.ttl} — ${s.txt}`),
+    '',
+    '## 直近20本',
+    '日付\t始値\t高値\t安値\t終値\t出来高',
+    ...reportTail(20),
+    '',
+    '※ 投資判断の助言ではありません。'
+  ].join('\n');
+}
+
+function downloadReportText(){
+  const txt = reportText();
+  const blob = new Blob([txt], {type: 'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(state.raw.code || 'chart').replace(/[^0-9A-Za-z.\-]/g, '')}-analysis.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return txt.length;
+}
+/* ============================================================
    11. Built-in self test
    Open the file with #selftest on the end of the URL to run it.
    It exercises the real functions in this file — not copies — so
@@ -6742,7 +7389,45 @@ function showPreset(){
 }
 
 $('#go').addEventListener('click', () => run());
-$('#sym').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); run(); } });
+
+/* ---- typing a name --------------------------------------------------
+   Suggestions come from the built-in table only, so they appear with no
+   network round trip and nothing leaves the device while you type. The
+   wider search (Yahoo) happens only when 分析 is pressed.
+   --------------------------------------------------------------------- */
+let sugDebounce = null;
+$('#sym').addEventListener('input', () => {
+  const v = $('#sym').value.trim();
+  if(sugDebounce) clearTimeout(sugDebounce);
+  if(v.length < 1){ hideSuggest(); return; }
+  sugDebounce = setTimeout(() => {
+    const hits = searchLocal(v, 8);
+    /* a 4-digit code or a plain ticker is unambiguous: no need to nag */
+    if(hits.length === 1 && hits[0].score === 3) { hideSuggest(); return; }
+    renderSuggest(hits, '');
+    $('#sym').setAttribute('aria-expanded', String(hits.length > 0));
+  }, 110);
+});
+$('#sym').addEventListener('keydown', e => {
+  if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    if(moveSuggest(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
+    return;
+  }
+  if(e.key === 'Escape'){ hideSuggest(); return; }
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    if(sugAt >= 0){ takeSuggest(sugAt); return; }
+    run();
+  }
+});
+$('#symSug').addEventListener('click', e => {
+  const b = e.target.closest('.sugitem');
+  if(b) takeSuggest(+b.dataset.i);
+});
+/* clicking away closes it, but not when the click was the list itself */
+addEventListener('pointerdown', e => {
+  if(!e.target.closest('.symwrap')) hideSuggest();
+});
 $('#csvBtn').addEventListener('click', () => $('#csvFile').click());
 $('#csvFile').addEventListener('change', async e => {
   const f = e.target.files && e.target.files[0];
@@ -6913,7 +7598,10 @@ function applyQuoteStrip(){
     ` (${up?'+':'−'}${Math.abs(pc).toFixed(2)}%)</span>` +
     `<span style="color:var(--ink-3);font-weight:400"> ${up?'上昇':'下落'}</span>`;
   const lastDate = fmtDate(state.raw.bars[n], true);
-  $('#qSrc').textContent = `${lastDate} 終値 ・ ${state.raw.source} ・ ${state.raw.bars.length}本`;
+  /* the timeframe belongs next to the bar count: it is the thing that
+     decides what every number on this page means */
+  $('#qSrc').textContent = `${lastDate} 終値 ・ ${state.raw.source} ・ `
+    + `${IV_LABEL[state.interval] || ''} ${state.raw.bars.length}本`;
 }
 
 function apply(data){
@@ -6921,6 +7609,15 @@ function apply(data){
      built it */
   if(data && data.bars && data.bars.length && !data.bars[0].k) stampBars(data.bars, data.tz || null);
   setTickTz(data && data.tz);
+  /* If the source gave us a different timeframe from the one requested, the
+     app follows the DATA. Leaving the screen on 日足 while the bars are
+     monthly made every number a quiet lie: RSI, the moving averages and the
+     Ichimoku spans were all being read as daily when they were not. */
+  const got = data && data.granularity;
+  if(got && owns(IV_RANGES, got) && got !== state.interval){
+    state.interval = got;
+    setPreset(got); buildRanges(); showPreset(); syncControls();
+  }
   state.raw = data;
   state.ind = computeAll(data.bars, state.toggles, state.interval);
   state.hover = -1;
@@ -6948,11 +7645,35 @@ function apply(data){
 /* ---- main flow ------------------------------------------------------ */
 async function run(){
   if($('#go').disabled) return;                 /* Enter used to bypass this */
-  const raw = $('#sym').value;
+  let raw = $('#sym').value;
   if($('#liveSel').value === 'stream' && Stream.state !== 'off') Stream.disconnect();
-  if(!raw.trim()){ notice('銘柄コードを入力してください(例: 7203、AAPL、^N225)', true); return; }
+  if(!raw.trim()){ notice('銘柄名か銘柄コードを入力してください(例: トヨタ、7203、ドル円、AAPL)', true); return; }
+  hideSuggest();
+
+  /* Turn whatever was typed into one symbol. A name that matches several
+     companies stops here and asks rather than picking one. */
+  let chosen = pendingPick;
+  pendingPick = null;
+  if(!chosen){
+    setBusy(true);
+    let r;
+    try { r = await resolveInput(raw); }
+    catch(e){ r = {options: [], error: cleanText(e.message, 60)}; }
+    setBusy(false);
+    if(r.pick) chosen = r.pick;
+    else{
+      renderSuggest(r.options, r.options.length
+        ? `「${raw.trim()}」に一致する銘柄が${r.options.length}件あります。選んでください。`
+        : (r.error || ''));
+      notice(r.options.length ? '' : (r.error || '見つかりませんでした'), !r.options.length);
+      $('#sym').focus();
+      return;
+    }
+  }
+  raw = chosen.y || chosen.code;
+  $('#sym').value = chosen.code || raw;
   if(!normalizeSymbol(raw)){
-    notice('銘柄コードに使えない文字が含まれています。英数字と . ^ = - 、かな漢字のみ、24文字までで入力してください。', true);
+    notice('銘柄コードに使えない文字が含まれています。', true);
     return;
   }
   setBusy(true);
@@ -6966,7 +7687,14 @@ async function run(){
       return;
     }
     apply(data);
-    notice(data.note || '');
+    const swapped = data.asked && data.granularity && data.asked !== data.granularity
+      ? `<b>${esc(RANGE_LABEL[state.range] || state.range, 8)}</b>では提供元が`
+        + `<b>${esc(IV_LABEL[data.granularity] || data.granularity, 8)}</b>のデータしか返さないため、`
+        + `${esc(IV_LABEL[data.granularity] || '', 8)}として表示しています。`
+        + `指標(移動平均・RSI・一目均衡表など)も${esc(IV_LABEL[data.granularity] || '', 8)}基準で計算しています。`
+        + `${esc(IV_LABEL[data.asked] || '', 8)}で見たい場合は期間を短くしてください。`
+      : '';
+    notice(swapped || data.note || '', false);
     renderNews(null);
     if(Compare.active.length) await Compare.refresh();
     if($('#liveSel').value === 'stream'){
@@ -7212,6 +7940,30 @@ $('#drvClientSave').addEventListener('click', () => {
   tokenClient = null; accessToken = null; tokenExpiry = 0; syncFileId = null;
   driveStatus(v ? 'クライアントIDを保存しました。もう一度「接続」を押してください。'
                 : '既定のクライアントIDに戻しました。');
+});
+
+/* ---- one-page report ------------------------------------------------- */
+const rptMsg = (m, err) => {
+  const el = $('#rptMsg');
+  if(el){ el.innerHTML = m || ''; el.style.color = err ? 'var(--critical)' : 'var(--ink-2)'; }
+};
+$('#rptPrint').addEventListener('click', async () => {
+  rptMsg('1枚にまとめています…');
+  try{
+    await printReport();
+    rptMsg('印刷ダイアログの「送信先」で <b>PDFに保存</b> を選んでください。');
+  }catch(e){ rptMsg('作れませんでした: ' + esc(e.message, 90), true); }
+});
+$('#rptCopy').addEventListener('click', async () => {
+  try{
+    const t = reportText();
+    await navigator.clipboard.writeText(t);
+    rptMsg(`${t.length}文字をコピーしました。AIのチャット欄にそのまま貼り付けられます。`);
+  }catch(e){ rptMsg('コピーできませんでした(ブラウザに拒否されました)。「.txt で保存」をお使いください。', true); }
+});
+$('#rptTxt').addEventListener('click', () => {
+  try{ rptMsg(`${downloadReportText()}文字のテキストを保存しました。`); }
+  catch(e){ rptMsg('保存できませんでした: ' + esc(e.message, 90), true); }
 });
 
 $('#jsfBtn').addEventListener('click', () => loadJSF());
