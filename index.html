@@ -570,9 +570,17 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <button class="chip" id="shortFileBtn" style="border-style:dashed">ファイルを読み込む(複数可)</button>
       <input type="file" id="shortFile" accept=".xls,.xlsx" multiple class="sr" aria-hidden="true" tabindex="-1">
     </div>
+    <label class="opt" style="margin-bottom:8px"><input type="checkbox" id="autoExt" checked>銘柄を開いたら自動で取得する(直近10日・信用残・決算予定)</label>
     <p class="qsrc" id="extShortStat" style="margin:0 0 10px"></p>
     <div id="shortBox"></div>
-    <p class="qsrc" style="margin:10px 0 0;line-height:1.7">JPXは<b>13ヶ月分</b>を月別ページで公開しています。
+    <p class="qsrc" style="margin:10px 0 0;line-height:1.7">
+      表示しているのは<b>報告者ごとの最新報告を足し合わせた残高</b>です。
+      JPXの日次ファイルは「その日に出された報告」なので、単純に合計すると
+      報告の無い日が0になってしまいます(以前はそうなっていました)。<br>
+      <b>0.5%未満になると報告義務が消える</b>ため、そこから下は追跡できません。
+      さかのぼる日数が少ないと、それ以前から持たれている残高が抜けて実際より小さく出ます。
+      投資情報サイトの数字と合わせたい場合は「半年分」以上を取得してください。<br>
+      JPXは<b>13ヶ月分</b>を月別ページで公開しています。
       1日1ファイルなので、1年分は約240ファイルの取得になります(数分かかります)。
       取得済みの日付は飛ばすので、途中で止めて後から続けても構いません。</p>
   </div>
@@ -4401,10 +4409,32 @@ const SHORT_COLS = {
   prevRatio:['直近空売り残高割合']
 };
 
+/* The 空売り残高割合 column is stored as a fraction (0.0292) but DISPLAYED
+   as a percentage (2.92%). Reading the raw number gave a figure a hundred
+   times too small. The spreadsheet knows which it is — its own number
+   format says so — so both views are read and the formatted one decides. */
+function pctFrom(rawVal, fmtVal){
+  const fmt = String(fmtVal == null ? '' : fmtVal);
+  const digits = fmt.replace(/[^0-9.\-]/g, '');
+  const num = digits === '' ? NaN : Number(digits);
+  if(/%/.test(fmt) && isFinite(num)) return num;          /* "2.92%" -> 2.92 */
+  const rawTxt = String(rawVal == null ? '' : rawVal).replace(/[^0-9.\-]/g, '');
+  /* an empty cell is "not known", not "zero" — and zero, in this file,
+     means a position that has been closed */
+  if(rawTxt === '') return isFinite(num) ? num : NaN;
+  const raw = Number(rawTxt);
+  if(!isFinite(raw)) return NaN;
+  /* no percent sign anywhere: a bare fraction is the only reading that makes
+     sense for a disclosure regime with a 0.5% floor */
+  return raw > 0 && raw < 1 ? raw * 100 : raw;
+}
+
 function parseShortWorkbook(XLSX, buf, code4){
   freezeProto();
   const wb = XLSX.read(buf, {type: 'array', cellDates: true});
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, raw: true});
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, raw: true});
+  const fmtRows = XLSX.utils.sheet_to_json(sheet, {header: 1, raw: false, defval: ''});
   let hdr = -1, map = {};
   for(let i=0;i<Math.min(rows.length, 20);i++){
     const cells = (rows[i] || []).map(v => String(v == null ? '' : v).replace(/\s/g,''));
@@ -4422,12 +4452,13 @@ function parseShortWorkbook(XLSX, buf, code4){
     const r = rows[i]; if(!r) continue;
     const cd = String(r[map.code] == null ? '' : r[map.code]).replace(/\D/g,'').slice(0,4);
     if(!cd || cd !== want) continue;
+    const fr = fmtRows[i] || [];
     out.push({
       holder: String(r[map.holder] ?? ''),
       issuer: String(r[map.issuer] ?? ''),
-      qty: Number(String(r[map.qty] ?? '').replace(/[^0-9.-]/g,'')),
-      ratio: Number(String(r[map.ratio] ?? '').replace(/[^0-9.-]/g,'')),
-      prevRatio: map.prevRatio !== undefined ? Number(String(r[map.prevRatio] ?? '').replace(/[^0-9.-]/g,'')) : NaN,
+      qty: Number(String(fr[map.qty] || r[map.qty] || '').replace(/[^0-9.-]/g,'')),
+      ratio: pctFrom(r[map.ratio], fr[map.ratio]),
+      prevRatio: map.prevRatio !== undefined ? pctFrom(r[map.prevRatio], fr[map.prevRatio]) : NaN,
       date: r[map.date] instanceof Date ? r[map.date] : null
     });
   }
@@ -4551,15 +4582,24 @@ const Ext = {
        re-validated on the way out. */
     const cached = await extLoadFromDB(k);
     const s = cached.short;
-    if(s && Array.isArray(s.points)){
-      const pts = s.points.filter(p => p && okDate(p.d) && isNum(p.ratio)).slice(-400).map(p => ({
-        d: p.d, ratio: p.ratio, qty: isNum(p.qty) ? p.qty : null,
-        holders: (Array.isArray(p.holders) ? p.holders : []).slice(0, 60).map(h => ({
-          holder: cleanText(h && h.holder, 80),
-          ratio: isNum(h && h.ratio) ? h.ratio : null,
-          qty: isNum(h && h.qty) ? h.qty : null}))
-      }));
-      if(pts.length) this.short = {points: pts, src: cleanText(s.src, 60)};
+    if(s){
+      const cleanRows = rows => (Array.isArray(rows) ? rows : []).slice(0, 120).map(h => ({
+        holder: cleanText(h && h.holder, 80),
+        ratio: isNum(h && h.ratio) ? h.ratio : null,
+        qty: isNum(h && h.qty) ? h.qty : null})).filter(r => r.holder);
+      let reports = null;
+      if(Array.isArray(s.reports)){
+        reports = s.reports.filter(r => r && okDate(r.d))
+          .slice(-400).map(r => ({d: r.d, rows: cleanRows(r.rows)}));
+      } else if(Array.isArray(s.points)){
+        /* caches written before the carry-forward fix stored each day's
+           own filings under `holders` — the same rows, read the wrong way.
+           They convert cleanly rather than having to be re-downloaded. */
+        reports = s.points.filter(p => p && okDate(p.d))
+          .slice(-400).map(p => ({d: p.d, rows: cleanRows(p.holders)}));
+      }
+      if(reports && reports.length)
+        this.short = {v: 2, reports, points: foldShortReports(reports), src: cleanText(s.src, 60)};
     }
     const m = cached.margin;
     if(m && Array.isArray(m.points)){
@@ -4572,11 +4612,15 @@ const Ext = {
   saveShort(){ if(this.codeKey() && this.short)  extSaveToDB('short',  this.codeKey(), this.short); },
   saveMargin(){ if(this.codeKey() && this.margin) extSaveToDB('margin', this.codeKey(), this.margin); },
 
-  mergeShort(points, src){
+  /* what is stored is the REPORTS; the displayed series is folded from
+     them every time, so adding an older month fixes the whole curve
+     rather than only its tail */
+  mergeReports(reports, src){
     src = cleanText(src, 60);
-    const map = new Map((this.short ? this.short.points : []).map(p => [p.d, p]));
-    for(const p of points) map.set(p.d, p);
-    this.short = {points: [...map.values()].sort((a,b)=> a.d.localeCompare(b.d)).slice(-400), src};
+    const map = new Map((this.short && this.short.reports ? this.short.reports : []).map(r => [r.d, r]));
+    for(const r of reports) map.set(r.d, r);
+    const all = [...map.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+    this.short = {v: 2, reports: all, points: foldShortReports(all), src};
     this.saveShort();
   },
   mergeMargin(points, src){
@@ -4637,20 +4681,74 @@ function alignExt(ind){
 /* ============================================================
    Building the short-selling series from JPX daily files
    ============================================================ */
-function shortPointFromRows(rows, stamp){
-  const total = rows.reduce((s,r) => s + (isNum(r.ratio) ? r.ratio : 0), 0);
-  const qty   = rows.reduce((s,r) => s + (isNum(r.qty) ? r.qty : 0), 0);
-  return {d: stamp, ratio: +total.toFixed(4), qty,
-          holders: rows.slice(0, 60).map(r => ({holder: cleanText(r.holder, 80),
-                                                ratio: r.ratio, qty: r.qty}))};
+/* ------------------------------------------------------------------
+   A JPX daily file is a list of REPORTS FILED THAT DAY, not a snapshot
+   of everything outstanding — which is why the columns include 直近計算
+   年月日 and 直近空売り残高割合, the state each report is replacing.
+
+   Summing one day's file therefore answers the wrong question. It gives
+   "how much was reported today", which is zero on most days for most
+   stocks: that is what made the panel spike and drop back to zero, and
+   why the total read 0.01% where the real short interest was 2.92%.
+
+   The balance outstanding on day D is the sum over reporting entities of
+   each one's MOST RECENT report on or before D. So the reports are kept
+   as reports, and the series is folded forward from them.
+   ------------------------------------------------------------------ */
+function reportFromRows(rows, stamp){
+  return {d: stamp, rows: rows.slice(0, 120).map(r => ({
+    holder: cleanText(r.holder, 80),
+    ratio: isNum(r.ratio) ? r.ratio : null,
+    qty:   isNum(r.qty) ? r.qty : null
+  })).filter(r => r.holder)};
+}
+
+/* reports (any order) -> one point per report date, each carrying the
+   running state of every reporter */
+function foldShortReports(reports){
+  const days = (reports || []).slice().sort((a, b) => a.d.localeCompare(b.d));
+  const held = new Map();
+  const out = [];
+  for(const day of days){
+    for(const r of day.rows || []){
+      /* An explicit zero is a closing report: the entity is out.
+         An unreadable one is not — it says nothing, so the previous
+         balance stands rather than being silently wiped. */
+      if(!isNum(r.ratio)) continue;
+      if(r.ratio <= 0) held.delete(r.holder);
+      else held.set(r.holder, {ratio: r.ratio, qty: isNum(r.qty) ? r.qty : null});
+    }
+    let ratio = 0, qty = 0;
+    for(const v of held.values()){ ratio += v.ratio; qty += (v.qty || 0); }
+    out.push({
+      d: day.d, ratio: +ratio.toFixed(4), qty,
+      holders: [...held.entries()].sort((a, b) => b[1].ratio - a[1].ratio)
+        .slice(0, 60).map(([holder, v]) => ({holder, ratio: v.ratio, qty: v.qty}))
+    });
+  }
+  return out;
 }
 
 /* All dated links on one JPX page, newest first. */
+/* The date comes from the FILE NAME, never from the whole URL: the opaque
+   directory ids JPX puts in the path contain digit runs of their own, and
+   `.../um3qrc00000031vv-att/20250809_Short_Positions.xls` was being read as
+   the 31st of month 00 of year 0000. */
+function dateFromShortUrl(url){
+  const file = String(url).split('/').pop() || '';
+  const m = /(20\d{2})(\d{2})(\d{2})/.exec(file);
+  if(!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  if(mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  if(y < 2000 || y > 2100) return null;
+  return m[1] + m[2] + m[3];
+}
+
 function scrapeShortLinks(html, into, seen){
   for(const m of html.matchAll(/href="([^"]*Short_Positions[^"]*\.xls[x]?)"/gi)){
     const h = jpxUrl(m[1]);              /* refuse links that point off jpx.co.jp */
     if(!h) continue;
-    const d = (h.match(/(\d{8})/) || [])[1];
+    const d = dateFromShortUrl(h);
     if(!d || seen.has(d)) continue;
     seen.add(d);
     into.push({url: h, d});
@@ -4722,7 +4820,7 @@ async function loadShortSeries(maxDays, months){
         const f = queue.shift();
         try{
           const buf = await relayFetchBinary(f.url);
-          got.push(shortPointFromRows(parseShortWorkbook(XLSX, buf, code), f.d));
+          got.push(reportFromRows(parseShortWorkbook(XLSX, buf, code), f.d));
         }catch(e){ failed++; }
         done++;
         renderShorts({loading: true,
@@ -4735,7 +4833,7 @@ async function loadShortSeries(maxDays, months){
       renderShorts({error: '取得中に別の銘柄へ切り替わったため取り込みを中止しました。'});
       return;                       /* never file 9984's rows under 7203 */
     }
-    Ext.mergeShort(got, 'JPX 空売り残高報告');
+    Ext.mergeReports(got, 'JPX 空売り残高報告');
     afterExtUpdate();
     renderShorts({ok: true, added: got.length, failed});
   }catch(e){
@@ -4759,7 +4857,7 @@ async function loadShortFiles(files){
         /* if the filename has no date, take it from the 計算年月日 column */
         const d = stamp || (rows[0] && rows[0].date ? dkey(rows[0].date) : null);
         if(!d){ bad++; continue; }
-        got.push(shortPointFromRows(rows, d));
+        got.push(reportFromRows(rows, d));
       }catch(e){ bad++; }
     }
     if(!got.length) throw new Error('日付を特定できるファイルがありませんでした');
@@ -4767,7 +4865,7 @@ async function loadShortFiles(files){
       renderShorts({error: '読み込み中に別の銘柄へ切り替わったため中止しました。'});
       return;
     }
-    Ext.mergeShort(got, `読み込み ${files.length} ファイル`);
+    Ext.mergeReports(got, `読み込み ${files.length} ファイル`);
     afterExtUpdate();
     renderShorts({ok: true, added: got.length, failed: bad});
   }catch(e){
@@ -5003,9 +5101,11 @@ function renderExtStatus(){
   const s = $('#extShortStat'), m = $('#extMarginStat');
   const cover = pts => {
     if(!pts || !pts.length) return '';
-    const f = pts[0].d, l = pts[pts.length-1].d;
+    const ok = pts.filter(p => /^20\d{6}$/.test(String(p.d)));
+    if(!ok.length) return `${pts.length} 日分`;
+    const f = ok[0].d, l = ok[ok.length-1].d;
     const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
-    return `${fm(f)} 〜 ${fm(l)} の ${pts.length} 日分`;
+    return `${fm(f)} 〜 ${fm(l)} の ${ok.length} 日分`;
   };
   if(s) s.innerHTML = Ext.short
     ? `保有データ: ${esc(cover(Ext.short.points), 60)}(${esc(Ext.short.src, 60)}) `
@@ -5018,6 +5118,36 @@ function renderExtStatus(){
   const sc = $('#shortClear'), mc = $('#marginClear');
   if(sc) sc.onclick = () => Ext.clear('short');
   if(mc) mc.onclick = () => Ext.clear('margin');
+}
+
+/* ---- fetch without being asked, once per stock per day ---------------
+   Opening the tool and having to press four buttons before the chart is
+   complete is the wrong default. This runs after the price data lands,
+   only for Japanese stocks, only when the cache has nothing for today,
+   and quietly: a failure leaves the buttons exactly as they were.
+   --------------------------------------------------------------------- */
+function autoExtOn(){ return Store.get('autoExt', 1) === 1; }
+
+async function autoFetchExt(){
+  if(!autoExtOn()) return;
+  const code = Ext.codeKey();
+  if(!/^[0-9A-Z]{4}$/.test(code)) return;          /* JP listings only */
+  if(navigator.onLine === false) return;
+  const today = dkey(new Date());
+  const mark = 'autoExt.' + code;
+  if(Store.get(mark, '') === today) return;        /* already tried today */
+  Store.set(mark, today);
+
+  const fresh = pts => pts && pts.length && pts[pts.length - 1].d >= today;
+  try{
+    if(!fresh(Ext.short && Ext.short.points)) await loadShortSeries(10, 1);
+  }catch(e){}
+  if(Ext.codeKey() !== code) return;
+  try{
+    if(!fresh(Ext.margin && Ext.margin.points)) await loadJSF();
+  }catch(e){}
+  if(Ext.codeKey() !== code) return;
+  try{ await loadEarnings(); }catch(e){}
 }
 
 /* ============================================================
@@ -8952,6 +9082,8 @@ function apply(data){
     state.ind = alignExt(state.ind);
     renderExtStatus(); renderShorts(null); renderMarginStatus(null);
     if(Ext.short || Ext.margin){ redraw(); renderSignals(); }
+    /* then top it up from the sources, without being asked */
+    setTimeout(() => { autoFetchExt().catch(() => {}); }, 800);
   });
   saveWorkspaceSoon();
   Book.visit(data.code, data.name, data.bars.length ? data.bars[data.bars.length-1].c : null, data.currency);
@@ -9111,6 +9243,7 @@ $('#short260').addEventListener('click', () => {
   loadShortSeries(250, 13);
 });
 $('#earnBtn').addEventListener('click', () => loadEarnings());
+$('#autoExt').addEventListener('change', e => Store.set('autoExt', e.target.checked ? 1 : 0));
 $('#shortFileBtn').addEventListener('click', () => $('#shortFile').click());
 $('#shortFile').addEventListener('change', e => {
   const fs = Array.from(e.target.files || []);
@@ -9437,6 +9570,7 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
   showPreset();
   applyLayout('auto');
   panelScale = sanitizeScales(Store.get('panelScale', {}));
+  $('#autoExt').checked = autoExtOn();
   refreshSyncInfo();
   refreshDriveUi();
   renderAlerts();
