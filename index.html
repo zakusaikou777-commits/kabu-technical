@@ -7,8 +7,11 @@
      is the difference between "a bad script could send it anywhere" and
      "a bad script can only talk to the sixteen places this tool uses".
      Anything added to the fetch code has to be added here too — the
-     self-test ("通信まわりの安全性") fails if the two drift apart. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+     self-test ("通信まわりの安全性") fails if the two drift apart.
+     *.workers.dev is there so a relay you deploy yourself can be reached
+     without editing this line; a relay on your own domain needs that domain
+     added here by hand (the app says so when you save one). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <!-- strict-origin rather than no-referrer: Google's sign-in needs to see which
      origin is asking, but the ticker you are looking at lives in the path and
      query, and those are never sent. -->
@@ -275,6 +278,37 @@ textarea.code{width:100%;min-height:84px;font:12px/1.5 ui-monospace,SFMono-Regul
 .opt input{width:16px;height:16px;accent-color:var(--down)}
 .hide{display:none!important}
 
+/* ---------- watchlist / alerts / signal history ---------- */
+table.wtab{width:100%;border-collapse:collapse;font-size:12.5px}
+table.wtab th{position:sticky;top:0;background:var(--surface-1);text-align:right;font-weight:600;
+  color:var(--ink-2);font-size:11px;padding:6px 8px;border-bottom:1px solid var(--hairline);
+  cursor:pointer;white-space:nowrap;user-select:none}
+table.wtab th.wl{text-align:left}
+table.wtab th.won{color:var(--ink-1)}
+table.wtab td{padding:7px 8px;border-bottom:1px solid var(--hairline);white-space:nowrap}
+table.wtab td.wl{text-align:left;white-space:normal;min-width:112px}
+table.wtab td.wnum{text-align:right;font-variant-numeric:tabular-nums}
+table.wtab tbody tr{cursor:pointer}
+table.wtab tbody tr:hover{background:var(--wash)}
+.wcode{display:block;font-size:10.5px;color:var(--ink-3)}
+.wup{color:var(--up)} .wdn{color:var(--down)}
+.whot{color:var(--up);font-weight:700} .wcold{color:var(--down);font-weight:700}
+.werr{color:var(--ink-3);font-size:11.5px;text-align:right}
+tr.hweak{opacity:.42}
+.hdir{display:inline-block;margin-left:6px;font-size:10px;color:var(--ink-3)}
+.hsm{font-size:11px;color:var(--ink-2)}
+.arow{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid var(--hairline);
+  font-size:12.5px;flex-wrap:wrap}
+.arow.aoff{opacity:.45}
+.atog,.adel{border:0;background:transparent;min-height:auto;padding:2px 5px;font-size:13px;color:var(--ink-2)}
+.atog[aria-pressed=true]{color:var(--good)}
+.aname{font-weight:600;min-width:96px}
+.acond{color:var(--ink-2);flex:1 1 auto}
+.ahit{font-size:10.5px;font-weight:700;color:#fff;background:var(--critical);border-radius:999px;padding:1px 8px}
+#alertFired{margin:0 0 10px;padding:9px 11px;border-radius:11px;background:var(--wash);
+  border:1px solid var(--hairline)}
+.afire{font-size:12.5px;font-weight:600;padding:2px 0}
+
 /* ---------- printed report ----------
    Off-screen rather than display:none, because a canvas snapshot and an
    <img> inside a hidden subtree do not always lay out before print fires. */
@@ -472,6 +506,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="flow" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>資金フロー</button>
     <button class="chip" data-t="sizeflow" aria-pressed="false"><i class="sw" style="background:var(--ma3)"></i>大口/小口(推定)</button>
     <button class="chip" data-t="vprofile" aria-pressed="false"><i class="sw" style="background:var(--band)"></i>価格帯別出来高</button>
+    <button class="chip" data-t="events" aria-pressed="true"><i class="sw" style="background:var(--ink-2)"></i>分割・配当</button>
     <button id="csvBtn" class="chip" aria-pressed="false" style="border-style:dashed">CSVを読み込む</button>
     <input type="file" id="csvFile" accept=".csv,.txt,text/csv" class="sr" aria-hidden="true" tabindex="-1">
   </div>
@@ -632,6 +667,89 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       PCでは「同期先ファイルを選ぶ」で場所を覚えるので、次からは1クリックで同じファイルに上書きできます。
       上のGoogleドライブ同期を使えば、この手順は要りません。
     </p>
+  </div>
+
+  <div class="card">
+    <h2>お気に入り一覧</h2>
+    <p class="qsrc" style="margin:0 0 10px">★に登録した銘柄をまとめて取得して並べます。見出しを押すと並べ替わり、
+      行を押すとその銘柄を開きます。</p>
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="watchBtn">一覧を取得</button>
+      <button class="chip" id="watchForce" style="border-style:dashed">最新に取り直す</button>
+    </div>
+    <p class="qsrc" id="watchMsg" style="margin:0 0 8px"></p>
+    <div id="watchBody"></div>
+  </div>
+
+  <div class="card">
+    <h2>アラート</h2>
+    <p class="qsrc" style="margin:0 0 10px"><b>このページを開いている間だけ動きます。</b>
+      サーバーを持たない作りなので、閉じている間の値動きは見張れません。
+      「一覧を取得」を押したときと、自動更新のたびに判定します。</p>
+    <div id="alertFired" class="hide"></div>
+    <div id="alertList" style="margin-bottom:10px"></div>
+    <div class="filters" style="margin-bottom:6px;align-items:flex-end">
+      <label class="opt" style="flex-direction:column;align-items:flex-start;gap:3px">
+        <span>銘柄</span>
+        <select class="mini" id="alSym"></select>
+      </label>
+      <label class="opt" style="flex-direction:column;align-items:flex-start;gap:3px">
+        <span>条件</span>
+        <select class="mini" id="alKind"></select>
+      </label>
+      <label class="opt hide" id="alValWrap" style="flex-direction:column;align-items:flex-start;gap:3px">
+        <span id="alValLab">値</span>
+        <input type="text" id="alVal" inputmode="decimal" style="width:110px">
+      </label>
+      <button class="chip" id="alAdd">追加</button>
+      <button class="chip" id="alNotify" style="border-style:dashed">通知を許可</button>
+    </div>
+    <p class="qsrc" id="alMsg" style="margin:0"></p>
+  </div>
+
+  <div class="card">
+    <h2>このシグナルは効いているのか</h2>
+    <p class="qsrc" style="margin:0 0 10px">いま表示している期間で、各シグナルが過去に出たあと実際どうなったかを数えます。
+      <b>「基準との差」がプラスでなければ、そのシグナルはこの銘柄では何も見つけていません。</b></p>
+    <div class="filters" style="margin-bottom:8px;align-items:flex-end">
+      <button class="chip" id="histBtn">集計する</button>
+      <label class="opt">何本後を見るか
+        <select class="mini" id="histH">
+          <option value="5">5本後</option>
+          <option value="10">10本後</option>
+          <option value="20" selected>20本後</option>
+          <option value="60">60本後</option>
+        </select>
+      </label>
+    </div>
+    <div id="histBody"></div>
+  </div>
+
+  <div class="card">
+    <h2>通信(中継サーバー)</h2>
+    <p class="qsrc" style="margin:0 0 10px">株価もニュースも、無料の公開中継サーバーを経由しています。
+      混んでいると時間切れになりますし、<b>見ている銘柄がその運営者に渡ります</b>。
+      自分の中継サーバーを1つ置くと、その両方が解決します(無料枠で足ります・5分)。</p>
+    <div class="filters" style="margin-bottom:8px">
+      <input type="text" id="relayUrl" placeholder="https://xxxx.workers.dev" spellcheck="false" style="width:min(100%,300px)">
+      <button class="chip" id="relaySave">保存して確認</button>
+      <button class="chip" id="relayClear" style="border-style:dashed">使わない</button>
+    </div>
+    <p class="qsrc" id="relayMsg" style="margin:0"></p>
+    <details class="dhelp">
+      <summary>置きかた</summary>
+      <ol class="qsrc" style="margin:8px 0 0;padding-left:1.3em;line-height:1.8">
+        <li>同梱の <code>worker.js</code> を開く(下のボタンでも取り出せます)</li>
+        <li>Cloudflare の「Workers &amp; Pages」→ Create → Deploy でひな形を作る</li>
+        <li>Edit code で中身を全部消し、<code>worker.js</code> を貼り付けて Deploy</li>
+        <li>出てきたURL(<code>https://….workers.dev</code>)を上の欄に貼って「保存して確認」</li>
+      </ol>
+      <p class="qsrc" style="margin:9px 0 0">中継できる相手はコード内で限定してあるので、
+        URLを知られても他人が別のサイトへの踏み台に使うことはできません。</p>
+      <div class="filters" style="margin:8px 0 0">
+        <button class="chip" id="relayDl">worker.js を保存</button>
+      </div>
+    </details>
   </div>
 
   <div class="card">
@@ -1640,6 +1758,21 @@ const RELAY_WAVES = [
 const RELAYS = RELAY_WAVES.flat();
 const MAX_BYTES = 24 * 1024 * 1024;      /* nothing this tool reads is bigger */
 
+/* A relay of your own, if you set one up. It goes in front of every wave:
+   it is faster (nobody else is queueing on it), it does not time out under
+   load the way the free ones do, and — the real point — the list of stocks
+   you look at stops passing through a stranger's server. */
+const OWN_RELAY_OK = /^https:\/\/[a-z0-9][a-z0-9.\-]{2,60}\.[a-z]{2,20}\/?$/i;
+function ownRelay(){
+  const v = String(Store.get('relay', '') || '').trim().replace(/\/+$/, '');
+  return OWN_RELAY_OK.test(v) ? v : '';
+}
+function relayWaves(){
+  const own = ownRelay();
+  if(!own) return RELAY_WAVES;
+  return [[{u: x => own + '/?url=' + encodeURIComponent(x)}]].concat(RELAY_WAVES);
+}
+
 /* Values that will be rendered are narrowed at the boundary as well as
    escaped at the sink. Defence in depth: a name is a name, a ticker is a
    ticker, and neither contains markup. */
@@ -1722,7 +1855,7 @@ async function readCapped(res, binary){
 
 async function relayFetch(url, {text = false, timeout = 8000} = {}){
   let lastAgg = null;
-  for(const wave of RELAY_WAVES){
+  for(const wave of relayWaves()){
     const ctls = [];
     const attempt = async relay => {
       const ctl = new AbortController();
@@ -1752,8 +1885,11 @@ async function relayFetch(url, {text = false, timeout = 8000} = {}){
 
 /* --- Yahoo Finance chart endpoint ----------------------------------- */
 async function fetchYahoo(sym, range, interval){
+  /* events=div,split costs nothing extra and explains the two things that
+     make a chart look broken: a price that halves overnight (split) and a
+     step down on the ex-date (dividend). */
   const path = `/v8/finance/chart/${encodeURIComponent(sym)}`
-             + `?range=${range}&interval=${interval}&includePrePost=false`;
+             + `?range=${range}&interval=${interval}&includePrePost=false&events=div%2Csplit`;
   let j = null, firstErr = null;
   for(const host of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']){
     try { j = await relayFetch(host + path); break; }
@@ -1787,6 +1923,7 @@ async function fetchYahoo(sym, range, interval){
   const seen = detectInterval(bars);
   return {
     bars, tz,
+    events: parseEvents(r.events, tz),
     granularity: seen || said || interval,
     asked: interval,
     name: cleanText(m.longName || m.shortName || m.symbol || sym, 60),
@@ -1794,6 +1931,38 @@ async function fetchYahoo(sym, range, interval){
     currency: /^[A-Z]{3}$/.test(m.currency || '') ? m.currency : (/\.T$/.test(sym) ? 'JPY' : 'USD'),
     source: 'Yahoo Finance'
   };
+}
+
+/* Corporate actions, as a list of {d:'YYYYMMDD', kind, text}. Remote data,
+   so every field is narrowed before it can reach a label on the chart. */
+function parseEvents(ev, tz){
+  const out = [];
+  if(!ev || typeof ev !== 'object') return out;
+  const stamp = secs => {
+    const t = new Date(secs * 1000);
+    if(!isFinite(t)) return null;
+    const b = {t};
+    stampBars([b], tz || null);
+    return b.k || null;
+  };
+  const divs = ev.dividends && typeof ev.dividends === 'object' ? ev.dividends : {};
+  for(const key of Object.keys(divs).slice(0, 400)){
+    const e = divs[key];
+    if(!e || !isNum(e.date) || !isNum(e.amount)) continue;
+    const d = stamp(e.date);
+    if(d) out.push({d, kind: 'div', text: '配当 ' + (+e.amount).toFixed(2)});
+  }
+  const sp = ev.splits && typeof ev.splits === 'object' ? ev.splits : {};
+  for(const key of Object.keys(sp).slice(0, 100)){
+    const e = sp[key];
+    if(!e || !isNum(e.date)) continue;
+    const d = stamp(e.date);
+    const ratio = cleanText(e.splitRatio, 12)
+      || (isNum(e.numerator) && isNum(e.denominator) ? e.numerator + ':' + e.denominator : '');
+    if(d) out.push({d, kind: 'split', text: '分割 ' + (ratio || '')});
+  }
+  out.sort((a, b) => a.d.localeCompare(b.d));
+  return out;
 }
 
 /* --- Stooq CSV fallback --------------------------------------------- */
@@ -2167,7 +2336,8 @@ const state = {
   hover: -1,
   toggles: {ma:true, bb:true, ichimoku:false, vol:true, rsi:true, macd:true, stoch:false, adx:false,
             fib:false, st:false, vwap:false, don:false, osgfc:false, lorentz:false,
-            shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false},
+            shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false,
+            events:true},
   range: '1y', interval: '1d'
 };
 
@@ -2862,9 +3032,53 @@ function renderBase(){
   bctx.fillRect(0, 0, LAY.w, LAY.h);
   drawXAxis(bctx);
   drawMain(bctx);
+  drawEvents(bctx);
   drawVol(bctx); drawRSI(bctx); drawMACD(bctx); drawStoch(bctx); drawADX(bctx); drawLorentz(bctx);
   drawShortPanel(bctx); drawMarginPanel(bctx);
   drawFlowPanel(bctx); drawSizeFlowPanel(bctx);
+}
+
+/* ---- corporate actions ----------------------------------------------
+   A price that halves overnight is almost always a split, not a crash.
+   Marking them stops the chart from lying by omission — and the same
+   marks explain the small step down on an ex-dividend date. */
+function drawEvents(g){
+  if(!state.toggles.events) return;
+  const ev = state.raw && state.raw.events;
+  if(!ev || !ev.length) return;
+  const p = panel('main'), bars = state.raw.bars;
+  const pos = new Map();
+  for(let i = Math.max(0, state.i0); i <= Math.min(state.i1, bars.length - 1); i++)
+    pos.set(barKey(bars[i]), i);
+
+  g.save();
+  g.beginPath(); g.rect(p.x, p.y, p.w, p.h); g.clip();
+  const lastX = new Map();
+  for(const e of ev){
+    const i = pos.get(e.d);
+    if(i === undefined) continue;
+    const x = Math.round(xAt(p, i)) + 0.5;
+    const split = e.kind === 'split';
+    /* several dividends can land on adjacent bars on a zoomed-out chart;
+       one mark per pixel column is enough */
+    const key = split + ':' + Math.round(x / 6);
+    if(lastX.has(key)) continue;
+    lastX.set(key, 1);
+    g.strokeStyle = split ? C.ink2 : C.ink3;
+    g.globalAlpha = split ? 0.55 : 0.30;
+    g.setLineDash(split ? [] : [2, 3]);
+    g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, p.y); g.lineTo(x, p.y + p.h); g.stroke();
+    g.setLineDash([]);
+    g.globalAlpha = 1;
+    if(split){
+      g.fillStyle = C.ink2;
+      g.font = `10px ${cssVar('--font') || 'system-ui'}`;
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      g.fillText('分割', x, p.y + 3);
+    }
+  }
+  g.restore();
 }
 
 /* ---- crosshair overlay --------------------------------------------- */
@@ -3472,8 +3686,11 @@ const Book = {
     this.changed();
   },
 
-  /* defined in section 14; guarded so the book still works without it */
-  changed(){ if(typeof scheduleSync === 'function') scheduleSync(); }
+  /* defined in later sections; guarded so the book still works without them */
+  changed(){
+    if(typeof scheduleSync === 'function') scheduleSync();
+    if(typeof fillAlertForm === 'function') fillAlertForm();
+  }
 };
 
 function renderBook(){
@@ -3903,7 +4120,7 @@ function renderNews(items){
 
 /* ---- binary fetch through the same relays --------------------------- */
 async function relayFetchBinary(url, timeout = 12000){
-  for(const wave of RELAY_WAVES){
+  for(const wave of relayWaves()){
     const usable = wave.filter(r => !r.un);
     if(!usable.length) continue;
     const ctls = [];
@@ -6242,6 +6459,623 @@ function downloadReportText(){
   return txt.length;
 }
 /* ============================================================
+   17. Watchlist, alerts, and the relay setting
+   Three things that share one piece of machinery: fetching a lot
+   of symbols without hammering anything. Everything here runs off
+   the same queue, at three at a time.
+   ============================================================ */
+
+/* ---- your own relay -------------------------------------------------- */
+function relayStatus(msg, kind){
+  const el = $('#relayMsg');
+  if(!el) return;
+  el.innerHTML = msg || '';
+  el.style.color = kind === 'err' ? 'var(--critical)' : kind === 'ok' ? 'var(--good)' : 'var(--ink-2)';
+}
+
+/* The CSP is a fixed line in this file, so a relay it does not name is
+   blocked by the browser before the request leaves. *.workers.dev is
+   covered; anything else has to be added to that line by hand, and it is
+   better to say so now than to let it fail silently later. */
+function relayInCSP(url){
+  try{
+    const host = new URL(url).hostname;
+    const meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    const m = /connect-src ([^;]+)/.exec(meta ? meta.content : '');
+    if(!m) return true;
+    return m[1].trim().split(/\s+/).some(src => {
+      const h = src.replace(/^https?:\/\//, '');
+      if(h.startsWith('*.')) return host === h.slice(2) || host.endsWith(h.slice(1));
+      return host === h;
+    });
+  }catch(e){ return false; }
+}
+
+async function testRelay(url){
+  const probe = 'https://query1.finance.yahoo.com/v8/finance/chart/7203.T?range=5d&interval=1d';
+  const res = await fetch(url + '/?url=' + encodeURIComponent(probe),
+    {referrerPolicy: 'no-referrer'});
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const j = JSON.parse(await res.text());
+  if(!(j && j.chart && j.chart.result)) throw new Error('株価が返ってきませんでした');
+  return true;
+}
+
+/* ---- fetching many symbols at once -----------------------------------
+   Three at a time. Enough to fill a watchlist quickly, few enough that it
+   does not look like an attack to whoever is serving the data.
+   --------------------------------------------------------------------- */
+async function mapLimited(items, limit, fn, onStep){
+  const out = new Array(items.length);
+  let next = 0, done = 0;
+  const worker = async () => {
+    while(next < items.length){
+      const i = next++;
+      try { out[i] = await fn(items[i], i); }
+      catch(e){ out[i] = {error: cleanText(e && e.message, 60) || 'エラー'}; }
+      done++;
+      if(onStep) onStep(done, items.length);
+    }
+  };
+  await Promise.all(Array.from({length: Math.min(limit, items.length || 1)}, worker));
+  return out;
+}
+
+/* ---- the watchlist ---------------------------------------------------- */
+const WATCH_TTL = 5 * 60 * 1000;      /* re-using a 5 minute old quote is fine */
+let watchRows = [];
+let watchBusy = false;
+let watchSort = {key: 'chg', dir: -1};
+
+async function quoteFor(code, fallbackName){
+  const s = normalizeSymbol(code);
+  if(!s) throw new Error('コードが不正です');
+  const data = await fetchYahoo(s.y, '6mo', '1d');
+  /* some symbols come back with the ticker as their "long name"; the name
+     already stored against the favourite is the better one then */
+  const name = (data.name && data.name !== code && data.name !== s.y)
+    ? data.name : (fallbackName || data.name || code);
+  const bars = data.bars, n = bars.length - 1;
+  const ind = {
+    c: bars.map(b => b.c),
+    ma: [5, 25, 75].map(p => TA.sma(bars.map(b => b.c), p)),
+    rsi: TA.rsi(bars.map(b => b.c), 14)
+  };
+  const prev = n > 0 ? bars[n-1].c : bars[n].c;
+  return {
+    code, name, y: s.y,
+    price: bars[n].c, currency: data.currency,
+    chg: prev ? (bars[n].c / prev - 1) * 100 : 0,
+    rsi: ind.rsi[n],
+    ma5: ind.ma[0][n], ma25: ind.ma[1][n], ma75: ind.ma[2][n],
+    gap25: isNum(ind.ma[1][n]) && ind.ma[1][n] ? (bars[n].c / ind.ma[1][n] - 1) * 100 : null,
+    cross: crossState(ind.ma[0], ind.ma[1], n),
+    at: Date.now(), bars, last: bars[n]
+  };
+}
+
+/* did MA5 cross MA25 in the last few bars, and which way */
+function crossState(fast, slow, n){
+  for(let i = n; i > Math.max(0, n - 5); i--){
+    if(!isNum(fast[i]) || !isNum(slow[i]) || !isNum(fast[i-1]) || !isNum(slow[i-1])) continue;
+    if(fast[i-1] <= slow[i-1] && fast[i] > slow[i]) return {dir: 1,  ago: n - i};
+    if(fast[i-1] >= slow[i-1] && fast[i] < slow[i]) return {dir: -1, ago: n - i};
+  }
+  return null;
+}
+
+async function refreshWatch(force){
+  if(watchBusy) return;
+  const list = Book.favs.slice(0, 40);
+  if(!list.length){
+    $('#watchBody').innerHTML = '<p class="qsrc">★で登録した銘柄がここに並びます。</p>';
+    return;
+  }
+  watchBusy = true;
+  $('#watchBtn').disabled = true;
+  const keep = new Map(watchRows.map(r => [r.code, r]));
+  const todo = list.filter(f => {
+    const had = keep.get(f.code);
+    return force || !had || had.error || Date.now() - had.at > WATCH_TTL;
+  });
+  $('#watchMsg').textContent = todo.length
+    ? `${todo.length}銘柄を取得しています… 0/${todo.length}` : '';
+  try{
+    const got = await mapLimited(todo, 3, f => quoteFor(f.code, f.name),
+      (d, t) => { $('#watchMsg').textContent = `${t}銘柄を取得しています… ${d}/${t}`; });
+    got.forEach((r, i) => keep.set(todo[i].code, r && !r.error
+      ? r : {code: todo[i].code, name: todo[i].name, error: (r && r.error) || '取得できません', at: Date.now()}));
+    watchRows = list.map(f => keep.get(f.code) || {code: f.code, name: f.name, error: '未取得'});
+    renderWatch();
+    const bad = watchRows.filter(r => r.error).length;
+    $('#watchMsg').textContent = `${new Date().toLocaleTimeString('ja-JP')} 時点`
+      + (bad ? ` ・ ${bad}件は取得できませんでした` : '');
+    checkAlerts(watchRows);
+  }finally{
+    watchBusy = false;
+    $('#watchBtn').disabled = false;
+  }
+}
+
+const WATCH_COLS = [
+  {k: 'name',  t: '銘柄',    align: 'left'},
+  {k: 'price', t: '現在値'},
+  {k: 'chg',   t: '前日比%'},
+  {k: 'rsi',   t: 'RSI'},
+  {k: 'gap25', t: '25線乖離%'},
+  {k: 'cross', t: 'クロス'}
+];
+
+function renderWatch(){
+  const box = $('#watchBody');
+  if(!box) return;
+  if(!watchRows.length){
+    box.innerHTML = '<p class="qsrc">★で登録した銘柄がここに並びます。</p>';
+    return;
+  }
+  const dir = watchSort.dir, key = watchSort.key;
+  const val = r => key === 'name' ? (r.name || r.code)
+             : key === 'cross' ? (r.cross ? r.cross.dir : 0)
+             : (isNum(r[key]) ? r[key] : -Infinity);
+  const rows = watchRows.slice().sort((a, b) => {
+    if(a.error && !b.error) return 1;
+    if(b.error && !a.error) return -1;
+    const x = val(a), y = val(b);
+    return (typeof x === 'string' ? String(x).localeCompare(String(y)) : x - y) * dir;
+  });
+
+  const cell = (r) => {
+    if(r.error) return `<td colspan="5" class="werr">${esc(r.error, 40)}</td>`;
+    const cls = v => !isNum(v) ? '' : v > 0 ? 'wup' : v < 0 ? 'wdn' : '';
+    const rsiTone = !isNum(r.rsi) ? '' : r.rsi >= 70 ? 'whot' : r.rsi <= 30 ? 'wcold' : '';
+    return `<td class="wnum">${esc(fmtNum(r.price, r.currency), 16)}</td>`
+      + `<td class="wnum ${cls(r.chg)}">${isNum(r.chg) ? (r.chg >= 0 ? '+' : '') + r.chg.toFixed(2) : '—'}</td>`
+      + `<td class="wnum ${rsiTone}">${isNum(r.rsi) ? r.rsi.toFixed(0) : '—'}</td>`
+      + `<td class="wnum ${cls(r.gap25)}">${isNum(r.gap25) ? (r.gap25 >= 0 ? '+' : '') + r.gap25.toFixed(1) : '—'}</td>`
+      + `<td class="wnum">${r.cross
+          ? `<span class="${r.cross.dir > 0 ? 'wup' : 'wdn'}">${r.cross.dir > 0 ? 'GC' : 'DC'}`
+            + `${r.cross.ago ? ' ' + r.cross.ago + '本前' : ''}</span>` : '—'}</td>`;
+  };
+
+  box.innerHTML = '<div class="tscroll"><table class="wtab"><thead><tr>'
+    + WATCH_COLS.map(c => `<th data-sk="${c.k}" class="${c.align === 'left' ? 'wl' : ''}${key === c.k ? ' won' : ''}">`
+        + `${esc(c.t)}${key === c.k ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')
+    + '</tr></thead><tbody>'
+    + rows.map(r => `<tr data-code="${esc(r.code, 24)}">`
+        + `<td class="wl"><b>${esc(r.name || r.code, 24)}</b>`
+        + `${(r.name && r.name !== r.code) ? `<span class="wcode">${esc(r.code, 16)}</span>` : ''}</td>`
+        + cell(r) + '</tr>').join('')
+    + '</tbody></table></div>';
+}
+
+/* ---- alerts -----------------------------------------------------------
+   There is no server, so these can only be checked while the page is
+   open somewhere. That is stated plainly in the UI rather than left for
+   the user to discover at the worst moment.
+   --------------------------------------------------------------------- */
+const ALERT_KINDS = {
+  gc:    {t: 'ゴールデンクロス(MA5がMA25を上抜け)', needs: []},
+  dc:    {t: 'デッドクロス(MA5がMA25を下抜け)',    needs: []},
+  rsiHi: {t: 'RSIが上に抜けたら',  needs: ['v'], unit: '', def: 70},
+  rsiLo: {t: 'RSIが下に抜けたら',  needs: ['v'], unit: '', def: 30},
+  above: {t: '価格が上に抜けたら', needs: ['v'], unit: '円/ドル'},
+  below: {t: '価格が下に抜けたら', needs: ['v'], unit: '円/ドル'}
+};
+
+function sanitizeAlerts(list){
+  return (Array.isArray(list) ? list : []).slice(0, 60).map(a => ({
+    id: isNum(a && a.id) ? a.id : Date.now() * 1000 + Math.floor(Math.random() * 1000),
+    code: cleanSymbol(a && a.code),
+    kind: owns(ALERT_KINDS, a && a.kind) ? a.kind : '',
+    v: isNum(a && a.v) ? a.v : null,
+    on: a ? a.on !== false : true,
+    hit: isNum(a && a.hit) ? a.hit : 0
+  })).filter(a => a.code && a.kind);
+}
+const Alerts = {
+  list: sanitizeAlerts(Store.get('alerts', [])),
+  /* Date.now() alone is not an id: two alerts added in the same millisecond
+     got the same one, and deleting either deleted both. */
+  seq: 0,
+  nextId(){
+    const used = new Set(this.list.map(a => a.id));
+    let id = Date.now() * 1000 + (this.seq = (this.seq + 1) % 1000);
+    while(used.has(id)) id++;
+    return id;
+  },
+  save(){ Store.set('alerts', this.list); renderAlerts(); },
+  add(code, kind, v){
+    if(this.list.length >= 60) throw new Error('アラートは60件までです');
+    this.list.push({id: this.nextId(), code, kind, v: isNum(v) ? v : null, on: true, hit: 0});
+    this.save();
+  },
+  remove(id){ this.list = this.list.filter(a => a.id !== id); this.save(); },
+  toggle(id){
+    const a = this.list.find(x => x.id === id);
+    if(a){ a.on = !a.on; this.save(); }
+  }
+};
+
+function alertFires(a, r){
+  if(!r || r.error) return null;
+  switch(a.kind){
+    case 'gc': return r.cross && r.cross.dir > 0 && r.cross.ago === 0 ? 'ゴールデンクロスが出ました' : null;
+    case 'dc': return r.cross && r.cross.dir < 0 && r.cross.ago === 0 ? 'デッドクロスが出ました' : null;
+    case 'rsiHi': return isNum(r.rsi) && isNum(a.v) && r.rsi >= a.v ? `RSI ${r.rsi.toFixed(0)}(${a.v}以上)` : null;
+    case 'rsiLo': return isNum(r.rsi) && isNum(a.v) && r.rsi <= a.v ? `RSI ${r.rsi.toFixed(0)}(${a.v}以下)` : null;
+    case 'above': return isNum(r.price) && isNum(a.v) && r.price >= a.v ? `${fmtNum(r.price, r.currency)}(${a.v}以上)` : null;
+    case 'below': return isNum(r.price) && isNum(a.v) && r.price <= a.v ? `${fmtNum(r.price, r.currency)}(${a.v}以下)` : null;
+  }
+  return null;
+}
+
+/* An alert that keeps firing every refresh is noise, so once it has gone
+   off it stays quiet until it stops being true. */
+function checkAlerts(rows){
+  const byCode = new Map((rows || []).map(r => [r.code, r]));
+  const fired = [];
+  let changed = false;
+  for(const a of Alerts.list){
+    if(!a.on) continue;
+    const r = byCode.get(a.code);
+    if(!r) continue;
+    const why = alertFires(a, r);
+    if(why && !a.hit){
+      a.hit = Date.now(); changed = true;
+      fired.push({a, r, why});
+    } else if(!why && a.hit){
+      a.hit = 0; changed = true;         /* armed again */
+    }
+  }
+  if(changed) Alerts.save();
+  if(fired.length) announceAlerts(fired);
+  return fired;
+}
+
+function announceAlerts(fired){
+  const lines = fired.map(f =>
+    `${f.r.name || f.a.code}: ${ALERT_KINDS[f.a.kind].t.replace(/\(.*/, '')} — ${f.why}`);
+  notice('<b>アラート</b><br>' + lines.map(l => esc(l, 90)).join('<br>'), false);
+  const box = $('#alertFired');
+  if(box){
+    box.classList.remove('hide');
+    box.innerHTML = lines.map(l => `<div class="afire">${esc(l, 90)}</div>`).join('');
+  }
+  if(typeof Notification === 'function' && Notification.permission === 'granted'){
+    try{
+      for(const l of lines.slice(0, 4)) new Notification('株価アラート', {body: l, tag: l});
+    }catch(e){}
+  }
+}
+
+function renderAlerts(){
+  const box = $('#alertList');
+  if(!box) return;
+  if(!Alerts.list.length){
+    box.innerHTML = '<p class="qsrc">まだアラートはありません。下で追加してください。</p>';
+    return;
+  }
+  box.innerHTML = Alerts.list.map(a => {
+    const k = ALERT_KINDS[a.kind];
+    const name = (Book.favs.find(f => f.code === a.code) || {}).name || a.code;
+    return `<div class="arow${a.on ? '' : ' aoff'}">
+      <button class="atog" data-tog="${a.id}" aria-pressed="${a.on}" title="${a.on ? '止める' : '動かす'}">${a.on ? '●' : '○'}</button>
+      <span class="aname">${esc(name, 24)}<span class="wcode">${esc(a.code, 16)}</span></span>
+      <span class="acond">${esc(k.t.replace(/\(.*/, ''), 30)}${isNum(a.v) ? ' ' + a.v : ''}</span>
+      ${a.hit ? '<span class="ahit">発報中</span>' : ''}
+      <button class="adel" data-del="${a.id}" aria-label="削除">×</button>
+    </div>`;
+  }).join('');
+}
+
+async function askNotify(){
+  if(typeof Notification !== 'function') return 'unsupported';
+  if(Notification.permission === 'granted') return 'granted';
+  try { return await Notification.requestPermission(); }
+  catch(e){ return 'denied'; }
+}
+/* ============================================================
+   18. What these signals actually did, on this stock
+   The panel above calls things 「買いシグナル」. This one asks the
+   obvious follow-up: when that happened before on THIS series, what
+   came next?
+
+   Everything here is measured on the same bars that are on screen —
+   in-sample, no costs, no slippage, and often on a sample far too
+   small to mean anything. That is not a caveat buried in a footnote:
+   the sample size is shown next to every row and anything under 10
+   occurrences is greyed out, because a 3-for-3 "win rate" is noise.
+   ============================================================ */
+
+/* Each rule reports the bar indices where it FIRED — the moment the
+   condition became true, not every bar it stayed true. A rule that is
+   true for 200 bars running is one event, not 200. */
+const RULES = [
+  {k: 'gc', t: 'ゴールデンクロス', dir: 1, fn: d =>
+    edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i]) && d.ma[0][i] > d.ma[1][i])},
+  {k: 'dc', t: 'デッドクロス', dir: -1, fn: d =>
+    edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i]) && d.ma[0][i] < d.ma[1][i])},
+  {k: 'po', t: 'パーフェクトオーダー(上)', dir: 1, fn: d =>
+    edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i], d.ma[2][i])
+      && d.ma[0][i] > d.ma[1][i] && d.ma[1][i] > d.ma[2][i])},
+  {k: 'poD', t: 'パーフェクトオーダー(下)', dir: -1, fn: d =>
+    edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i], d.ma[2][i])
+      && d.ma[0][i] < d.ma[1][i] && d.ma[1][i] < d.ma[2][i])},
+  {k: 'rsiLo', t: 'RSIが30を割る', dir: 1, fn: d =>
+    edges(d, i => isNum(d.rsi[i]) && d.rsi[i] <= 30)},
+  {k: 'rsiHi', t: 'RSIが70を超える', dir: -1, fn: d =>
+    edges(d, i => isNum(d.rsi[i]) && d.rsi[i] >= 70)},
+  {k: 'macdUp', t: 'MACDがシグナルを上抜け', dir: 1, fn: d =>
+    edges(d, i => cmpOk(d.macd.line[i], d.macd.signal[i]) && d.macd.line[i] > d.macd.signal[i])},
+  {k: 'macdDn', t: 'MACDがシグナルを下抜け', dir: -1, fn: d =>
+    edges(d, i => cmpOk(d.macd.line[i], d.macd.signal[i]) && d.macd.line[i] < d.macd.signal[i])},
+  {k: 'bbUp', t: 'ボリンジャー+2σを上抜け', dir: -1, fn: d =>
+    edges(d, i => cmpOk(d.c[i], d.bb.upper[i]) && d.c[i] > d.bb.upper[i])},
+  {k: 'bbDn', t: 'ボリンジャー−2σを下抜け', dir: 1, fn: d =>
+    edges(d, i => cmpOk(d.c[i], d.bb.lower[i]) && d.c[i] < d.bb.lower[i])},
+  {k: 'stUp', t: 'スーパートレンドが上向きに', dir: 1, fn: d =>
+    d.st ? edges(d, i => d.st.dir[i] > 0) : []},
+  {k: 'stDn', t: 'スーパートレンドが下向きに', dir: -1, fn: d =>
+    d.st ? edges(d, i => d.st.dir[i] < 0) : []},
+  {k: 'cloudUp', t: '雲を上抜け', dir: 1, fn: d =>
+    d.ich ? edges(d, i => cmpOk(d.c[i], d.ich.spanA[i], d.ich.spanB[i])
+      && d.c[i] > Math.max(d.ich.spanA[i], d.ich.spanB[i])) : []},
+  {k: 'cloudDn', t: '雲を下抜け', dir: -1, fn: d =>
+    d.ich ? edges(d, i => cmpOk(d.c[i], d.ich.spanA[i], d.ich.spanB[i])
+      && d.c[i] < Math.min(d.ich.spanA[i], d.ich.spanB[i])) : []},
+  {k: 'stochLo', t: 'ストキャス%Kが20を割る', dir: 1, fn: d =>
+    d.stoch ? edges(d, i => isNum(d.stoch.k[i]) && d.stoch.k[i] <= 20) : []},
+  {k: 'stochHi', t: 'ストキャス%Kが80を超える', dir: -1, fn: d =>
+    d.stoch ? edges(d, i => isNum(d.stoch.k[i]) && d.stoch.k[i] >= 80) : []},
+  {k: 'lor', t: 'Lorentzianが買いに転換', dir: 1, fn: d =>
+    d.lorentz ? edges(d, i => d.lorentz.sig[i] > 0) : []},
+  {k: 'lorS', t: 'Lorentzianが売りに転換', dir: -1, fn: d =>
+    d.lorentz ? edges(d, i => d.lorentz.sig[i] < 0) : []}
+];
+
+const cmpOk = (...v) => v.every(isNum);
+
+/* rising edges of a predicate: true now, not true on the previous bar */
+function edges(d, pred){
+  const out = [];
+  const n = d.c.length;
+  let prev = false;
+  for(let i = 1; i < n; i++){
+    let now = false;
+    try { now = !!pred(i); } catch(e){ now = false; }
+    if(now && !prev) out.push(i);
+    prev = now;
+  }
+  return out;
+}
+
+/* Forward return measured from the CLOSE OF THE SIGNAL BAR — you cannot
+   trade a close you have not seen yet, but you can trade the next open,
+   and using the signal close is the conventional (slightly optimistic)
+   choice. Stated so the number can be read for what it is. */
+function forwardStats(closes, idx, horizon){
+  const rets = [];
+  for(const i of idx){
+    const j = i + horizon;
+    if(j >= closes.length) continue;
+    if(!isNum(closes[i]) || !isNum(closes[j]) || !closes[i]) continue;
+    rets.push((closes[j] / closes[i] - 1) * 100);
+  }
+  if(!rets.length) return null;
+  const sorted = rets.slice().sort((a, b) => a - b);
+  const med = sorted[Math.floor(sorted.length / 2)];
+  const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+  const win = rets.filter(r => r > 0).length / rets.length * 100;
+  return {n: rets.length, med, mean, win,
+          best: sorted[sorted.length - 1], worst: sorted[0]};
+}
+
+/* The benchmark that matters: what did an arbitrary bar do over the same
+   horizon? A rule with a 55% "win rate" on a stock that rose on 57% of
+   all bars has found nothing. */
+function baselineStats(closes, horizon){
+  const all = [];
+  for(let i = 0; i + horizon < closes.length; i++) all.push(i);
+  return forwardStats(closes, all, horizon);
+}
+
+const MIN_SAMPLE = 10;
+
+function runSignalHistory(horizon){
+  if(!state.raw) throw new Error('先に銘柄を読み込んでください');
+  const d = state.ind, closes = d.c;
+  const base = baselineStats(closes, horizon);
+  const rows = [];
+  for(const r of RULES){
+    let idx = [];
+    try { idx = r.fn(d) || []; } catch(e){ idx = []; }
+    const s = forwardStats(closes, idx, horizon);
+    if(!s) continue;
+    /* "edge" is against the baseline, in the direction the rule claims */
+    const edge = base ? (s.med - base.med) * (r.dir >= 0 ? 1 : -1) : null;
+    rows.push({key: r.k, title: r.t, dir: r.dir, ...s, edge,
+               weak: s.n < MIN_SAMPLE});
+  }
+  rows.sort((a, b) => {
+    if(a.weak !== b.weak) return a.weak ? 1 : -1;
+    return (b.edge || 0) - (a.edge || 0);
+  });
+  return {rows, base, horizon, bars: closes.length,
+          unit: P.unit, iv: IV_LABEL[state.interval] || state.interval};
+}
+
+function renderSignalHistory(res){
+  const box = $('#histBody');
+  if(!box) return;
+  const pct = v => (isNum(v) ? (v >= 0 ? '+' : '') + v.toFixed(2) : '—');
+  const tone = v => !isNum(v) ? '' : v > 0 ? 'wup' : v < 0 ? 'wdn' : '';
+
+  const b = res.base;
+  const head = `<p class="qsrc" style="margin:0 0 10px;line-height:1.7">`
+    + `${esc(res.iv, 8)} ${res.bars}本のうち、シグナルが出た次の<b>${res.horizon}${esc(res.unit, 4)}後</b>の`
+    + `値動きです。比較のため、<b>どの足でもいい適当な地点</b>から同じ${res.horizon}${esc(res.unit, 4)}を`
+    + `見たときの中央値は <b class="${tone(b && b.med)}">${pct(b && b.med)}%</b>`
+    + `(上がった割合 ${b ? b.win.toFixed(0) : '—'}%)でした。`
+    + `<b>これを超えていなければ、そのシグナルはこの銘柄では何も見つけていません。</b></p>`;
+
+  const rows = res.rows.map(r => `<tr class="${r.weak ? 'hweak' : ''}">
+      <td class="wl">${esc(r.title, 30)}
+        <span class="hdir">${r.dir > 0 ? '買い' : '売り'}</span></td>
+      <td class="wnum">${r.n}回</td>
+      <td class="wnum ${tone(r.med)}">${pct(r.med)}%</td>
+      <td class="wnum">${r.win.toFixed(0)}%</td>
+      <td class="wnum ${tone(r.edge)}"><b>${pct(r.edge)}%</b></td>
+      <td class="wnum hsm">${pct(r.worst)} / ${pct(r.best)}</td>
+    </tr>`).join('');
+
+  box.innerHTML = head
+    + '<div class="tscroll"><table class="wtab"><thead><tr>'
+    + '<th class="wl">シグナル</th><th>回数</th><th>中央値</th><th>勝率</th>'
+    + '<th>基準との差</th><th>最悪 / 最良</th></tr></thead><tbody>'
+    + (rows || '<tr><td colspan="6" class="qsrc">十分な回数が出たシグナルがありませんでした。</td></tr>')
+    + '</tbody></table></div>'
+    + `<p class="qsrc" style="margin:10px 0 0;line-height:1.7">`
+    + `薄い行は<b>${MIN_SAMPLE}回未満</b>で、勝率にほとんど意味がありません。`
+    + `いずれも手数料・スリッページを含まず、いま画面に出ている期間だけを後から当てはめた結果です。`
+    + `将来こうなるという意味ではありません。</p>`;
+}
+/* The relay source, kept here so the tool can hand it over without
+   needing the zip. Byte-identical to worker.js in the package. */
+const WORKER_SRC = `/* ============================================================
+   自分専用の中継サーバー (Cloudflare Workers)
+   株価テクニカル分析ツール用
+
+   ブラウザから Yahoo Finance などへ直接アクセスすることはできません
+   (CORS)。無料の公開中継サーバーでも動きますが、混雑して時間切れに
+   なりますし、「どの銘柄を見たか」がその運営者に渡ります。
+   これを自分のアカウントに置くと、その両方が解決します。
+
+   ------------------------------------------------------------
+   置きかた(5分・無料枠で十分です)
+   ------------------------------------------------------------
+   1. https://dash.cloudflare.com/ にログイン
+   2. 左メニュー「Workers & Pages」→「Create」→「Start with Hello World!」
+      →「Deploy」(名前は何でも構いません。例: ta-relay)
+   3. デプロイ後「Edit code」を開き、中身を全部消してこのファイルを貼り付け
+   4. 「Deploy」
+   5. 表示された URL(例 https://ta-relay.あなた.workers.dev)をコピーし、
+      ツールの「通信」欄に貼り付けて「保存」
+
+   ------------------------------------------------------------
+   このコードがしていること
+   ------------------------------------------------------------
+   ・取りにいける先を下の ALLOW だけに限定しています。誰かにURLを
+     知られても、他人がこれを使って任意のサイトへ中継することはできません
+     (＝「オープンプロキシ」になりません)
+   ・ALLOW_ORIGIN を自分の公開URLに書き換えると、そのページからしか
+     使えなくなります。空のままでも上の制限は効きますが、書いたほうが安全です
+   ・Cookie と認証ヘッダは転送しません
+   ============================================================ */
+
+/* ここを自分の公開URLにすると、そのページ専用になります。
+   例: const ALLOW_ORIGIN = 'https://xxxx.github.io';
+   空文字のままなら、どこからでも使えます(取得先の制限は残ります)。 */
+const ALLOW_ORIGIN = '';
+
+/* 中継してよい相手。ツールが使う先だけです。
+   ここに載っていないホストは 403 で断ります。 */
+const ALLOW = [
+  'query1.finance.yahoo.com',
+  'query2.finance.yahoo.com',
+  'stooq.com',
+  'news.google.com',
+  'www.jpx.co.jp',
+  'jpx.co.jp',
+  'www.taisyaku.jp'
+];
+
+const MAX_BYTES = 25 * 1024 * 1024;
+
+function allowed(host) {
+  host = String(host || '').toLowerCase();
+  return ALLOW.some(h => host === h || host.endsWith('.' + h));
+}
+
+function cors(origin) {
+  return {
+    'Access-Control-Allow-Origin': ALLOW_ORIGIN || origin || '*',
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin'
+  };
+}
+
+function deny(msg, status, origin) {
+  return new Response(msg, {status: status, headers: cors(origin)});
+}
+
+export default {
+  async fetch(request) {
+    const origin = request.headers.get('Origin') || '';
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {status: 204, headers: cors(origin)});
+    }
+    if (request.method !== 'GET') {
+      return deny('GET only', 405, origin);
+    }
+    /* 自分のページ専用にしている場合 */
+    if (ALLOW_ORIGIN && origin && origin !== ALLOW_ORIGIN) {
+      return deny('origin not allowed', 403, origin);
+    }
+
+    const here = new URL(request.url);
+
+    /* ブラウザで直接開いたときの動作確認用 */
+    if (!here.searchParams.has('url')) {
+      return new Response(
+        '中継サーバーは動いています。\\n\\n' +
+        'このURLをツールの「通信」欄に貼り付けてください。\\n' +
+        '中継できる取得先: ' + ALLOW.join(', ') + '\\n',
+        {status: 200, headers: Object.assign({'Content-Type': 'text/plain; charset=utf-8'}, cors(origin))}
+      );
+    }
+
+    let target;
+    try {
+      target = new URL(here.searchParams.get('url'));
+    } catch (e) {
+      return deny('bad url', 400, origin);
+    }
+    if (target.protocol !== 'https:') return deny('https only', 400, origin);
+    if (!allowed(target.hostname)) return deny('host not allowed: ' + target.hostname, 403, origin);
+
+    let upstream;
+    try {
+      upstream = await fetch(target.href, {
+        method: 'GET',
+        headers: {
+          /* 素のfetchだと弾く相手がいるので、ふつうのブラウザとして名乗ります */
+          'User-Agent': 'Mozilla/5.0 (compatible; ta-relay/1.0)',
+          'Accept': request.headers.get('Accept') || '*/*',
+          'Accept-Language': 'ja,en;q=0.8'
+        },
+        redirect: 'follow',
+        cf: {cacheTtl: 20, cacheEverything: false}
+      });
+    } catch (e) {
+      return deny('upstream error', 502, origin);
+    }
+
+    const len = Number(upstream.headers.get('content-length') || 0);
+    if (len > MAX_BYTES) return deny('too large', 413, origin);
+
+    const headers = new Headers(cors(origin));
+    const ct = upstream.headers.get('content-type');
+    if (ct) headers.set('Content-Type', ct);
+    headers.set('Cache-Control', 'no-store');
+
+    return new Response(upstream.body, {status: upstream.status, headers: headers});
+  }
+};
+`;
+/* ============================================================
    11. Built-in self test
    Open the file with #selftest on the end of the URL to run it.
    It exercises the real functions in this file — not copies — so
@@ -7942,6 +8776,122 @@ $('#drvClientSave').addEventListener('click', () => {
                 : '既定のクライアントIDに戻しました。');
 });
 
+/* ---- watchlist -------------------------------------------------------- */
+$('#watchBtn').addEventListener('click', () => refreshWatch(false));
+$('#watchForce').addEventListener('click', () => refreshWatch(true));
+$('#watchBody').addEventListener('click', e => {
+  const th = e.target.closest('th[data-sk]');
+  if(th){
+    const k = th.dataset.sk;
+    watchSort = {key: k, dir: watchSort.key === k ? -watchSort.dir : (k === 'name' ? 1 : -1)};
+    renderWatch();
+    return;
+  }
+  const tr = e.target.closest('tr[data-code]');
+  if(tr){ $('#sym').value = tr.dataset.code; pendingPick = null; run(); }
+});
+
+/* ---- alerts ----------------------------------------------------------- */
+function fillAlertForm(){
+  const sym = $('#alSym');
+  const cur = sym.value;
+  const opts = Book.favs.map(f => ({v: f.code, t: `${f.name || f.code} (${f.code})`}));
+  if(state.raw && state.raw.code && !opts.some(o => o.v === state.raw.code) && state.raw.code !== 'DEMO')
+    opts.unshift({v: state.raw.code, t: `${state.raw.name} (${state.raw.code})`});
+  sym.innerHTML = opts.length
+    ? opts.map(o => `<option value="${esc(o.v, 24)}">${esc(o.t, 48)}</option>`).join('')
+    : '<option value="">★に登録するとここに出ます</option>';
+  if(cur && opts.some(o => o.v === cur)) sym.value = cur;
+  if(!$('#alKind').options.length){
+    $('#alKind').innerHTML = Object.keys(ALERT_KINDS)
+      .map(k => `<option value="${k}">${esc(ALERT_KINDS[k].t, 40)}</option>`).join('');
+  }
+  syncAlertVal();
+}
+function syncAlertVal(){
+  const k = ALERT_KINDS[$('#alKind').value];
+  const need = !!(k && k.needs.length);
+  $('#alValWrap').classList.toggle('hide', !need);
+  if(need){
+    $('#alValLab').textContent = /rsi/i.test($('#alKind').value) ? 'RSIの値' : '価格';
+    if(!$('#alVal').value && isNum(k.def)) $('#alVal').value = k.def;
+  }
+}
+$('#alKind').addEventListener('change', syncAlertVal);
+$('#alAdd').addEventListener('click', () => {
+  const code = $('#alSym').value, kind = $('#alKind').value;
+  const k = ALERT_KINDS[kind];
+  if(!code){ $('#alMsg').textContent = 'まず★でお気に入りに登録してください。'; return; }
+  let v = null;
+  if(k && k.needs.length){
+    v = parseFloat($('#alVal').value);
+    if(!isNum(v)){ $('#alMsg').textContent = '数値を入れてください。'; return; }
+  }
+  try{
+    Alerts.add(code, kind, v);
+    $('#alMsg').textContent = 'アラートを追加しました。'
+      + (typeof Notification === 'function' && Notification.permission !== 'granted'
+         ? '「通知を許可」を押すと、他のタブを見ているときも知らせます。' : '');
+  }catch(e){ $('#alMsg').textContent = e.message; }
+});
+$('#alertList').addEventListener('click', e => {
+  const d = e.target.closest('[data-del]'), t = e.target.closest('[data-tog]');
+  if(d) Alerts.remove(+d.dataset.del);
+  else if(t) Alerts.toggle(+t.dataset.tog);
+});
+$('#alNotify').addEventListener('click', async () => {
+  const r = await askNotify();
+  $('#alMsg').textContent = r === 'granted' ? '通知を許可しました。'
+    : r === 'unsupported' ? 'この端末では通知を使えません(画面上にはお知らせします)。'
+    : '通知は許可されませんでした(画面上にはお知らせします)。';
+});
+
+/* ---- signal history --------------------------------------------------- */
+$('#histBtn').addEventListener('click', () => {
+  $('#histBtn').disabled = true;
+  try { renderSignalHistory(runSignalHistory(+$('#histH').value || 20)); }
+  catch(e){ $('#histBody').innerHTML = `<p class="qsrc">${esc(e.message, 90)}</p>`; }
+  finally { $('#histBtn').disabled = false; }
+});
+
+/* ---- own relay -------------------------------------------------------- */
+$('#relaySave').addEventListener('click', async () => {
+  const v = $('#relayUrl').value.trim().replace(/\/+$/, '');
+  if(!OWN_RELAY_OK.test(v)){
+    relayStatus('URLの形が違います(https:// で始まるアドレスを貼り付けてください)。', 'err');
+    return;
+  }
+  if(!relayInCSP(v)){
+    relayStatus('このアドレスはこのファイルの通信許可リストに入っていないため、ブラウザがブロックします。'
+      + '<br>workers.dev のURLならそのまま使えます。独自ドメインを使う場合は、'
+      + 'HTMLの1行目付近にある <code>connect-src</code> にそのドメインを足してください。', 'err');
+    return;
+  }
+  relayStatus('つながるか確かめています…');
+  try{
+    await testRelay(v);
+    Store.set('relay', v);
+    relayStatus('つながりました。これ以降、株価・ニュース・空売り・信用の取得はここを通ります。', 'ok');
+  }catch(e){
+    relayStatus('つながりませんでした(' + esc(e.message, 60) + ')。'
+      + 'デプロイ直後は数十秒かかることがあります。保存はしていません。', 'err');
+  }
+});
+$('#relayClear').addEventListener('click', () => {
+  Store.set('relay', '');
+  $('#relayUrl').value = '';
+  relayStatus('公開の中継サーバーに戻しました。');
+});
+$('#relayDl').addEventListener('click', () => {
+  const blob = new Blob([WORKER_SRC], {type: 'text/javascript;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'worker.js';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  relayStatus('worker.js を保存しました。Cloudflare の Edit code に貼り付けてください。');
+});
+
 /* ---- one-page report ------------------------------------------------- */
 const rptMsg = (m, err) => {
   const el = $('#rptMsg');
@@ -7995,6 +8945,11 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
   applyLayout('auto');
   refreshSyncInfo();
   refreshDriveUi();
+  renderAlerts();
+  fillAlertForm();
+  renderWatch();
+  $('#relayUrl').value = ownRelay();
+  if(ownRelay()) relayStatus('自分の中継サーバーを使っています: ' + esc(ownRelay(), 60));
   if(!FS_OK) $('#syncRow').classList.add('hide');
   Tabs.list = [{id: 0, label: '7203', symbol: '7203', interval: '1d', range: '1y',
                 i0: 0, i1: 0, toggles: Object.assign({}, state.toggles), compare: []}];
