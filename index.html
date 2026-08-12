@@ -388,9 +388,11 @@ input.idbox{width:100%;margin-top:5px;font:12px/1.5 ui-monospace,SFMono-Regular,
 .sigttl{font-size:13px;font-weight:600;margin:0;line-height:1.5}
 .sigttl .sigtag{font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--ink-3);
   text-transform:uppercase;margin-right:7px}
-.sigtxt{font-size:11.5px;color:var(--ink-2);margin:1px 0 0;line-height:1.5;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.sig.open .sigtxt{display:block;-webkit-line-clamp:none;overflow:visible}
+/* Hidden outright, not clamped to two lines. Clamping did nothing visible
+   for the short explanations, so the 「説明をひらく」 button looked broken —
+   it was already open as far as anyone could tell. */
+.sigtxt{font-size:11.5px;color:var(--ink-2);margin:1px 0 0;line-height:1.5;display:none}
+.sig.open .sigtxt{display:block}
 .verdict{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 14px;border:1px solid var(--hairline);border-radius:12px;background:var(--page);margin:0 0 12px}
 .verdict>div{flex:1 1 240px;min-width:0}
 .vbig{font-size:19px;font-weight:700}
@@ -597,7 +599,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div class="verdict" id="verdict"></div>
     <div class="sig" id="signals"></div>
     <div class="filters" style="margin:10px 0 0">
-      <button class="chip" id="sigMore" aria-pressed="false">説明をひらく</button>
+      <button class="chip" id="sigMore" aria-pressed="false">各項目の説明を表示</button>
     </div>
   </div>
 
@@ -631,7 +633,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <button class="chip" id="shortFileBtn" style="border-style:dashed">ファイルを読み込む(複数可)</button>
       <input type="file" id="shortFile" accept=".xls,.xlsx" multiple class="sr" aria-hidden="true" tabindex="-1">
     </div>
-    <label class="opt" style="margin-bottom:8px"><input type="checkbox" id="autoExt" checked>銘柄を開いたら自動で取得する(直近10日・信用残・決算予定)</label>
+    <label class="opt" style="margin-bottom:4px"><input type="checkbox" id="autoExt" checked>銘柄を開いたら自動で取得する(空売り10日分・日証金の貸借残・決算予定)</label>
+    <p class="qsrc" id="autoExtStat" style="margin:0 0 8px"></p>
     <p class="qsrc" id="extShortStat" style="margin:0 0 10px"></p>
     <div id="shortBox"></div>
     <p class="qsrc" style="margin:10px 0 0;line-height:1.7">
@@ -4863,6 +4866,14 @@ function renderMarginStatus(status){
     + (loanKind
       ? ' ・ 日証金を通した分だけの<b>貸借残</b>です(市場全体の信用残ではありません)'
       : ' ・ 市場全体の<b>信用残</b>(週次)です') + '</p>');
+  /* Say when the stored series has been cleaned up. Silently changing
+     numbers the user has already looked at is worse than the bug. */
+  if(marginDropped){
+    bits.push(`<p class="qsrc" style="margin:5px 0 0">`
+      + `以前の版で<b>信用残と貸借残(日証金)が混ざって</b>保存されていたため、`
+      + `桁の合わない ${marginDropped} 件を外しました`
+      + `(これが「取り込んだ表と違う」原因です)。</p>`);
+  }
 
   /* The JSF daily figure, when it is NOT the series. It is roughly a tenth
      of the market-wide balance, so drawing it on the same axis produced a
@@ -4929,6 +4940,8 @@ const Ext = {
     const k = this.codeKey();
     const mine = ++this.gen;
     this.short = this.margin = null;
+    this.loan = null;
+    marginDropped = 0;
     if(!k) return;
     const okDate = d => /^\d{8}$/.test(String(d));
     /* neither IndexedDB nor localStorage is a trust boundary — anything that
@@ -4969,8 +4982,27 @@ const Ext = {
     if(m && Array.isArray(m.points)){
       const pts = m.points.filter(p => p && okDate(p.d)).slice(-400).map(p => ({
         d: p.d, buy: isNum(p.buy) ? p.buy : null,
-        sell: isNum(p.sell) ? p.sell : null, ratio: isNum(p.ratio) ? p.ratio : null}));
-      if(pts.length) this.margin = {points: pts, src: cleanText(m.src, 60)};
+        sell: isNum(p.sell) ? p.sell : null, ratio: isNum(p.ratio) ? p.ratio : null,
+        k: p.k === 'loan' || p.k === 'credit' ? p.k : null}));
+      /* A record written before the two statistics were separated holds both
+         at once, and nothing in it says which is which. The kind is taken
+         from the source name where that is enough, and the leftovers are
+         found by size: a weekly 信用残 series does not drop to a tenth for
+         one day and come back. */
+      const said = m.kind === 'loan' || m.kind === 'credit' ? m.kind : kindFromSrc(m.src);
+      let cleaned = dropForeignPoints(pts, said);
+      let kind = said;
+      if(cleaned.flip){
+        kind = said === 'loan' ? 'credit' : 'loan';
+        cleaned = dropForeignPoints(pts.map(p => ({...p, k: null})), kind);
+      }
+      if(cleaned.points.length){
+        this.margin = {points: cleaned.points.map(p => ({...p, k: kind})),
+                       src: cleanText(m.src, 60), kind};
+        marginDropped = cleaned.dropped;
+        /* write the healed record back, so this only happens once */
+        if(cleaned.dropped) this.saveMargin(k);
+      }
     }
   },
   saveShort(code){ const k = code || this.codeKey(); if(k && this.short)  extSaveToDB('short',  k, this.short); },
@@ -5007,17 +5039,22 @@ const Ext = {
     if(cur && curKind !== kind){
       /* the market-wide series wins; the JSF daily figure does not overwrite it */
       if(kind === 'loan') return {kept: curKind};
-      this.margin = {points: points.slice().sort((a,b)=> a.d.localeCompare(b.d)).slice(-400),
-                     src, kind};
+      this.margin = {points: points.map(p => ({...p, k: kind}))
+                       .sort((a,b)=> a.d.localeCompare(b.d)).slice(-400), src, kind};
+      marginDropped = 0;
       this.saveMargin(code);
       return {replaced: curKind};
     }
-    const map = new Map((cur ? cur.points : []).map(p => [p.d, p]));
-    for(const p of points) map.set(p.d, p);
-    this.margin = {points: [...map.values()].sort((a,b)=> a.d.localeCompare(b.d)).slice(-400),
-                   src, kind};
+    /* every point records which statistic it is, so a cache can never go
+       back to being a mixture nobody can untangle */
+    const map = new Map((cur ? cur.points : []).map(p => [p.d, {...p, k: p.k || kind}]));
+    for(const p of points) map.set(p.d, {...p, k: kind});
+    const all = [...map.values()].sort((a,b)=> a.d.localeCompare(b.d)).slice(-400);
+    const cleaned = dropForeignPoints(all, kind);
+    this.margin = {points: cleaned.points, src, kind};
+    marginDropped = cleaned.dropped;
     this.saveMargin(code);
-    return {merged: true};
+    return {merged: true, dropped: cleaned.dropped};
   },
 
   /* the latest JSF daily figure, kept for display when it is not the series */
@@ -5032,6 +5069,53 @@ const Ext = {
     redraw(); renderSignals();
   }
 };
+
+/* How many points the last cache clean-up threw away, for the card to
+   mention rather than quietly changing the numbers. */
+let marginDropped = 0;
+
+/* 日証金 is the only 貸借残 source this app has; everything else it reads is
+   the market-wide 信用残. */
+function kindFromSrc(src){
+  return /日証金|taisyaku|zandaka|貸借/.test(String(src || '')) ? 'loan' : 'credit';
+}
+
+/* Remove points that plainly belong to the other statistic.
+
+   信用残 and 貸借残 differ by about an order of magnitude, so a single point
+   at a tenth of the series median is not a week when everyone closed out —
+   it is the other source's number that got merged in before the two were
+   told apart. Only run once there are enough points for the median to mean
+   something, and only on a gap big enough that no real week could produce
+   it. */
+const FOREIGN_FACTOR = 4;
+
+function dropForeignPoints(points, kind){
+  const tagged = points.filter(p => p.k);
+  /* if the points say what they are, that is the answer */
+  if(tagged.length === points.length){
+    const keep = points.filter(p => p.k === kind);
+    return {points: keep, dropped: points.length - keep.length};
+  }
+  const vals = points.map(p => p.buy).filter(v => isNum(v) && v > 0).sort((a, b) => a - b);
+  if(vals.length < 5) return {points, dropped: 0};
+  const med = vals[vals.length >> 1];
+  if(!(med > 0)) return {points, dropped: 0};
+  const ok = p => {
+    if(p.k) return p.k === kind;
+    if(!isNum(p.buy) || p.buy <= 0) return true;
+    return p.buy >= med / FOREIGN_FACTOR && p.buy <= med * FOREIGN_FACTOR;
+  };
+  const keep = points.filter(ok);
+  /* `src` names whoever wrote LAST, so if the newest point is one of the
+     ones being thrown out, the name belongs to the discarded set and the
+     survivors are the other statistic. Without this the panel kept the
+     label 「貸借残」 over a series that is entirely 信用残. */
+  const newest = points.reduce((a, b) => (!a || b.d > a.d) ? b : a, null);
+  const flip = !!(newest && !ok(newest) && keep.length > points.length - keep.length);
+  return {points: keep.map(p => ({...p, k: p.k || kind})),
+          dropped: points.length - keep.length, flip};
+}
 
 /* a plain Date -> YYYYMMDD in local terms; used for report dates read out of
    files, which are already calendar dates rather than instants */
@@ -5684,6 +5768,35 @@ function renderExtStatus(){
   const sc = $('#shortClear'), mc = $('#marginClear');
   if(sc) sc.onclick = () => Ext.clear('short');
   if(mc) mc.onclick = () => Ext.clear('margin');
+  renderAutoExtStatus();
+}
+
+/* 「自動でweb開いたときに取り込みしてる？」 — yes, and it should not be a
+   question. What ran, on which stock, and when. */
+function renderAutoExtStatus(){
+  const el = $('#autoExtStat');
+  if(!el) return;
+  const code = Ext.codeKey();
+  if(!autoExtOn()){
+    el.textContent = 'いまは自動取得を切っています。上のボタンで手動で取得できます。';
+    return;
+  }
+  if(!/^[0-9A-Z]{4}$/.test(code)){
+    el.textContent = '自動取得は日本株(東証4桁コード)のみです。';
+    return;
+  }
+  const at = +Store.get('autoExtAt.' + code, 0);
+  if(!at){
+    el.textContent = `${code}: この銘柄ではまだ自動取得していません`
+      + '(銘柄を開いた直後に1回だけ動きます)。';
+    return;
+  }
+  const t = new Date(at);
+  const fm = `${t.getFullYear()}/${String(t.getMonth()+1).padStart(2,'0')}/`
+    + `${String(t.getDate()).padStart(2,'0')} `
+    + `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  const done = String(Store.get('autoExtWhat.' + code, '') || '空売り・信用残・決算予定');
+  el.textContent = `${code}: 最後の自動取得 ${fm}(${done})。1銘柄1日1回までです。`;
 }
 
 /* ---- fetch without being asked, once per stock per day ---------------
@@ -5705,19 +5818,27 @@ async function autoFetchExt(){
   if(shortBusy) return;                            /* a manual crawl is running */
 
   let worked = false;
+  const done = [];
   const fresh = pts => pts && pts.length && pts[pts.length - 1].d >= today;
   try{
-    if(!fresh(Ext.short && Ext.short.points)) await loadShortSeries(10, 1);
+    if(!fresh(Ext.short && Ext.short.points)){ await loadShortSeries(10, 1); done.push('空売り残高10日分'); }
     worked = true;
   }catch(e){}
   if(Ext.codeKey() !== code) return;
   try{
-    if(!fresh(Ext.margin && Ext.margin.points)) await loadJSF();
+    /* the JSF daily figure. It is 貸借残, a different statistic from the
+       weekly 信用残, so it lands beside the series rather than in it. */
+    if(!fresh(Ext.loan ? [Ext.loan] : null)){ await loadJSF(); done.push('日証金の貸借残'); }
   }catch(e){}
   if(Ext.codeKey() !== code) return;
-  try{ await loadEarnings(); }catch(e){}
+  try{ await loadEarnings(); done.push('決算予定'); }catch(e){}
   /* only now, so an interrupted or failed attempt is retried next time */
-  if(worked) Store.set(mark, today);
+  if(worked){
+    Store.set(mark, today);
+    Store.set('autoExtAt.' + code, Date.now());
+    Store.set('autoExtWhat.' + code, done.join('・') || '確認のみ');
+  }
+  renderAutoExtStatus();
 }
 
 /* ============================================================
@@ -10349,7 +10470,10 @@ $('#short260').addEventListener('click', () => {
 });
 $('#earnBtn').addEventListener('click', () => loadEarnings());
 $('#shinaBtn').addEventListener('click', () => loadShina());
-$('#autoExt').addEventListener('change', e => Store.set('autoExt', e.target.checked ? 1 : 0));
+$('#autoExt').addEventListener('change', e => {
+  Store.set('autoExt', e.target.checked ? 1 : 0);
+  renderAutoExtStatus();
+});
 $('#shortFileBtn').addEventListener('click', () => $('#shortFile').click());
 $('#shortFile').addEventListener('change', e => {
   const fs = Array.from(e.target.files || []);
@@ -10513,20 +10637,21 @@ $('#watchBtn').addEventListener('click', () => refreshWatch(false));
 $('#watchForce').addEventListener('click', () => refreshWatch(true));
 $('#alertBarX').addEventListener('click', () => $('#alertBar').classList.add('hide'));
 
-/* the signal explanations are two lines each until asked for in full */
-$('#sigMore').addEventListener('click', () => {
-  const box = $('#signals'), on = !box.classList.contains('open');
-  box.classList.toggle('open', on);
+/* The判定 itself is one line per item; the paragraph explaining each rule is
+   folded away, because eighteen of them is most of a screen. The button has
+   to say which state you are IN, not only what it does. */
+function setSigOpen(on){
+  $('#signals').classList.toggle('open', on);
   const b = $('#sigMore');
-  b.textContent = on ? '説明をとじる' : '説明をひらく';
+  b.textContent = on ? '説明を隠す' : '各項目の説明を表示';
   b.setAttribute('aria-pressed', String(on));
+}
+$('#sigMore').addEventListener('click', () => {
+  const on = !$('#signals').classList.contains('open');
+  setSigOpen(on);
   Store.set('sigOpen', on);
 });
-if(Store.get('sigOpen', false)){
-  $('#signals').classList.add('open');
-  $('#sigMore').textContent = '説明をとじる';
-  $('#sigMore').setAttribute('aria-pressed', 'true');
-}
+setSigOpen(Store.get('sigOpen', false) === true);
 
 /* ---- the favourites drawer -------------------------------------------- */
 $('#favBox').addEventListener('toggle', () => { $('#favBox').dataset.touched = '1'; });
@@ -10720,6 +10845,7 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
   applyLayout('auto');
   panelScale = sanitizeScales(Store.get('panelScale', {}));
   $('#autoExt').checked = autoExtOn();
+  renderAutoExtStatus();
   refreshSyncInfo();
   refreshDriveUi();
   renderAlerts();
