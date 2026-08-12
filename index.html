@@ -401,6 +401,24 @@ td:first-child,th:first-child{text-align:left}
 .notice.hide{display:none}
 .alertbar{border-color:var(--warn,#c98a12);background:color-mix(in srgb,var(--warn,#c98a12) 12%,var(--surface-1))}
 .alertbar b{color:var(--ink-1)}
+.favbox{border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);
+  padding:9px 12px;margin:0 0 14px}
+.favbox>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:9px;
+  font-size:13.5px;font-weight:650;color:var(--ink-1)}
+.favbox>summary::-webkit-details-marker{display:none}
+.favbox>summary::after{content:'▾';margin-left:auto;color:var(--ink-3);font-weight:400}
+.favbox[open]>summary::after{content:'▴'}
+.favn{font-size:12px;font-weight:600;color:var(--ink-2);background:var(--wash);
+  border-radius:999px;padding:1px 9px;min-width:22px;text-align:center}
+.favgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.favempty{font-size:12.5px;color:var(--ink-3);margin:10px 0 0;line-height:1.7}
+#pasteBox{width:100%;box-sizing:border-box;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+  padding:10px 11px;border-radius:11px;border:1px solid var(--hairline);
+  background:var(--surface-1);color:var(--ink-1);resize:vertical;min-height:110px}
+#pasteBox:focus{outline:2px solid var(--accent);outline-offset:1px}
+.pprev{border:1px solid var(--hairline);border-radius:11px;padding:9px 11px;background:var(--wash);
+  font-size:12.5px;line-height:1.75;color:var(--ink-2)}
+.pprev b{color:var(--ink-1)}
 footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border-top:1px solid var(--hairline);margin-top:10px}
 .busy{opacity:.45;transition:opacity .15s}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -453,6 +471,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div>
       <div class="qdelta" id="qDelta">—</div>
       <div class="qsrc" id="qSrc">読み込み中…</div>
+      <div class="qsrc hide" id="qFresh"></div>
       <div class="qsrc" id="qPreset"></div>
     </div>
   </div>
@@ -461,8 +480,20 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <label for="histSel" class="sr">閲覧履歴</label>
     <select class="mini" id="histSel" style="max-width:260px"></select>
     <button class="chip" id="histClear" style="border-style:dashed">履歴を消す</button>
-    <span id="favList" style="display:flex;gap:8px;flex-wrap:wrap"></span>
   </div>
+
+  <!-- The ★ used to drop a bare chip into the row above, where it read as
+       one more button rather than "a list of my stocks". Its own labelled
+       drawer, with the count on the outside. -->
+  <details class="favbox" id="favBox">
+    <summary><span class="favttl">★ お気に入り</span>
+      <span class="favn" id="favCount">0</span></summary>
+    <div id="favList" class="favgrid"></div>
+    <div class="filters" style="margin:9px 0 0">
+      <button class="chip" id="favOpenList">現在値つきの一覧を見る</button>
+      <button class="chip" id="favClearAll" style="border-style:dashed">すべて外す</button>
+    </div>
+  </details>
 
   <div class="notice" id="notice">
     <span aria-hidden="true">ℹ</span>
@@ -622,18 +653,65 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </div>
     <p class="qsrc" id="extMarginStat" style="margin:0 0 10px"></p>
     <div id="marginBox"></div>
+    <!-- Only the links that are about margin balances. 株主優待 has nothing
+         to do with this card and was confusing next to it. -->
     <div class="links" style="margin-top:12px">
-      <a id="lnkJpx" target="_blank" rel="noopener noreferrer">JPX 空売り残高</a>
-      <a id="lnkKarauri" target="_blank" rel="noopener noreferrer">空売り残高(karauri.net)</a>
       <a id="lnkMargin" target="_blank" rel="noopener noreferrer">JPX 信用取引残高(PDF)</a>
       <a id="lnkJsf" target="_blank" rel="noopener noreferrer">日証金 貸借取引残高(日次)</a>
-      <a id="lnkTdnet" target="_blank" rel="noopener noreferrer">適時開示(TDnet)</a>
-      <a id="lnkYahoo" target="_blank" rel="noopener noreferrer">Yahoo!ファイナンス</a>
       <a id="lnkNkTrust" target="_blank" rel="noopener noreferrer">日経 信用残の推移</a>
       <a id="lnkNkGyaku" target="_blank" rel="noopener noreferrer">日経 逆日歩・貸借残</a>
-      <a id="lnkNkYutai" target="_blank" rel="noopener noreferrer">日経 株主優待</a>
     </div>
     <p id="extNote"></p>
+  </div>
+
+  <div class="card">
+    <h2>表を貼り付けて取り込む</h2>
+    <p class="qsrc" style="margin:0 0 10px">日経など<b>自動取得できないページ</b>の表は、
+      ブラウザで<b>表をドラッグして選択 → コピー</b>し、ここに貼り付けてください。
+      日付・信用買残・信用売残・逆日歩などを自動で見分けて、いま開いている銘柄に取り込みます。
+      <b>見出し行ごと貼って構いません。</b></p>
+    <textarea id="pasteBox" rows="6" spellcheck="false"
+      placeholder="ここに貼り付け（例）&#10;日付&#9;信用買残&#9;信用売残&#9;信用倍率&#10;2026/08/07&#9;12,345,600&#9;3,210,000&#9;3.84"></textarea>
+    <div class="filters" style="margin:8px 0">
+      <button class="chip" id="pasteGo">取り込む</button>
+      <button class="chip" id="pasteClear" style="border-style:dashed">消す</button>
+    </div>
+    <div id="pasteBox2"></div>
+    <details class="dhelp">
+      <summary>どんな形式なら取り込めますか</summary>
+      <div class="qsrc" style="line-height:1.8;margin-top:8px">
+        <p style="margin:0 0 8px"><b>区切りはタブでもカンマでも構いません。</b>
+          Webページの表をコピーするとタブ区切りになるので、そのまま貼れます。
+          スペース区切り・全角スペースも読みます。桁区切りのカンマ(12,345,600)も、
+          タブ区切りならそのままで大丈夫です。</p>
+        <p style="margin:0 0 8px"><b>見出しに使える言葉</b>（一部でも含まれていれば拾います）</p>
+        <table class="wtab" style="margin-bottom:8px"><tbody>
+          <tr><td class="wl">日付</td><td class="wl">日付 / 年月日 / 週末 / 申込日 / 基準日</td></tr>
+          <tr><td class="wl">信用買残</td><td class="wl">信用買残 / 買残 / 融資残高</td></tr>
+          <tr><td class="wl">信用売残</td><td class="wl">信用売残 / 売残 / 貸株残高</td></tr>
+          <tr><td class="wl">信用倍率</td><td class="wl">信用倍率 / 倍率 / 貸借倍率</td></tr>
+          <tr><td class="wl">逆日歩</td><td class="wl">逆日歩 / 品貸料率</td></tr>
+        </tbody></table>
+        <p style="margin:0 0 8px"><b>見出しが無いときは</b>、
+          <code>日付, 信用買残, 信用売残</code> の順とみなします。</p>
+        <p style="margin:0 0 8px">日付は <code>2026/08/07</code> <code>2026-08-07</code>
+          <code>26/08/07</code> <code>08/07</code>(今年とみなす) <code>2026年8月7日</code> を読みます。</p>
+        <p style="margin:0"><b>取り込む前に必ず内容を表示します。</b>
+          違っていたら「取り込む」を押さずに閉じてください。</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>この銘柄のページ</h2>
+    <p class="qsrc" style="margin:0 0 10px">このツールが読んでいない情報は、公式のページで直接どうぞ。</p>
+    <div class="links">
+      <a id="lnkYahoo" target="_blank" rel="noopener noreferrer">Yahoo!ファイナンス</a>
+      <a id="lnkNkYutai" target="_blank" rel="noopener noreferrer">日経 株主優待</a>
+      <a id="lnkTdnet" target="_blank" rel="noopener noreferrer">適時開示(TDnet)</a>
+      <a id="lnkJpx" target="_blank" rel="noopener noreferrer">JPX 空売り残高</a>
+      <a id="lnkKarauri" target="_blank" rel="noopener noreferrer">空売り残高(karauri.net)</a>
+    </div>
   </div>
 
   <div class="card">
@@ -1983,8 +2061,13 @@ async function fetchYahoo(sym, range, interval){
   /* events=div,split costs nothing extra and explains the two things that
      make a chart look broken: a price that halves overnight (split) and a
      step down on the ex-date (dividend). */
+  /* The public CORS relays cache by URL. Without something that changes,
+     「自動更新」 kept re-reading a response the proxy had already stored and
+     the chart sat on yesterday's close while Yahoo's own page had moved on.
+     Yahoo ignores the extra parameter; the relay treats it as a new URL. */
   const path = `/v8/finance/chart/${encodeURIComponent(sym)}`
-             + `?range=${range}&interval=${interval}&includePrePost=false&events=div%2Csplit`;
+             + `?range=${range}&interval=${interval}&includePrePost=false&events=div%2Csplit`
+             + `&_=${Date.now()}`;
   let j = null, firstErr = null;
   for(const host of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']){
     try { j = await relayFetch(host + path); break; }
@@ -2016,17 +2099,72 @@ async function fetchYahoo(sym, range, interval){
      are the ground truth, so both are consulted and the bars win. */
   const said = owns(IV_LABEL, m.dataGranularity) ? m.dataGranularity : null;
   const seen = detectInterval(bars);
+  const gran = seen || said || interval;
+  const topped = topUpLastBar(bars, m, gran, tz);
   return {
     bars, tz,
+    /* when the exchange last traded, per Yahoo itself — the number to
+       check the chart against when it looks a day behind */
+    quoteAt: isNum(m.regularMarketTime) ? m.regularMarketTime * 1000 : null,
+    quotePrice: isNum(m.regularMarketPrice) ? m.regularMarketPrice : null,
+    fetchedAt: Date.now(),
+    topped,
     market: marketState(m),
     events: parseEvents(r.events, tz),
-    granularity: seen || said || interval,
+    granularity: gran,
     asked: interval,
     name: cleanText(m.longName || m.shortName || m.symbol || sym, 60),
     code: cleanSymbol(m.symbol) || sym,
     currency: /^[A-Z]{3}$/.test(m.currency || '') ? m.currency : (/\.T$/.test(sym) ? 'JPY' : 'USD'),
     source: 'Yahoo Finance'
   };
+}
+
+/* Yahoo's daily series routinely stops at the last CLOSED session while the
+   same response's meta block already carries today's trade. Asked for five
+   years of daily bars on a Tokyo name, you get bars through Monday and a
+   meta saying "last traded Wednesday 15:00" — so the chart reads a day or
+   two behind its own source, which is exactly what it looks like: a bug.
+
+   The meta quote is authoritative for the newest bar, so it is folded in:
+   appended if it belongs to a market day the series does not have yet,
+   merged into the last bar if it belongs to that one. Intraday series get
+   their bars from the series itself and are left alone. */
+function topUpLastBar(bars, m, gran, tz){
+  if(!bars.length || isIntradayIv(gran)) return null;
+  const at = isNum(m.regularMarketTime) ? m.regularMarketTime * 1000 : null;
+  const px = isNum(m.regularMarketPrice) ? m.regularMarketPrice : null;
+  if(!at || !px || px <= 0) return null;
+  const last = bars[bars.length - 1];
+  /* a quote that disagrees with the last close by more than half is not a
+     quote, it is a different instrument or a broken field */
+  if(isNum(last.c) && last.c > 0 && (px / last.c > 1.5 || px / last.c < 0.5)) return null;
+
+  const probe = [{t: new Date(at)}];
+  stampBars(probe, tz);
+  const key = probe[0].k;
+  if(key < barKey(last)) return null;               /* meta is behind: ignore */
+
+  const hi = isNum(m.regularMarketDayHigh) ? m.regularMarketDayHigh : null;
+  const lo = isNum(m.regularMarketDayLow)  ? m.regularMarketDayLow  : null;
+  const vol = isNum(m.regularMarketVolume) ? m.regularMarketVolume : 0;
+
+  if(key === barKey(last)){
+    /* same session — only correct it if the series really is stale */
+    if(Math.abs(last.c - px) < 1e-9) return null;
+    last.c = px;
+    if(isNum(hi)) last.h = Math.max(last.h, hi); else last.h = Math.max(last.h, px);
+    if(isNum(lo)) last.l = Math.min(last.l, lo); else last.l = Math.min(last.l, px);
+    if(vol > (last.v || 0)) last.v = vol;
+    return {kind: 'update', at, d: key};
+  }
+  /* a session the series does not have at all */
+  const open = isNum(m.regularMarketOpen) ? m.regularMarketOpen : px;
+  const b = {t: new Date(at), o: open, h: isNum(hi) ? hi : Math.max(open, px),
+             l: isNum(lo) ? lo : Math.min(open, px), c: px, v: vol};
+  bars.push(b);
+  stampBars([b], tz);
+  return {kind: 'append', at, d: key};
 }
 
 /* "Why isn't it moving?" is nearly always "the market is shut". Yahoo says
@@ -3895,10 +4033,21 @@ const Book = {
 
 function renderBook(){
   const fav = $('#favList'), his = $('#histSel');
+  /* the company name, not just the ticker: a row of 「★ 8267.T」 is a list
+     of codes, and nobody keeps a list of codes in their head */
   fav.innerHTML = Book.favs.length
     ? Book.favs.map(f =>
-        `<button class="chip fav" data-code="${esc(f.code, 24)}" title="${esc(f.name, 60)}">★ ${esc(f.code, 24)}</button>`).join('')
-    : '<span class="qsrc">★ボタンで登録した銘柄がここに並びます</span>';
+        `<button class="chip fav" data-code="${esc(f.code, 24)}" title="${esc(f.name, 60)}">`
+        + `★ ${esc(f.name || f.code, 22)}`
+        + `<span class="qsrc" style="margin-left:6px">${esc(f.code, 12)}</span></button>`).join('')
+    : '<p class="favempty">まだありません。銘柄を開いて、入力欄の右の ☆ を押すとここに貯まります。'
+      + '別の端末とはGoogleドライブ同期で共用できます。</p>';
+  const cnt = $('#favCount');
+  if(cnt) cnt.textContent = String(Book.favs.length);
+  const box = $('#favBox');
+  /* opened by default once there is something in it, so it does not read as
+     an empty header the first time either */
+  if(box && Book.favs.length && !box.dataset.touched) box.open = true;
 
   const cur = state.raw ? state.raw.code : '';
   his.innerHTML = '<option value="">履歴から選ぶ…</option>' + Book.hist.map(h =>
@@ -5234,7 +5383,7 @@ function renderShina(st){
   box.innerHTML = `<div class="earnnext"><b>品貸料率(逆日歩): `
     + `${isNum(st.rate) ? esc(st.rate.toFixed(2), 10) + ' 円/株・日' : '—'}</b>`
     + ` <span class="qsrc">${esc(d, 12)} 時点</span></div>`
-    + `<p class="qsrc" style="margin:6px 0 0">日本証券金融の品貸料率一覧より。`
+    + `<p class="qsrc" style="margin:6px 0 0">${esc(st.src || '日本証券金融の品貸料率一覧', 40)}より。`
     + `売り方が買い方に払う調達コストで、<b>付いている＝貸株が不足している</b>目安です。`
     + `逆日歩は事後に確定するため、速報値と最終値が異なることがあります。</p>`;
 }
@@ -7964,6 +8113,222 @@ function renderEarnings(st){
     + `過去の発表日は無料で機械的に取れる出所が無いため扱っていません。</p>`;
 }
 /* ============================================================
+   21. Paste a table in
+   Nikkei's robots.txt asks not to be crawled, so this tool does
+   not read those pages. But nothing stops a person opening the
+   page themselves, selecting the table and copying it — that is
+   just reading a website. This turns that clipboard content into
+   data.
+
+   The awkward part is that "make a CSV" is not an instruction
+   anyone can follow without knowing the columns. So: paste
+   whatever the browser put on the clipboard, the columns are
+   worked out from the headings, and the result is SHOWN before
+   anything is stored.
+   ============================================================ */
+
+/* Copying an HTML table gives tab-separated text. Copying from a PDF or a
+   terminal gives runs of spaces. Saving from Excel gives commas — with
+   thousands separators inside them, which is why a comma split has to be
+   the last thing tried rather than the first. */
+function pasteSplit(line){
+  if(line.indexOf('\t') >= 0) return line.split('\t');
+  if(line.indexOf(',') >= 0 && !/\d,\d{3}(\D|$)/.test(line)) return line.split(',');
+  if(/[ 　]{2,}/.test(line)) return line.split(/[ 　]{2,}/);
+  if(line.indexOf(',') >= 0) return line.split(',');
+  return line.split(/[ 　]+/);
+}
+
+const PASTE_COLS = {
+  date:  ['日付','年月日','週末','申込日','基準日','取引日','date','week'],
+  buy:   ['信用買残','買残','融資残高','融資残','買い残','買残高','信用買い残'],
+  sell:  ['信用売残','売残','貸株残高','貸株残','売り残','売残高','信用売り残'],
+  ratio: ['信用倍率','倍率','貸借倍率'],
+  gyaku: ['逆日歩','品貸料率','品貸']
+};
+
+/* A pasted date is a calendar date in the reader's own terms. Two-digit
+   years and bare MM/DD both turn up on these pages. */
+function pasteDate(v){
+  const s = String(v == null ? '' : v).trim()
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  let m = /^(\d{4})\s*[\/\-年.]\s*(\d{1,2})\s*[\/\-月.]\s*(\d{1,2})/.exec(s);
+  if(m) return mkDate(+m[1], +m[2], +m[3]);
+  m = /^(\d{2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{1,2})/.exec(s);
+  if(m) return mkDate(2000 + +m[1], +m[2], +m[3]);
+  m = /^(\d{1,2})\s*[\/\-月.]\s*(\d{1,2})/.exec(s);
+  if(m){
+    /* no year on the page: this year, unless that would be in the future,
+       in which case it is last year's table */
+    const now = new Date();
+    const d = mkDate(now.getFullYear(), +m[1], +m[2]);
+    if(d && d.getTime() > now.getTime() + 86400000)
+      return mkDate(now.getFullYear() - 1, +m[1], +m[2]);
+    return d;
+  }
+  m = /^(\d{8})$/.exec(s);
+  if(m) return mkDate(+s.slice(0,4), +s.slice(4,6), +s.slice(6,8));
+  return null;
+}
+function mkDate(y, mo, d){
+  if(!(y >= 1990 && y <= 2100) || !(mo >= 1 && mo <= 12) || !(d >= 1 && d <= 31)) return null;
+  const t = new Date(y, mo - 1, d);
+  return (t.getFullYear() === y && t.getMonth() === mo - 1 && t.getDate() === d) ? t : null;
+}
+
+/* 12,345,600 / 1.2万株 / △1,200 (a minus, on Japanese financial pages) */
+function pasteNum(v){
+  let s = String(v == null ? '' : v).trim()
+    .replace(/[０-９．，－]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  if(s === '' || /^[-—–ー―‐]+$/.test(s)) return null;
+  const neg = /^[△▲\-−]/.test(s);
+  s = s.replace(/[,\s%円株倍△▲\-−+]/g, '');
+  let mul = 1;
+  if(/千$/.test(s)) { mul = 1e3; s = s.replace(/千$/, ''); }
+  if(/万$/.test(s)) { mul = 1e4; s = s.replace(/万$/, ''); }
+  if(/億$/.test(s)) { mul = 1e8; s = s.replace(/億$/, ''); }
+  if(!/^\d*\.?\d+$/.test(s)) return null;
+  const n = Number(s) * mul;
+  if(!isFinite(n)) return null;
+  return neg ? -n : n;
+}
+
+/* Read whatever was pasted. Never throws: the caller shows the result and
+   the reasons, and the user decides whether to keep it. */
+function parsePasted(text){
+  const lines = String(text || '').split(/\r?\n/)
+    .map(l => l.replace(/ /g, ' '))
+    .filter(l => l.trim() !== '');
+  const out = {rows: [], head: null, kind: null, skipped: 0, note: ''};
+  if(!lines.length){ out.note = '何も貼られていません。'; return out; }
+
+  /* find a heading row in the first few lines */
+  let map = null, start = 0;
+  for(let i = 0; i < Math.min(lines.length, 8); i++){
+    const cells = pasteSplit(lines[i]).map(c => String(c).replace(/[\s"]/g, ''));
+    const cand = {};
+    cells.forEach((c, j) => {
+      for(const k in PASTE_COLS)
+        if(cand[k] === undefined && PASTE_COLS[k].some(h => c.includes(h))) cand[k] = j;
+    });
+    if(cand.date !== undefined &&
+       (cand.buy !== undefined || cand.sell !== undefined || cand.gyaku !== undefined)){
+      map = cand; start = i + 1;
+      out.head = cells.filter(Boolean).slice(0, 8).join(' / ');
+      break;
+    }
+  }
+  /* Headings are optional. Without them the shape has to be assumed, and
+     the assumption is stated on screen rather than applied in silence. */
+  if(!map){
+    map = {date: 0, buy: 1, sell: 2};
+    out.note = '見出しが見つからなかったので、左から「日付・信用買残・信用売残」とみなしました。';
+  }
+
+  for(let i = start; i < lines.length; i++){
+    const c = pasteSplit(lines[i]);
+    const t = pasteDate(c[map.date]);
+    if(!t){ out.skipped++; continue; }
+    const pt = {d: dkey(t)};
+    const buy   = map.buy   !== undefined ? pasteNum(c[map.buy])   : null;
+    const sell  = map.sell  !== undefined ? pasteNum(c[map.sell])  : null;
+    let   ratio = map.ratio !== undefined ? pasteNum(c[map.ratio]) : null;
+    const gy    = map.gyaku !== undefined ? pasteNum(c[map.gyaku]) : null;
+    if(isNum(buy))  pt.buy = buy;
+    if(isNum(sell)) pt.sell = sell;
+    if(!isNum(ratio) && isNum(buy) && isNum(sell) && sell > 0) ratio = buy / sell;
+    if(isNum(ratio)) pt.ratio = ratio;
+    if(isNum(gy)) pt.gyaku = gy;
+    if(pt.buy === undefined && pt.sell === undefined && pt.gyaku === undefined){
+      out.skipped++; continue;
+    }
+    out.rows.push(pt);
+  }
+  /* newest last, and one row per date */
+  const byDate = new Map(out.rows.map(r => [r.d, r]));
+  out.rows = [...byDate.values()].sort((a, b) => a.d.localeCompare(b.d));
+  out.kind = out.rows.some(r => isNum(r.buy) || isNum(r.sell)) ? 'margin'
+           : out.rows.some(r => isNum(r.gyaku)) ? 'gyaku' : null;
+  return out;
+}
+
+/* What was understood, before anything is written. */
+function renderPastePreview(res, done){
+  const box = $('#pasteBox2');
+  if(!box) return;
+  if(!res){ box.innerHTML = ''; return; }
+  if(done){
+    box.innerHTML = `<div class="pprev"><b>${res.rows.length}件</b>を`
+      + `${esc(state.raw ? (state.raw.name || state.raw.code) : '', 40)}に取り込みました。`
+      + `チャートの信用残パネルに反映しています。</div>`;
+    return;
+  }
+  if(!res.rows.length){
+    box.innerHTML = `<div class="pprev">読み取れる行がありませんでした`
+      + (res.skipped ? `(${res.skipped}行を飛ばしました)` : '')
+      + `。<br>${esc(res.note, 120)}`
+      + `<br>「どんな形式なら取り込めますか」を開いて、見出しの言葉をご確認ください。</div>`;
+    return;
+  }
+  const fmtD = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+  const num = v => isNum(v) ? Math.round(v).toLocaleString('ja-JP') : '—';
+  const show = res.rows.slice(-6).reverse();
+  box.innerHTML = `<div class="pprev">`
+    + `<b>${res.rows.length}件</b>を読み取りました`
+    + (res.skipped ? `(${res.skipped}行は日付として読めず飛ばしました)` : '')
+    + ` ・ ${fmtD(res.rows[0].d)} 〜 ${fmtD(res.rows[res.rows.length-1].d)}`
+    + (res.head ? `<br>見出し: ${esc(res.head, 90)}` : '')
+    + (res.note ? `<br>${esc(res.note, 140)}` : '')
+    + `</div>`
+    + `<div class="tscroll" style="padding:0;margin-top:8px"><table class="wtab"><thead><tr>`
+    + `<th class="wl">日付</th><th>信用買残</th><th>信用売残</th><th>信用倍率</th>`
+    + (res.kind === 'gyaku' ? '<th>逆日歩</th>' : '')
+    + `</tr></thead><tbody>`
+    + show.map(r => `<tr><td class="wl">${fmtD(r.d)}</td>`
+        + `<td class="wnum">${num(r.buy)}</td><td class="wnum">${num(r.sell)}</td>`
+        + `<td class="wnum">${isNum(r.ratio) ? r.ratio.toFixed(2) : '—'}</td>`
+        + (res.kind === 'gyaku' ? `<td class="wnum">${isNum(r.gyaku) ? r.gyaku.toFixed(2) : '—'}</td>` : '')
+        + `</tr>`).join('')
+    + `</tbody></table></div>`
+    + (res.rows.length > show.length
+        ? `<p class="qsrc" style="margin:6px 0 0">新しい${show.length}件だけ表示しています。</p>` : '');
+}
+
+let pasteParsed = null;
+
+function pastePreview(){
+  const t = $('#pasteBox').value;
+  pasteParsed = t.trim() ? parsePasted(t) : null;
+  renderPastePreview(pasteParsed, false);
+  const btn = $('#pasteGo');
+  if(btn) btn.disabled = !(pasteParsed && pasteParsed.rows.length);
+}
+
+function pasteImport(){
+  if(!state.raw || state.raw.code === 'DEMO' || state.raw.code === 'CSV'){
+    notice('先に銘柄を読み込んでください。貼り付けたデータは、いま開いている銘柄に紐づけて保存します。', true);
+    return;
+  }
+  const res = pasteParsed;
+  if(!res || !res.rows.length){ pastePreview(); return; }
+  const code = Ext.codeKey();
+  const pts = res.rows.filter(r => isNum(r.buy) || isNum(r.sell)).map(r => ({
+    d: r.d,
+    buy:  isNum(r.buy)  ? r.buy  : null,
+    sell: isNum(r.sell) ? r.sell : null,
+    ratio: isNum(r.ratio) ? r.ratio : null
+  }));
+  if(pts.length){
+    Ext.mergeMargin(pts, '貼り付け(手入力)', code);
+    afterExtUpdate();
+  }
+  /* the newest 逆日歩 on the paste, shown in its own card */
+  const g = res.rows.filter(r => isNum(r.gyaku)).pop();
+  if(g) renderShina({ok: true, code, rate: g.gyaku, date: g.d, src: '貼り付け(手入力)'});
+  renderPastePreview(res, true);
+  renderMarginStatus(null);
+}
+/* ============================================================
    11. Built-in self test
    Open the file with #selftest on the end of the URL to run it.
    It exercises the real functions in this file — not copies — so
@@ -9385,8 +9750,11 @@ function marketLabel(){
   if(!m || m.open === null) return '';
   if(m.open) return '取引時間中';
   if(isNum(m.opens) && Date.now() < m.opens){
-    const t = new Date(m.opens);
-    return `取引時間外(次の寄付 ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')})`;
+    /* the exchange's own clock — 「次の寄付 09:00」 for Tokyo is 09:00 in
+       Tokyo, not whatever that instant happens to be where you are sitting */
+    const p = [{t: new Date(m.opens)}];
+    stampBars(p, (state.raw && state.raw.tz) || m.tz || null);
+    return `取引時間外(次の寄付 ${String(p[0].hh).padStart(2,'0')}:${String(p[0].mi).padStart(2,'0')})`;
   }
   return '取引時間外';
 }
@@ -9533,10 +9901,47 @@ function applyQuoteStrip(){
   /* the timeframe belongs next to the bar count: it is the thing that
      decides what every number on this page means */
   const mk = marketLabel();
-  $('#qSrc').textContent = `${lastDate} 終値 ・ ${state.raw.source} ・ `
+  const m = state.raw.market;
+  /* 「終値」 is a claim, and it was being made about a bar that might be
+     the session still in progress. Say which one this is. */
+  const what = (m && m.open) ? '時点(取引中)' : '終値';
+  $('#qSrc').textContent = `${lastDate} ${what} ・ ${state.raw.source} ・ `
     + `${IV_LABEL[state.interval] || ''} ${state.raw.bars.length}本`
     + (state.raw.built ? '(' + state.raw.built + ')' : '')
     + (mk ? ' ・ ' + mk : '');
+  renderFreshness();
+}
+
+const hhmm = t => `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+
+/* 「なぜ8月10日のデータなの？」 has three different answers — the market was
+   shut, the relay served a cached copy, or the app never refetched — and the
+   old header could not tell them apart. This line can: it prints the date of
+   the newest bar, the last trade time Yahoo itself reports, and when this
+   page last actually asked. If the first two agree, the market is the
+   answer and there is nothing to fix. */
+function renderFreshness(){
+  const el = $('#qFresh');
+  if(!el) return;
+  const r = state.raw;
+  if(!r || !r.bars || !r.bars.length || r.code === 'DEMO' || r.code === 'CSV'){
+    el.textContent = ''; el.classList.add('hide'); return;
+  }
+  const bits = [];
+  if(isNum(r.quoteAt)){
+    /* the EXCHANGE's clock: 「最終取引 15:00」 for a Tokyo stock has to say
+       15:00 whether the reader is in Osaka or in London. Stamped the same
+       way the bars are, so it lines up with the date on the chart. */
+    const p = [{t: new Date(r.quoteAt)}];
+    stampBars(p, r.tz || null);
+    const q = p[0];
+    bits.push(`${r.source}の最終取引 ${fmtDate(q, true)} `
+      + `${String(q.hh).padStart(2,'0')}:${String(q.mi).padStart(2,'0')}`);
+  }
+  if(isNum(r.fetchedAt)) bits.push(`取得 ${hhmm(new Date(r.fetchedAt))}`);
+  if(r.topped) bits.push(r.topped.kind === 'append' ? '最新日を補完' : '最新値に更新');
+  el.textContent = bits.join(' ・ ');
+  el.classList.toggle('hide', !bits.length);
 }
 
 function apply(data){
@@ -9902,6 +10307,33 @@ $('#drvClientSave').addEventListener('click', () => {
 $('#watchBtn').addEventListener('click', () => refreshWatch(false));
 $('#watchForce').addEventListener('click', () => refreshWatch(true));
 $('#alertBarX').addEventListener('click', () => $('#alertBar').classList.add('hide'));
+
+/* ---- the favourites drawer -------------------------------------------- */
+$('#favBox').addEventListener('toggle', () => { $('#favBox').dataset.touched = '1'; });
+$('#favOpenList').addEventListener('click', () => {
+  const card = $('#watchBody').closest('.card');
+  if(card) card.scrollIntoView({behavior: 'smooth', block: 'start'});
+  refreshWatch(false);
+});
+$('#favClearAll').addEventListener('click', () => {
+  if(!Book.favs.length) return;
+  if(!confirm(`お気に入り${Book.favs.length}件をすべて外します。よろしいですか。`)) return;
+  /* one at a time, so each leaves a tombstone and the removal reaches the
+     other device instead of coming back on the next sync */
+  for(const f of Book.favs.slice()) Book.toggleFav(f.code, f.name);
+  renderBook();
+});
+
+/* ---- paste a table in -------------------------------------------------- */
+$('#pasteBox').addEventListener('input', pastePreview);
+$('#pasteBox').addEventListener('paste', () => setTimeout(pastePreview, 0));
+$('#pasteGo').addEventListener('click', pasteImport);
+$('#pasteClear').addEventListener('click', () => {
+  $('#pasteBox').value = '';
+  pasteParsed = null;
+  renderPastePreview(null);
+  $('#pasteGo').disabled = true;
+});
 $('#watchBody').addEventListener('click', e => {
   const th = e.target.closest('th[data-sk]');
   if(th){
