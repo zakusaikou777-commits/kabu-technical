@@ -308,6 +308,8 @@ tr.hweak{opacity:.42}
 #alertFired{margin:0 0 10px;padding:9px 11px;border-radius:11px;background:var(--wash);
   border:1px solid var(--hairline)}
 .afire{font-size:12.5px;font-weight:600;padding:2px 0}
+.earnnext{font-size:14px;padding:8px 11px;border-radius:10px;background:var(--wash);
+  border:1px solid var(--hairline)}
 
 /* ---------- printed report ----------
    Off-screen rather than display:none, because a canvas snapshot and an
@@ -472,7 +474,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <button data-r="5y">5年</button><button data-r="max">全期間</button>
     </div>
     <div class="seg" id="ivSeg" role="group" aria-label="足種">
-      <button data-i="1m">1分</button><button data-i="5m">5分</button><button data-i="15m">15分</button><button data-i="1h">1時間</button>
+      <button data-i="1m">1分</button><button data-i="5m">5分</button><button data-i="15m">15分</button><button data-i="30m">30分</button>
+      <button data-i="1h">1時間</button><button data-i="4h">4時間</button><button data-i="8h">8時間</button>
       <button data-i="1d" aria-pressed="true">日足</button><button data-i="1wk">週足</button><button data-i="1mo">月足</button>
     </div>
     <span class="live" id="liveBox" data-s="off">
@@ -562,11 +565,24 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div class="filters" style="margin-bottom:8px">
       <button class="chip" id="short10">直近10日を取得</button>
       <button class="chip" id="short30">直近30日を取得</button>
+      <button class="chip" id="short120">半年分を取得</button>
+      <button class="chip" id="short260">1年分を取得</button>
       <button class="chip" id="shortFileBtn" style="border-style:dashed">ファイルを読み込む(複数可)</button>
       <input type="file" id="shortFile" accept=".xls,.xlsx" multiple class="sr" aria-hidden="true" tabindex="-1">
     </div>
     <p class="qsrc" id="extShortStat" style="margin:0 0 10px"></p>
     <div id="shortBox"></div>
+    <p class="qsrc" style="margin:10px 0 0;line-height:1.7">JPXは<b>13ヶ月分</b>を月別ページで公開しています。
+      1日1ファイルなので、1年分は約240ファイルの取得になります(数分かかります)。
+      取得済みの日付は飛ばすので、途中で止めて後から続けても構いません。</p>
+  </div>
+
+  <div class="card">
+    <h2>決算発表予定</h2>
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="earnBtn">決算予定を取得</button>
+    </div>
+    <div id="earnBox"></div>
   </div>
 
   <div class="card">
@@ -738,14 +754,20 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <p class="qsrc" id="relayMsg" style="margin:0"></p>
     <details class="dhelp">
       <summary>置きかた</summary>
-      <ol class="qsrc" style="margin:8px 0 0;padding-left:1.3em;line-height:1.8">
-        <li>同梱の <code>worker.js</code> を開く(下のボタンでも取り出せます)</li>
-        <li>Cloudflare の「Workers &amp; Pages」→ Create → Deploy でひな形を作る</li>
-        <li>Edit code で中身を全部消し、<code>worker.js</code> を貼り付けて Deploy</li>
-        <li>出てきたURL(<code>https://….workers.dev</code>)を上の欄に貼って「保存して確認」</li>
+      <p class="qsrc" style="margin:8px 0 0"><b>パソコンのChromeかFirefoxで</b>行ってください
+        (Safariでは編集画面が動きません。スマホでの貼り付けもつらいです)。</p>
+      <ol class="qsrc" style="margin:6px 0 0;padding-left:1.3em;line-height:1.9">
+        <li>下の「worker.js を保存」を押して、メモ帳などで開き<b>全部コピー</b></li>
+        <li><b>workers.cloudflare.com/playground</b> を開く</li>
+        <li>左の編集画面の中身を<b>全部消して貼り付ける</b></li>
+        <li>右上の <b>Deploy</b> を押す(初回はログインとサブドメインの登録を求められます)</li>
+        <li>できあがったURL(<code>https://○○.workers.dev</code>)をコピー</li>
+        <li>上の欄に貼って「保存して確認」</li>
       </ol>
-      <p class="qsrc" style="margin:9px 0 0">中継できる相手はコード内で限定してあるので、
-        URLを知られても他人が別のサイトへの踏み台に使うことはできません。</p>
+      <p class="qsrc" style="margin:9px 0 0">中継できる相手はコード内で7か所に限定してあるので、
+        URLを知られても他人が別のサイトへの踏み台に使うことはできません。
+        さらに絞るなら、<code>worker.js</code> の先頭の <code>ALLOW_ORIGIN</code> に
+        このページのURL(<code id="relayOrigin">—</code>)を書いてから貼り付けてください。</p>
       <div class="filters" style="margin:8px 0 0">
         <button class="chip" id="relayDl">worker.js を保存</button>
       </div>
@@ -909,6 +931,15 @@ function fmtMoney(v){
   if(a >= 1e8)  return s + (a/1e8).toFixed(1) + '億円';
   if(a >= 1e4)  return s + (a/1e4).toFixed(0) + '万円';
   return s + Math.round(a).toLocaleString('ja-JP') + '円';
+}
+/* the axis gutter is narrow; the unit still has to survive */
+function fmtMoneyAxis(v){
+  if(!isNum(v)) return '—';
+  const a = Math.abs(v), s = v < 0 ? '−' : '';
+  if(a >= 1e12) return s + (a/1e12).toFixed(1) + '兆';
+  if(a >= 1e8)  return s + (a/1e8).toFixed(a >= 1e9 ? 0 : 1) + '億';
+  if(a >= 1e4)  return s + (a/1e4).toFixed(0) + '万';
+  return s + Math.round(a).toLocaleString('ja-JP');
 }
 /* Accepts a stamped bar, an unstamped bar, or a plain Date — anything that
    builds bars without going through stampBars still renders. */
@@ -1151,13 +1182,46 @@ const PRESETS = {
 };
 const isIntradayIv = iv => /^\d+(m|h)$/.test(iv || '');
 
+/* ------------------------------------------------------------
+   Fold N bars into one. Yahoo has no 4-hour or 8-hour interval, so
+   those are built from hourly bars here.
+
+   Buckets never span a trading day: a "4 hour" bar that ran from
+   Monday's close through Tuesday's open would be a fiction, and its
+   high and low would belong to two different sessions. The Tokyo
+   session is six hours, so a 4-hour chart gives two bars a day — one
+   full and one short — and that is the honest shape of the data.
+   ------------------------------------------------------------ */
+function foldBars(bars, n, tz){
+  if(!bars || bars.length < 2 || !(n > 1)) return bars;
+  const out = [];
+  let cur = null, count = 0, day = null;
+  for(const b of bars){
+    const k = barKey(b);
+    if(!cur || count >= n || k !== day){
+      if(cur) out.push(cur);
+      cur = {t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v || 0};
+      count = 1; day = k;
+      continue;
+    }
+    cur.h = Math.max(cur.h, b.h);
+    cur.l = Math.min(cur.l, b.l);
+    cur.c = b.c;
+    cur.v = (cur.v || 0) + (b.v || 0);
+    count++;
+  }
+  if(cur) out.push(cur);
+  stampBars(out, tz || null);
+  return out;
+}
+
 /* An MA(25) means twenty-five BARS. Calling it 「25日線」 is only true on a
    daily chart; on the monthly chart it is a bit over two years. The unit
    travels with the timeframe so the labels cannot lie. */
-const IV_UNIT  = {'1m':'分','5m':'本','15m':'本','30m':'本','1h':'時間',
+const IV_UNIT  = {'1m':'分','5m':'本','15m':'本','30m':'本','1h':'時間','4h':'本','8h':'本',
                   '1d':'日','1wk':'週','1mo':'ヶ月'};
 const IV_LABEL = {'1m':'1分足','5m':'5分足','15m':'15分足','30m':'30分足','1h':'1時間足',
-                  '1d':'日足','1wk':'週足','1mo':'月足'};
+                  '4h':'4時間足','8h':'8時間足','1d':'日足','1wk':'週足','1mo':'月足'};
 
 let P = Object.assign({}, PRESETS.daily);
 function setPreset(interval){
@@ -1923,6 +1987,7 @@ async function fetchYahoo(sym, range, interval){
   const seen = detectInterval(bars);
   return {
     bars, tz,
+    market: marketState(m),
     events: parseEvents(r.events, tz),
     granularity: seen || said || interval,
     asked: interval,
@@ -1931,6 +1996,23 @@ async function fetchYahoo(sym, range, interval){
     currency: /^[A-Z]{3}$/.test(m.currency || '') ? m.currency : (/\.T$/.test(sym) ? 'JPY' : 'USD'),
     source: 'Yahoo Finance'
   };
+}
+
+/* "Why isn't it moving?" is nearly always "the market is shut". Yahoo says
+   so in the metadata, so the app can say so too instead of leaving a live
+   indicator blinking at a frozen chart. */
+function marketState(m){
+  const p = m && m.currentTradingPeriod && m.currentTradingPeriod.regular;
+  const now = Math.floor(Date.now() / 1000);
+  const out = {open: null, at: isNum(m && m.regularMarketTime) ? m.regularMarketTime * 1000 : null,
+               tz: m && m.exchangeTimezoneName || null,
+               name: cleanText(m && m.exchangeName, 20)};
+  if(p && isNum(p.start) && isNum(p.end)){
+    out.open = now >= p.start && now < p.end;
+    out.opens = p.start * 1000;
+    out.closes = p.end * 1000;
+  }
+  return out;
 }
 
 /* Corporate actions, as a list of {d:'YYYYMMDD', kind, text}. Remote data,
@@ -2120,7 +2202,18 @@ async function loadSymbol(raw, range, interval){
   const s = normalizeSymbol(raw);
   if(!s) throw new Error('銘柄コードを入力してください');
   const errs = [];
-  try { return await fetchYahoo(s.y, range, interval); }
+  /* 4h and 8h do not exist upstream: fetch hourly and fold */
+  const build = (typeof IV_BUILD !== 'undefined') && owns(IV_BUILD, interval) ? IV_BUILD[interval] : null;
+  try {
+    const data = await fetchYahoo(s.y, range, build ? build.from : interval);
+    if(build && data.granularity === build.from){
+      data.bars = foldBars(data.bars, build.n, data.tz);
+      data.granularity = interval;
+      data.asked = interval;
+      data.built = `${IV_LABEL[build.from]}${build.n}本ぶんをまとめて作成`;
+    }
+    return data;
+  }
   catch(e){ errs.push('Yahoo: ' + e.message); }
   if(interval === '1d'){
     try {
@@ -2354,7 +2447,7 @@ function readColors(){
     ink3: cssVar('--ink-3'), grid: cssVar('--grid'), axis: cssVar('--axis'),
     up: cssVar('--up'), down: cssVar('--down'),
     ma: [cssVar('--ma1'), cssVar('--ma2'), cssVar('--ma3')],
-    band: cssVar('--band')
+    band: cssVar('--band'), warn: cssVar('--warn')
   };
 }
 
@@ -2362,6 +2455,29 @@ function readColors(){
 /* 'auto' | 'one' | 'two' | 'full' — how the page is arranged. In 'full'
    the chart owns the viewport, which is what a phone held sideways is for. */
 let layoutMode = 'auto';
+
+/* per-panel height multipliers, keyed by panel name. Null prototype and
+   re-validated on load: this comes back out of localStorage. */
+let panelScale = Object.create(null);
+function sanitizeScales(o){
+  const out = Object.create(null);
+  if(!o || typeof o !== 'object') return out;
+  for(const k of Object.keys(o).slice(0, 20)){
+    if(!/^[a-zA-Z]{2,20}$/.test(k)) continue;
+    const v = +o[k];
+    if(isNum(v) && v >= 0.4 && v <= 3.5) out[k] = v;
+  }
+  return out;
+}
+function setPanelScale(key, v){
+  const k = cleanText(key, 20);
+  if(!k) return;
+  const n = clamp(+v || 1, 0.4, 3.5);
+  if(Math.abs(n - 1) < 0.02) delete panelScale[k]; else panelScale[k] = +n.toFixed(3);
+  Store.set('panelScale', panelScale);
+  redraw();
+}
+function resetPanelScales(){ panelScale = Object.create(null); Store.set('panelScale', {}); redraw(); }
 
 function layout(){
   const host = $('#chartHost');
@@ -2390,13 +2506,20 @@ function layout(){
   if(state.toggles.shortPanel)  subs.push({key:'shortPanel',  title:'空売り残高(報告合計 %)'});
   if(state.toggles.marginPanel) subs.push({key:'marginPanel', title:'信用残(買残 / 売残)'});
 
-  const subsH = subs.reduce(s => s + subH + gap, 0);
+  /* Each panel can be stretched or squashed on its own. The scale is a
+     multiplier the user sets by dragging the divider under a panel, kept
+     per panel key so it survives a redraw, a tab switch and a reload. */
+  const scaleOf = k => clamp(+(panelScale[k] || 1), 0.4, 3.5);
+  const hOf = k => Math.round(subH * scaleOf(k));
+  const subsH = subs.reduce((t, sp) => t + hOf(sp.key) + gap, 0);
   let mainH;
   if(full){
     /* fill what the viewport has left, never less than a usable price panel */
     mainH = Math.max(140, Math.round(vh - 46) - subsH - axisH - 8);
+    mainH = Math.round(mainH * scaleOf('main'));
   } else {
     mainH = clamp(Math.round(w * (narrow ? 0.72 : 0.40)), narrow ? 250 : 280, 430);
+    mainH = Math.round(mainH * scaleOf('main'));
     /* on a short screen, keep the whole chart inside one screenful */
     const budget = Math.round(vh * (shortScreen ? 0.78 : 0.92)) - subsH - axisH - 8;
     if(budget > 120) mainH = Math.min(mainH, budget);
@@ -2406,8 +2529,9 @@ function layout(){
   const panels = [{key:'main', x:padL, y:6, w:w-padL-padR, h:mainH}];
   let y = 6 + mainH + gap;
   for(const s of subs){
-    panels.push({key:s.key, title:s.title, x:padL, y, w:w-padL-padR, h:subH});
-    y += subH + gap;
+    const h = hOf(s.key);
+    panels.push({key:s.key, title:s.title, x:padL, y, w:w-padL-padR, h});
+    y += h + gap;
   }
   return {w, h:totalH, padL, padR, axisH, narrow, panels, axisY:y};
 }
@@ -2455,14 +2579,39 @@ function gridline(g, p, y){
   g.beginPath(); g.moveTo(p.x, Math.round(y)+.5); g.lineTo(p.x+p.w, Math.round(y)+.5); g.stroke();
 }
 function yLabel(g, p, y, text, color){
-  g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
   const room = LAY.padR - 8;
-  let s = String(text);
-  /* the gutter is fixed width; shorten rather than draw past the canvas */
-  while(s.length > 1 && g.measureText(s).width > room) s = s.slice(0, -1);
+  const s = String(text);
+  const base = LAY.narrow ? 10 : 11;
+  /* Chopping characters off a NUMBER is not shortening, it is lying:
+     「−1258.8億円」 became 「−1258.8」, which reads as ¥1,258 rather than
+     ¥125.8 billion. Shrink the type instead, down to a floor, and only
+     then give up on the tail. */
+  let size = base;
+  g.font = `${size}px ${cssVar('--font') || 'system-ui'}`;
+  while(size > 8 && g.measureText(s).width > room){
+    size -= 0.5;
+    g.font = `${size}px ${cssVar('--font') || 'system-ui'}`;
+  }
+  let out = s;
+  if(g.measureText(out).width > room){
+    /* genuinely does not fit even at the smallest size: mark the cut so it
+       cannot be misread as a complete number */
+    while(out.length > 1 && g.measureText(out + '…').width > room) out = out.slice(0, -1);
+    out += '…';
+  }
   g.fillStyle = color || C.ink3;
   g.textAlign = 'left'; g.textBaseline = 'middle';
-  g.fillText(s, p.x + p.w + 6, y);
+  g.fillText(out, p.x + p.w + 6, y);
+  g.font = `${base}px ${cssVar('--font') || 'system-ui'}`;
+}
+
+/* Axis ticks get their decimals from the STEP, not from a fixed guess.
+   A short-interest panel topping out at 0.01% printed 0.0% four times. */
+function fmtTick(v, step, suffix){
+  if(!isNum(v)) return '—';
+  const s = Math.abs(step || v || 1);
+  const dp = s >= 10 ? 0 : s >= 1 ? 1 : s >= 0.1 ? 2 : s >= 0.01 ? 3 : s >= 0.001 ? 4 : 5;
+  return v.toFixed(dp) + (suffix || '');
 }
 /* axis labels claim vertical space too, so the last-price tag and the
    money labels stop printing on top of a tick */
@@ -2981,7 +3130,7 @@ function drawSizeFlowPanel(g){
   for(const t of [mn, mx]){
     if(!t) continue;
     const Y = clamp(y(t), p.y + 7, p.y + p.h - 7);
-    if(axisFree(Y, 14)) yLabel(g, p, Y, fmtMoney(t));
+    if(axisFree(Y, 14)) yLabel(g, p, Y, fmtMoneyAxis(t));
   }
   /* the two tiers are an ordered pair, so they take one hue at two steps */
   line(g, p, sf.cumBig,   y, C.ma[2], 2.2);
@@ -3076,6 +3225,24 @@ function drawEvents(g){
       g.font = `10px ${cssVar('--font') || 'system-ui'}`;
       g.textAlign = 'center'; g.textBaseline = 'top';
       g.fillText('分割', x, p.y + 3);
+    }
+  }
+  /* the scheduled earnings date, when it falls inside the visible bars */
+  if(typeof earnings !== 'undefined' && earnings && earnings.next
+     && Ext.codeKey() === earnings.code){
+    const i = pos.get(earnings.next.d);
+    if(i !== undefined){
+      const x = Math.round(xAt(p, i)) + 0.5;
+      g.save();
+      g.strokeStyle = C.warn || C.ink2;
+      g.setLineDash([5, 3]); g.lineWidth = 1.4; g.globalAlpha = .9;
+      g.beginPath(); g.moveTo(x, p.y); g.lineTo(x, p.y + p.h); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = C.warn || C.ink2;
+      g.font = `10px ${cssVar('--font') || 'system-ui'}`;
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      g.fillText('決算', x, p.y + 3);
+      g.restore();
     }
   }
   g.restore();
@@ -4478,26 +4645,55 @@ function shortPointFromRows(rows, stamp){
                                                 ratio: r.ratio, qty: r.qty}))};
 }
 
-/* All dated links on the JPX page, newest first. The page lists a run of
-   recent business days, which is exactly what a short series needs. */
-async function findShortFiles(){
-  const html = await relayFetch(JPX_SHORT_INDEX, {text: true, timeout: 10000});
-  const seen = new Set(), out = [];
+/* All dated links on one JPX page, newest first. */
+function scrapeShortLinks(html, into, seen){
   for(const m of html.matchAll(/href="([^"]*Short_Positions[^"]*\.xls[x]?)"/gi)){
-    let h = m[1];
-    h = jpxUrl(h);                       /* refuse links that point off jpx.co.jp */
+    const h = jpxUrl(m[1]);              /* refuse links that point off jpx.co.jp */
     if(!h) continue;
     const d = (h.match(/(\d{8})/) || [])[1];
     if(!d || seen.has(d)) continue;
     seen.add(d);
-    out.push({url: h, d});
+    into.push({url: h, d});
   }
-  out.sort((a,b) => b.d.localeCompare(a.d));
-  if(!out.length) throw new Error('JPXのページに空売り残高ファイルのリンクが見つかりません');
-  return out;
 }
 
-async function loadShortSeries(maxDays){
+/* JPX keeps thirteen months, one archive page per month back:
+     index.html            = this month
+     00-archives-01.html   = last month
+     …
+     00-archives-12.html   = twelve months back (13 is a 404)
+   The .xls URLs sit under opaque per-file directories that change format
+   between years, so they cannot be constructed — the pages have to be read.
+   The month a page covers is taken from the FILENAMES on it, never from the
+   page number: the window rolls forward every month. */
+const JPX_ARCHIVE_MAX = 12;
+async function findShortFiles(months){
+  const want = clamp(months || 1, 1, JPX_ARCHIVE_MAX + 1);
+  const seen = new Set(), out = [];
+  const pages = [JPX_SHORT_INDEX];
+  for(let i = 1; i < want; i++)
+    pages.push('https://www.jpx.co.jp/markets/public/short-selling/00-archives-'
+      + String(i).padStart(2, '0') + '.html');
+
+  let failed = 0;
+  for(const url of pages){
+    try{
+      const html = await relayFetch(url, {text: true, timeout: 12000});
+      scrapeShortLinks(html, out, seen);
+    }catch(e){
+      failed++;
+      if(url === JPX_SHORT_INDEX) throw e;      /* the current month is not optional */
+    }
+    if(onArchiveStep) onArchiveStep(out.length, pages.indexOf(url) + 1, pages.length);
+  }
+  out.sort((a, b) => b.d.localeCompare(a.d));
+  if(!out.length) throw new Error('JPXのページに空売り残高ファイルのリンクが見つかりません');
+  out.pagesFailed = failed;
+  return out;
+}
+let onArchiveStep = null;
+
+async function loadShortSeries(maxDays, months){
   const code = Ext.codeKey();
   if(!/^[0-9A-Z]{4}$/.test(code)){
     renderShorts({error: '空売り残高報告は日本株(東証4桁コード)のみの制度です。'});
@@ -4506,7 +4702,11 @@ async function loadShortSeries(maxDays){
   renderShorts({loading: true, msg: 'JPXのファイル一覧を確認しています…'});
   try{
     const XLSX = await loadXLSX();
-    const files = await findShortFiles();
+    onArchiveStep = (n, i, total) => renderShorts({loading: true,
+      msg: `JPXの月別ページを読んでいます… ${i}/${total}(${n}日分のリンク)`});
+    let files;
+    try { files = await findShortFiles(months || 1); }
+    finally { onArchiveStep = null; }
     const have = new Set((Ext.short ? Ext.short.points : []).map(p => p.d));
     const todo = files.filter(f => !have.has(f.d)).slice(0, maxDays);
     if(!todo.length){
@@ -4830,11 +5030,14 @@ function drawShortPanel(g){
   let mx = 0;
   for(let i=Math.max(0,state.i0);i<=Math.min(state.i1, state.raw.bars.length-1);i++)
     if(isNum(e.ratio[i]) && e.ratio[i] > mx) mx = e.ratio[i];
-  const y = makeY(p, 0, mx * 1.15 || 1, 14, 0);
+  const top = mx * 1.15 || 1;
+  const y = makeY(p, 0, top, 14, 0);
   resetSlots();
-  for(const t of ticks(0, mx * 1.15 || 1, 3)){
+  const tk = ticks(0, top, 3);
+  const step = tk.length > 1 ? Math.abs(tk[1] - tk[0]) : top;
+  for(const t of tk){
     if(t === 0) continue;
-    gridline(g, p, y(t)); yLabel(g, p, y(t), t.toFixed(1) + '%');
+    gridline(g, p, y(t)); yLabel(g, p, y(t), fmtTick(t, step, '%'));
   }
   /* area under the line: short interest is a level, and the filled area
      reads as "how much of the float is committed against the stock" */
@@ -7076,6 +7279,172 @@ export default {
 };
 `;
 /* ============================================================
+   20. Earnings announcement dates
+   Only the SCHEDULED ones, and only for Japanese listings.
+
+   JPX publishes a single spreadsheet covering the whole market —
+   code, company, type, planned announcement date — refreshed each
+   business day. That is the one free, machine-readable source that
+   actually exists.
+
+   What is NOT here, and why:
+     past announcement dates — the only free source is an HTTP-only
+       host with an invalid certificate, unreachable from an HTTPS
+       page and refused by the relay
+     月次売上 (monthly sales) — no structured free source at all
+   Both are left out rather than half-implemented: a marker that is
+   sometimes right is worse than no marker.
+   ============================================================ */
+
+const JPX_KESSAN_INDEX =
+  'https://www.jpx.co.jp/listing/event-schedules/financial-announcement/index.html';
+
+let kessanCache = null;      /* {map: Map(code -> [{d, kind}]), at} */
+const KESSAN_TTL = 12 * 3600 * 1000;
+
+function kessanUrl(href){
+  try{
+    const u = new URL(String(href), JPX_KESSAN_INDEX);
+    return (u.protocol === 'https:' && /(^|\.)jpx\.co\.jp$/.test(u.hostname)) ? u.href : null;
+  }catch(e){ return null; }
+}
+
+/* The filenames carry a publication date and change, so the links are read
+   off the page rather than guessed. */
+async function findKessanFiles(){
+  const html = await relayFetch(JPX_KESSAN_INDEX, {text: true, timeout: 12000});
+  const seen = new Set(), out = [];
+  for(const m of html.matchAll(/href="([^"]*kessan[^"]*\.xlsx?)"/gi)){
+    const h = kessanUrl(m[1]);
+    if(!h || seen.has(h)) continue;
+    seen.add(h);
+    out.push(h);
+  }
+  if(!out.length) throw new Error('JPXのページに決算発表予定のファイルが見つかりません');
+  /* the plain kessan.xlsx first: it is the stable, largest one */
+  out.sort((a, b) => (/kessan\.xlsx$/.test(b) ? 1 : 0) - (/kessan\.xlsx$/.test(a) ? 1 : 0));
+  return out.slice(0, 4);
+}
+
+/* Header cells are merged and contain newlines, and there are title rows
+   above the header, so the header row is located by content. */
+function parseKessanSheet(XLSX, buf){
+  const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
+  const map = new Map();
+  for(const name of wb.SheetNames.slice(0, 6)){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: false, defval: ''});
+    let head = -1, iCode = -1, iName = -1, iDate = -1, iKind = -1;
+    for(let r = 0; r < Math.min(rows.length, 12); r++){
+      const cells = (rows[r] || []).map(c => String(c).replace(/\s+/g, ''));
+      const find = re => cells.findIndex(c => re.test(c));
+      const c = find(/^コード|銘柄コード/), d = find(/決算発表予定日|発表予定日|予定日/);
+      if(c >= 0 && d >= 0){
+        head = r; iCode = c; iDate = d;
+        iName = find(/会社名|銘柄名/);
+        iKind = find(/種別|決算期|四半期/);
+        break;
+      }
+    }
+    if(head < 0) continue;
+    for(let r = head + 1; r < rows.length; r++){
+      const row = rows[r] || [];
+      const code = String(row[iCode] || '').replace(/[^0-9A-Za-z]/g, '');
+      if(!/^[0-9A-Z]{4}$/.test(code)) continue;
+      const d = parseJPDate(row[iDate]);
+      if(!d) continue;
+      const rec = {d: dkey(d), kind: cleanText(row[iKind], 20),
+                   name: cleanText(iName >= 0 ? row[iName] : '', 40)};
+      const arr = map.get(code) || [];
+      if(!arr.some(x => x.d === rec.d)) arr.push(rec);
+      map.set(code, arr);
+    }
+  }
+  if(!map.size) throw new Error('決算発表予定の見出しを読み取れませんでした(様式変更の可能性)');
+  return map;
+}
+
+async function fetchKessan(){
+  if(kessanCache && Date.now() - kessanCache.at < KESSAN_TTL) return kessanCache.map;
+  const XLSX = await loadXLSX();
+  freezeProto();
+  const urls = await findKessanFiles();
+  const merged = new Map();
+  let ok = 0, lastErr = null;
+  for(const url of urls){
+    try{
+      const buf = await relayFetchBinary(url, 20000);
+      const m = parseKessanSheet(XLSX, buf);
+      for(const [code, list] of m){
+        const arr = merged.get(code) || [];
+        for(const rec of list) if(!arr.some(x => x.d === rec.d)) arr.push(rec);
+        merged.set(code, arr);
+      }
+      ok++;
+    }catch(e){ lastErr = e; }
+  }
+  if(!ok) throw lastErr || new Error('決算予定を取得できませんでした');
+  for(const arr of merged.values()) arr.sort((a, b) => a.d.localeCompare(b.d));
+  kessanCache = {map: merged, at: Date.now()};
+  return merged;
+}
+
+/* what is on the chart right now */
+let earnings = null;     /* {code, list:[{d,kind}], next} */
+
+function nextEarning(list){
+  const today = dkey(new Date());
+  return (list || []).find(x => x.d >= today) || null;
+}
+
+async function loadEarnings(){
+  const code = Ext.codeKey();
+  if(!/^[0-9A-Z]{4}$/.test(code)){
+    renderEarnings({error: '決算発表予定はJPXが公表している日本株のみです。'});
+    return;
+  }
+  renderEarnings({loading: true});
+  try{
+    const map = await fetchKessan();
+    if(Ext.codeKey() !== code){ renderEarnings(null); return; }
+    const list = map.get(code) || [];
+    earnings = {code, list, next: nextEarning(list)};
+    renderEarnings(earnings);
+    redraw();
+  }catch(e){
+    earnings = null;
+    renderEarnings({error: cleanText(e.message, 90)});
+  }
+}
+
+function renderEarnings(st){
+  const box = $('#earnBox');
+  if(!box) return;
+  if(!st){
+    box.innerHTML = '<p class="qsrc">「決算予定を取得」を押すと、JPXの予定表から次の発表日を調べます。</p>';
+    return;
+  }
+  if(st.loading){ box.innerHTML = '<p class="qsrc">JPXの決算発表予定表を取得しています…</p>'; return; }
+  if(st.error){ box.innerHTML = `<p class="qsrc">${esc(st.error, 120)}</p>`; return; }
+  if(!st.list.length){
+    box.innerHTML = '<p class="qsrc">この銘柄はJPXの予定表に載っていませんでした。'
+      + '(掲載が無くても発表されることはあります)</p>';
+    return;
+  }
+  const fmt = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+  const today = dkey(new Date());
+  const days = st.next ? Math.round(
+    (new Date(+st.next.d.slice(0,4), +st.next.d.slice(4,6) - 1, +st.next.d.slice(6,8)) - new Date(
+      +today.slice(0,4), +today.slice(4,6) - 1, +today.slice(6,8))) / 86400000) : null;
+  box.innerHTML = (st.next
+      ? `<div class="earnnext"><b>次の決算発表予定: ${esc(fmt(st.next.d), 12)}</b>`
+        + (days === 0 ? '(本日)' : days > 0 ? `(あと${days}日)` : '')
+        + `${st.next.kind ? ' ・ ' + esc(st.next.kind, 20) : ''}</div>`
+      : '<div class="earnnext">今後の予定は載っていません。</div>')
+    + `<p class="qsrc" style="margin:6px 0 0">JPX「決算発表予定日」より。`
+    + `<b>予定日は変更されることがあり</b>、掲載が無い会社も発表します。`
+    + `過去の発表日は無料で機械的に取れる出所が無いため扱っていません。</p>`;
+}
+/* ============================================================
    11. Built-in self test
    Open the file with #selftest on the end of the URL to run it.
    It exercises the real functions in this file — not copies — so
@@ -7971,6 +8340,56 @@ function fillTab(tab, data){
 let drag = null;
 const hostEl = $('#chartHost');
 
+/* ---- resizing an individual panel ------------------------------------
+   The gap under a panel is its handle: grab it and drag. Every panel gets
+   one, including the price panel, so a chart can be arranged for whatever
+   is actually being looked at rather than for the default mix.
+   --------------------------------------------------------------------- */
+const GRIP = 9;
+let sizing = null;
+
+function panelAtEdge(y){
+  if(!LAY) return null;
+  for(const p of LAY.panels){
+    const edge = p.y + p.h;
+    if(Math.abs(y - edge) <= GRIP) return p;
+  }
+  return null;
+}
+function localY(e){
+  const r = cv.getBoundingClientRect();
+  return (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+}
+
+cv.addEventListener('pointermove', e => {
+  if(sizing || e.pointerType === 'touch') return;
+  cv.style.cursor = panelAtEdge(localY(e)) ? 'row-resize' : '';
+});
+cv.addEventListener('pointerdown', e => {
+  const p = panelAtEdge(localY(e));
+  if(!p) return;
+  sizing = {key: p.key, y0: localY(e), h0: p.h, base: p.h / (panelScale[p.key] || 1)};
+  drag = null;
+  cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
+  e.preventDefault();
+  e.stopPropagation();
+}, true);      /* capture: this has to win over pan and pinch */
+addEventListener('pointermove', e => {
+  if(!sizing) return;
+  const dy = localY(e) - sizing.y0;
+  setPanelScale(sizing.key, (sizing.h0 + dy) / sizing.base);
+  e.preventDefault();
+}, {passive: false});
+addEventListener('pointerup', () => {
+  if(!sizing) return;
+  sizing = null;
+  saveWorkspaceSoon();
+});
+cv.addEventListener('dblclick', e => {
+  const p = panelAtEdge(localY(e));
+  if(p){ setPanelScale(p.key, 1); e.stopPropagation(); }
+}, true);
+
 function localX(e){
   const r = cv.getBoundingClientRect();
   return (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
@@ -8002,11 +8421,13 @@ function onMove(e){
    finger reads values (the thing you actually want), and two fingers
    zoom/pan; with a mouse, drag pans and hover reads. */
 cv.addEventListener('pointerdown', e => {
+  if(sizing) return;
   if(e.pointerType === 'touch') { onMove(e); return; }
   drag = {x: localX(e), active: true};
   cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener('pointermove', e => {
+  if(sizing) return;
   if(e.pointerType === 'touch' && pinch) return;
   onMove(e);
 });
@@ -8031,6 +8452,7 @@ cv.addEventListener('wheel', e => {
 /* pinch zoom */
 let pinch = null;
 cv.addEventListener('touchstart', e => {
+  if(e.touches.length === 1 && panelAtEdge(localY(e))) return;   /* a resize, not a read */
   if(e.touches.length === 2){
     pinch = {
       d: Math.abs(e.touches[0].clientX - e.touches[1].clientX) || 1,
@@ -8181,11 +8603,19 @@ const IV_RANGES = {
   '1m':  ['1d','5d'],
   '5m':  ['1d','5d','1mo'],
   '15m': ['5d','1mo'],
+  '30m': ['5d','1mo'],
   '1h':  ['1mo','3mo','6mo','1y','2y'],
+  /* 4h and 8h are not Yahoo intervals — they are built here from hourly
+     bars, so they inherit the hourly limit of about two years */
+  '4h':  ['1mo','3mo','6mo','1y','2y'],
+  '8h':  ['3mo','6mo','1y','2y'],
   '1d':  ['3mo','6mo','1y','2y','5y','max'],
   '1wk': ['1y','2y','5y','max'],
   '1mo': ['2y','5y','max']
 };
+/* what to actually ask the server for, and how many of those to fold into
+   one bar. Anything not listed is requested as-is. */
+const IV_BUILD = {'4h': {from: '1h', n: 4}, '8h': {from: '1h', n: 8}};
 const RANGE_LABEL = {'1d':'1日','5d':'5日','1mo':'1ヶ月','3mo':'3ヶ月','6mo':'6ヶ月',
                      '1y':'1年','2y':'2年','5y':'5年','max':'全期間'};
 
@@ -8300,10 +8730,15 @@ function stopLive(){
   liveState('off', '');
 }
 
+/* A poll that returns the same numbers looks exactly like a poll that never
+   ran. These counters are what makes the difference visible. */
+let pollCount = 0, pollChanged = 0;
+
 async function refreshQuietly(){
   if(!state.raw || state.raw.code === 'DEMO' || state.raw.code === 'CSV') return;
   if(!$('#sym').value.trim()) return;
   const op = beginOp('refresh');
+  const was = state.raw.bars[state.raw.bars.length - 1].c;
   try{
     const data = await loadSymbol($('#sym').value, state.range, state.interval);
     if(!opValid(op)) return;                    /* landed on a different tab */
@@ -8313,10 +8748,32 @@ async function refreshQuietly(){
     state.i0 = keep.i0 + Math.max(0, keep.grew);
     state.i1 = keep.i1 + Math.max(0, keep.grew);
     redraw(); applyQuoteStrip(); renderSignals(); renderTable();
-    liveState('poll', '更新 ' + new Date().toLocaleTimeString('ja-JP'));
+    pollCount++;
+    const now = data.bars[data.bars.length - 1].c;
+    const moved = now !== was;
+    if(moved) pollChanged++;
+    liveState('poll', `${new Date().toLocaleTimeString('ja-JP')} 取得${pollCount}回`
+      + (moved ? ' ・更新あり' : ' ・変化なし') + marketNote());
   }catch(e){
-    if(opValid(op)) liveState('error', '更新失敗');
+    if(opValid(op)) liveState('error', '更新失敗(' + cleanText(e.message, 24) + ')');
   }
+}
+
+/* the one-line answer to "why is nothing happening" */
+function marketNote(){
+  const m = state.raw && state.raw.market;
+  if(!m || m.open === null) return '';
+  return m.open ? '' : ' ・取引時間外';
+}
+function marketLabel(){
+  const m = state.raw && state.raw.market;
+  if(!m || m.open === null) return '';
+  if(m.open) return '取引時間中';
+  if(isNum(m.opens) && Date.now() < m.opens){
+    const t = new Date(m.opens);
+    return `取引時間外(次の寄付 ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')})`;
+  }
+  return '取引時間外';
 }
 
 /* A tick only touches the forming bar, so the redraw is cheap. The full
@@ -8332,7 +8789,9 @@ function onTick(tick){
   if(Stream.symbol && got && got !== String(Stream.symbol).toUpperCase()) return;
   const what = applyTick(state.raw.bars, tick, state.interval);
   if(what === 'none') return;
-  liveState('live', (tick.time || new Date()).toLocaleTimeString('ja-JP'));
+  noteTick();
+  liveState('live', (tick.time || new Date()).toLocaleTimeString('ja-JP')
+    + ` 受信${tickCount}件`);
   const now = performance.now();
   if(what === 'new' || now - lastTickAt > 2000){
     lastTickAt = now;
@@ -8358,10 +8817,34 @@ function onTick(tick){
   }
 }
 
+/* "connected" and "receiving" are different states, and only the second one
+   means anything. The feed is undocumented and frequently silent outside
+   market hours, so the count is shown and the silence is called out. */
+let tickCount = 0, streamSince = 0, silenceTimer = null;
+function noteTick(){
+  tickCount++;
+  if(silenceTimer){ clearTimeout(silenceTimer); silenceTimer = null; }
+  armSilence();
+}
+function armSilence(){
+  if(silenceTimer) clearTimeout(silenceTimer);
+  silenceTimer = setTimeout(() => {
+    if(Stream.state !== 'live') return;
+    liveState('live', tickCount
+      ? `受信${tickCount}件 ・しばらく配信なし${marketNote()}`
+      : `接続済み・配信なし${marketNote() || ' (この銘柄は配信されていない可能性)'}`);
+  }, 45000);
+}
+
 Stream.onTick = onTick;
 Stream.onState = s => {
-  if(s === 'live')            liveState('live', '接続中');
+  if(s === 'live'){
+    tickCount = 0; streamSince = Date.now();
+    liveState('live', '接続しました・配信待ち' + marketNote());
+    armSilence();
+  }
   else if(s === 'connecting') liveState('connecting', '接続しています…');
+  else if(s === 'off'){ if(silenceTimer){ clearTimeout(silenceTimer); silenceTimer = null; } }
   else if(s === 'error'){
     liveState('error', 'ストリーム不可 → 30秒更新へ');
     /* the feed is undocumented and can simply refuse; fall back rather
@@ -8434,8 +8917,11 @@ function applyQuoteStrip(){
   const lastDate = fmtDate(state.raw.bars[n], true);
   /* the timeframe belongs next to the bar count: it is the thing that
      decides what every number on this page means */
+  const mk = marketLabel();
   $('#qSrc').textContent = `${lastDate} 終値 ・ ${state.raw.source} ・ `
-    + `${IV_LABEL[state.interval] || ''} ${state.raw.bars.length}本`;
+    + `${IV_LABEL[state.interval] || ''} ${state.raw.bars.length}本`
+    + (state.raw.built ? '(' + state.raw.built + ')' : '')
+    + (mk ? ' ・ ' + mk : '');
 }
 
 function apply(data){
@@ -8616,8 +9102,15 @@ $('#newsBtn').addEventListener('click', async () => {
     if(opValid(op)) renderNews({error: e.message});
   }finally{ $('#newsBtn').disabled = false; }
 });
-$('#short10').addEventListener('click', () => loadShortSeries(10));
-$('#short30').addEventListener('click', () => loadShortSeries(30));
+$('#short10').addEventListener('click', () => loadShortSeries(10, 1));
+$('#short30').addEventListener('click', () => loadShortSeries(30, 2));
+$('#short120').addEventListener('click', () => loadShortSeries(130, 7));
+$('#short260').addEventListener('click', () => {
+  if(!confirm('JPXの月別ページ13枚を読み、日次ファイルを最大250件取得します。\n'
+    + '数分かかり、その間このタブは開いたままにしてください。続けますか?')) return;
+  loadShortSeries(250, 13);
+});
+$('#earnBtn').addEventListener('click', () => loadEarnings());
 $('#shortFileBtn').addEventListener('click', () => $('#shortFile').click());
 $('#shortFile').addEventListener('change', e => {
   const fs = Array.from(e.target.files || []);
@@ -8943,12 +9436,15 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
   buildRanges();
   showPreset();
   applyLayout('auto');
+  panelScale = sanitizeScales(Store.get('panelScale', {}));
   refreshSyncInfo();
   refreshDriveUi();
   renderAlerts();
   fillAlertForm();
   renderWatch();
   $('#relayUrl').value = ownRelay();
+  if($('#relayOrigin')) $('#relayOrigin').textContent =
+    location.protocol === 'file:' ? '(公開してから確認してください)' : location.origin;
   if(ownRelay()) relayStatus('自分の中継サーバーを使っています: ' + esc(ownRelay(), 60));
   if(!FS_OK) $('#syncRow').classList.add('hide');
   Tabs.list = [{id: 0, label: '7203', symbol: '7203', interval: '1d', range: '1y',
