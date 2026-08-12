@@ -1,0 +1,16 @@
+{
+  "name": "株価テクニカル分析ツール",
+  "short_name": "テクニカル",
+  "description": "銘柄コードから株価を取得して、移動平均・一目均衡表・OSGFC・Lorentzian などのテクニカル指標と、空売り残高・信用残を1画面で見るツール",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "lang": "ja",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
