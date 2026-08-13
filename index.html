@@ -628,7 +628,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
         棒をダブルタップするとそのパネルだけ元に戻ります。ここでの設定は端末ごとに保存されます。</p>
     </details>
     <p class="hint"><b>指で左右になぞると時間軸が動きます</b>(上下は画面のスクロール)。
-      指を止めるとその日の値を表示 / 2本指のピンチで拡大縮小 / ダブルタップで全体表示。
+      指を止めるとその日の値を表示。<b>2本指を横に広げると期間、縦に広げると価格の幅</b>が変わります。
+      ダブルタップで両方とも元に戻ります。
       PCではドラッグで移動、ホイールで拡大縮小できます。</p>
   </div>
 
@@ -652,6 +653,13 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   <div class="card">
     <h2>ほかのチャートと比べる</h2>
     <div id="cmpList"></div>
+    <div class="filters" style="margin:10px 0 0">
+      <label class="qsrc" for="cmpAxis" style="align-self:center">比較の軸</label>
+      <select class="mini" id="cmpAxis">
+        <option value="index">指数(開始を100)</option>
+        <option value="real">左軸に実数(1本のときだけ)</option>
+      </select>
+    </div>
     <p id="cmpNote"></p>
   </div>
 
@@ -1044,14 +1052,20 @@ function safeUrl(u){
 
 function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 
-function fmtNum(v, cur){
-  if(!isNum(v)) return '—';
-  let d = Math.abs(v) >= 1000 ? 0 : Math.abs(v) >= 100 ? 1 : Math.abs(v) >= 1 ? 2 : 4;
+/* How many decimals a value should print with.
+
+   `ref` is the number that sets the SCALE — normally the value itself, but
+   for a price difference it is the price: ¥0.5 off a ¥1,382.5 stock is a
+   yen-and-a-half figure, not a four-decimal one, and printing ¥0.5000 for
+   it was reading as a different quantity entirely. */
+function decimalsFor(v, ref){
+  const r = isNum(ref) ? Math.abs(ref) : Math.abs(v);
+  let d = r >= 1000 ? 0 : r >= 100 ? 1 : r >= 1 ? 2 : 4;
   /* pick the precision from the ROUNDED magnitude: 999.96 is a 4-digit
      number once rounded, so it should not print as 1,000.0 */
-  if(Math.abs(+v.toFixed(d)) >= 1000) d = 0;
-  else if(Math.abs(+v.toFixed(d)) >= 100 && d > 1) d = 1;
-  if(v === 0) d = 0;
+  if(Math.abs(+r.toFixed(d)) >= 1000) d = 0;
+  else if(Math.abs(+r.toFixed(d)) >= 100 && d > 1) d = 1;
+  if(v === 0) return 0;
   /* Never round a real price away. Japanese equities tick in 0.5 above
      ¥1,000, so ¥1,393.5 was printed as ¥1,394 — a number that matches no
      quote anywhere. Widen only when the extra digits print the value
@@ -1061,10 +1075,26 @@ function fmtNum(v, cur){
     if(Math.abs(+v.toFixed(d) - v) < 1e-9) break;      /* already exact */
     if(Math.abs(+v.toFixed(extra) - v) < 1e-9){ d = extra; break; }
   }
+  /* A value much smaller than the scale it is measured against must not be
+     rounded into meaninglessness. A 0.015 move on a 159.44 exchange rate
+     takes its decimals from the rate and prints as 0.0 — a real change shown
+     as no change. Widen until the rounding error is small RELATIVE TO THE
+     VALUE, which leaves ordinary numbers alone (a 2647.007 average is
+     already within a hair of 2647). */
+  while(d < 6 && Math.abs(+v.toFixed(d) - v) > Math.abs(v) * 0.05) d++;
+  return d;
+}
+
+function fmtCur(v, d, cur){
   const s = v.toLocaleString('ja-JP', {minimumFractionDigits:d, maximumFractionDigits:d});
   if(cur === 'JPY') return '¥' + s;
   if(cur === 'USD') return '$' + s;
   return s;
+}
+
+function fmtNum(v, cur){
+  if(!isNum(v)) return '—';
+  return fmtCur(v, decimalsFor(v, v), cur);
 }
 function fmtVol(v){
   if(!isNum(v)) return '—';
@@ -2191,6 +2221,12 @@ async function fetchYahoo(sym, range, interval){
        check the chart against when it looks a day behind */
     quoteAt: isNum(m.regularMarketTime) ? m.regularMarketTime * 1000 : null,
     quotePrice: isNum(m.regularMarketPrice) ? m.regularMarketPrice : null,
+    /* The previous TRADING DAY's close. On a 15-minute chart the bar before
+       the last one is 15 minutes ago, not yesterday — so 「前日比」 computed
+       from it read +0.04% where the broker said −0.79%. This is the number
+       every quote screen means by 前日比, and the source supplies it. */
+    prevClose: isNum(m.chartPreviousClose) ? m.chartPreviousClose
+             : isNum(m.previousClose) ? m.previousClose : null,
     fetchedAt: Date.now(),
     topped,
     market: marketState(m),
@@ -2738,7 +2774,11 @@ function layout(){
   const host = $('#chartHost');
   const w = Math.max(200, host.clientWidth || 320);
   const narrow = w < 620, tiny = w < 380;
-  const padR = tiny ? 44 : narrow ? 52 : 62, padL = tiny ? 4 : narrow ? 6 : 10;
+  const padR = tiny ? 44 : narrow ? 52 : 62;
+  /* the left gutter only needs room when the comparison has its own axis
+     there — otherwise it is wasted width, which a phone cannot spare */
+  const leftAxis = typeof cmpLeftAxis === 'function' && !!cmpLeftAxis();
+  const padL = leftAxis ? (tiny ? 42 : narrow ? 48 : 58) : (tiny ? 4 : narrow ? 6 : 10);
   const full = document.body.classList.contains('chart-full');
   /* landscape phones are wide but very short: a fixed sub-panel height eats
      the price panel entirely, so the panels shrink with the viewport */
@@ -2987,11 +3027,30 @@ function drawMain(g){
   if(T.osgfc && d.osgfc){ consider(d.osgfc.upper); consider(d.osgfc.lower); }
   if(T.lorentz && d.lorentz) consider(d.lorentz.kern);
   if(!isFinite(min) || !isFinite(max)) { min = 0; max = 1; }
+  /* The price scale the reader chose. A two-finger vertical spread sets it;
+     1 means "fit what is on screen", which is what it always did. Zooming
+     about the CENTRE keeps the candles you were looking at in view. */
+  const yz = clamp(+(state.yZoom || 1), 0.25, 8);
+  if(Math.abs(yz - 1) > 1e-6){
+    const mid = (min + max) / 2, half = (max - min) / 2 / yz;
+    min = mid - half; max = mid + half;
+  }
   const pad = (max-min) * 0.06 || 1;
   resetSlots(); resetAxisSlots();
 
   let y, yIdx = null;
-  if(cmp && cmp.base){
+  if(cmp && cmp.real){
+    /* the price panel keeps its own scale; the comparison gets the left */
+    y = makeY(p, min-pad, max+pad, 4, 4);
+    const lastC2 = d.c[nb-1];
+    if(isNum(lastC2) && state.i1 >= nb-1) axisFree(y(lastC2), 18);
+    for(const t of ticks(min-pad, max+pad, LAY.narrow ? 4 : 6)){
+      const Y = y(t);
+      if(Y < p.y || Y > p.y+p.h) continue;
+      gridline(g, p, Y);
+      if(axisFree(Y, 14)) yLabel(g, p, Y, fmtNum(t));
+    }
+  } else if(cmp && cmp.base){
     /* one axis, in index terms; price maps onto it through the same divisor */
     const toIdx = v => v / cmp.base * 100;
     let lo = toIdx(min - pad), hi = toIdx(max + pad);
@@ -3240,7 +3299,8 @@ function drawMain(g){
     g.textAlign='left'; g.textBaseline='middle';
     g.fillText(fmtNum(lc), p.x+p.w+6, Y);
   }
-  if(cmp && yIdx) drawCompareLines(g, p, cmp, yIdx);
+  if(cmp && cmp.real) drawCompareReal(g, p, cmp);
+  else if(cmp && yIdx) drawCompareLines(g, p, cmp, yIdx);
   panelFrame(g, p);
   state._mainY = y;
 }
@@ -3621,34 +3681,28 @@ function hideTip(){ tip.style.opacity = 0; }
 
 function showTip(i, X, Y){
   const b = state.raw.bars[i], d = state.ind, cur = state.raw.currency, T = state.toggles;
-  if(Compare.active.length && state._cmpNorm){
-    const rows2 = state._cmpNorm.map((a, k) => {
-      const v = a[i];
-      return `<div class="trow"><span><span class="dotk" style="background:var(--cmp${(state._cmpAll[k]||{}).ci || k+1})"></span>`
-        + `${esc(k === 0 ? (state.raw.code || '本銘柄') : state._cmpAll[k].label, 24)}</span>`
-        + `<span>${isNum(v) ? v.toFixed(1) : '—'}</span></div>`;
-    }).join('');
-    tip.innerHTML = `<div class="tdate">${b ? fmtStamp(b) : ''}</div>`
-      + `<div class="trow" style="color:var(--ink-3);font-size:11px"><span>表示開始=100</span><span></span></div>`
-      + rows2;
-    tip.style.opacity = 1;
-    const host2 = $('#chartHost'), tw2 = tip.offsetWidth;
-    let left2 = X + 14;
-    if(left2 + tw2 > host2.clientWidth - 4) left2 = X - tw2 - 14;
-    tip.style.left = clamp(left2, 4, Math.max(4, host2.clientWidth - tw2 - 4)) + 'px';
-    const band2 = visibleBand(host2);
-    tip.style.top = clamp(isNum(Y) ? Y - tip.offsetHeight / 2 : band2.top + 6,
-      band2.top + 6, Math.max(band2.top + 6, band2.bottom - tip.offsetHeight - 6)) + 'px';
-    return;
-  }
+  /* The comparison rows are ADDED to the readout, not put in place of it.
+     Replacing it threw away the open/high/low/close and every indicator the
+     moment a comparison line was switched on — the same complaint as the
+     chart itself losing its candles. */
   const rows = [];
   const R = (k, v) => rows.push(`<div class="trow"><span>${k}</span><span>${v}</span></div>`);
   if(b){
     R('始値', fmtNum(d.o[i], cur)); R('高値', fmtNum(d.h[i], cur));
     R('安値', fmtNum(d.l[i], cur)); R('終値', fmtNum(d.c[i], cur));
     if(i > 0){
+      /* On an intraday chart the previous bar is fifteen minutes ago, not
+         yesterday. Label it for what it is, and add the real 前日比 as its
+         own row so both readings are available. */
       const ch = d.c[i] - d.c[i-1], pc = ch / d.c[i-1] * 100;
-      R('前日比', `${ch>=0?'▲':'▼'} ${fmtNum(Math.abs(ch), cur)} (${pc>=0?'+':''}${pc.toFixed(2)}%)`);
+      const intra = isIntradayIv(state.interval);
+      R(intra ? '前の足から' : '前日比',
+        `${ch>=0?'▲':'▼'} ${fmtDelta(Math.abs(ch), d.c[i], cur)} (${pc>=0?'+':''}${pc.toFixed(2)}%)`);
+      const pv = prevCloseFor();
+      if(intra && isNum(pv) && pv){
+        const c2 = d.c[i] - pv, p2 = c2 / pv * 100;
+        R('前日比', `${c2>=0?'▲':'▼'} ${fmtDelta(Math.abs(c2), d.c[i], cur)} (${p2>=0?'+':''}${p2.toFixed(2)}%)`);
+      }
     }
     if(T.vol) R('出来高', fmtVol(d.v[i]));
   }
@@ -3695,6 +3749,17 @@ function showTip(i, X, Y){
     if(isNum(d.extMargin.buy[i]))  extra.push([ln ? '融資残' : '信用買残', fmtVol(d.extMargin.buy[i]) + '株']);
     if(isNum(d.extMargin.sell[i])) extra.push([ln ? '貸株残' : '信用売残', fmtVol(d.extMargin.sell[i]) + '株']);
     if(isNum(d.extMargin.ratio[i])) extra.push([ln ? '貸借倍率' : '信用倍率', d.extMargin.ratio[i].toFixed(2) + '倍']);
+  }
+
+  if(Compare.active.length && state._cmpAll){
+    const real = !!state._cmpReal;
+    extra.push(['— 比較 —', real ? '左軸=実数' : '開始=100']);
+    state._cmpAll.forEach((sy, k) => {
+      const v = sy.values ? sy.values[i] : null;
+      const nm = k === 0 ? (state.raw.code || '本銘柄') : sy.label;
+      extra.push([String(nm).slice(0, 14),
+        !isNum(v) ? '—' : (real ? fmtNum(v, k === 0 ? cur : null) : v.toFixed(1))]);
+    });
   }
 
   const dateStr = b ? fmtStamp(b)
@@ -4282,6 +4347,7 @@ const Tabs = {
     }
     t.raw = state.raw; t.ind = state.ind;
     t.i0 = state.i0; t.i1 = state.i1;
+    t.yZoom = state.yZoom || 1;      /* the price scale is part of the view */
     t.label = state.raw.code && state.raw.code !== 'DEMO' ? state.raw.code : (t.symbol || '新規');
     t.code = state.raw.code;
   },
@@ -4299,6 +4365,7 @@ const Tabs = {
     if(t.raw){
       state.raw = t.raw; state.ind = t.ind;
       state.i0 = t.i0; state.i1 = t.i1;
+      state.yZoom = isNum(t.yZoom) ? t.yZoom : 1;
       setTickTz(t.raw.tz);
       redraw(); applyQuoteStrip(); renderSignals(); renderTable();
       renderNews(t.news || null);
@@ -4496,10 +4563,18 @@ const Compare = {
       `<button class="chip cmp" data-cmp="${p.sym}" data-label="${p.label}"
         aria-pressed="${this.has(p.sym)}"${this.busy ? ' disabled' : ''}>
         <i class="sw" style="background:${this.colorOf(p.sym) || 'var(--ink-3)'}"></i>${p.label}</button>`).join('');
-    $('#cmpNote').textContent = this.active.length
-      ? `表示中の左端を100として指数化しています(1本の軸だけ・2軸チャートは使いません)。`
-        + `ローソク足と指標も同じ倍率で置き直しているので、形はそのままです。`
-      : '';
+    const sel = $('#cmpAxis');
+    if(sel && sel.value !== cmpMode()) sel.value = cmpMode();
+    $('#cmpNote').textContent = !this.active.length ? ''
+      : cmpLeftAxis()
+        ? `左の軸が比較先の実際の値、右の軸が株価です。`
+          + `2つの軸の高さの合わせ方はこちらで決めたもので、意味はありません。`
+          + `重なり方ではなく、上下の動きの形をご覧ください。`
+      : cmpMode() === 'real'
+        ? `実数の左軸は比較が1本のときだけ使えます(単位の違うものを1本の軸に載せられないため)。`
+          + `いまは指数で表示しています。`
+        : `表示中の左端を100として指数化しています。`
+          + `ローソク足と指標も同じ倍率で置き直しているので、形はそのままです。`;
   },
 
   colorOf(sym){
@@ -4514,6 +4589,25 @@ const Compare = {
    and the comparison lines can never end up on different scales.
    -------------------------------------------------------------------- */
 
+/* Which way the comparison is drawn.
+
+   'index' rebases everything to 100 — one axis, no arbitrary alignment, and
+   any number of series. 'real' puts the comparison on its OWN axis down the
+   left in its own units, which is what people mean by 「左軸に軸追加」 and is
+   much easier to read against a familiar number like 159.44 yen to the
+   dollar. The catch is that where the two scales line up is a choice we make,
+   not a fact, so it is only offered for ONE series at a time and the panel
+   says which axis is which. */
+const cmpMode = () => Store.get('cmpAxis', 'index') === 'real' ? 'real' : 'index';
+
+function cmpLeftAxis(){
+  if(typeof Compare === 'undefined') return null;
+  if(cmpMode() !== 'real') return null;
+  const list = Compare.seriesFor ? Compare.active : [];
+  if(list.length !== 1) return null;         /* two units, one axis: no */
+  return list[0];
+}
+
 /* the divisor for each series, and the index range they cover */
 function prepCompare(p){
   const d = state.ind, nb = state.raw.bars.length;
@@ -4525,6 +4619,21 @@ function prepCompare(p){
   };
   const base = first(d.c);
   if(!base) return {base: null, series: [], range: []};
+
+  /* real-units mode: the series keeps its own numbers and gets its own axis */
+  if(cmpLeftAxis() && series.length === 1){
+    const sy = series[0];
+    let lo = Infinity, hi = -Infinity;
+    for(let i = Math.max(0, state.i0); i <= Math.min(state.i1, nb - 1); i++){
+      const v = sy.values[i];
+      if(isNum(v)){ if(v < lo) lo = v; if(v > hi) hi = v; }
+    }
+    if(!isFinite(lo)) return {base, series: [], range: []};
+    const pad = (hi - lo) * 0.06 || Math.abs(hi) * 0.001 || 1;
+    return {base, real: true, lo: lo - pad, hi: hi + pad,
+            series: [{...sy, raw: sy.values}], range: []};
+  }
+
   const norm = series.map(sy => {
     const b = first(sy.values);
     return {...sy, base: b,
@@ -4550,9 +4659,53 @@ function drawCompareLines(g, p, cmp, yIdx){
   g.restore();
   /* what the crosshair and the stats table read */
   state._cmpY = yIdx;
+  state._cmpReal = false;
   state._cmpAll = [{label: state.raw.name || state.raw.code, base: true, ci: 1,
                     values: state.ind.c.map(v => isNum(v) && cmp.base ? v / cmp.base * 100 : null)},
                    ...cmp.series];
+  state._cmpNorm = state._cmpAll.map(s => s.values);
+}
+
+/* The other way round: the price panel keeps its own axis on the right, and
+   the comparison gets one down the left in its own units. */
+function drawCompareReal(g, p, cmp){
+  const sy = cmp.series[0];
+  if(!sy) return;
+  const yL = makeY(p, cmp.lo, cmp.hi, 4, 4);
+  const col = cssVar('--cmp' + sy.ci);
+
+  /* ticks down the LEFT, in the series' colour so there is no doubt which
+     axis belongs to which line */
+  g.save();
+  g.font = `${LAY.narrow ? 10 : 11}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  g.fillStyle = col;
+  for(const t of ticks(cmp.lo, cmp.hi, LAY.narrow ? 4 : 6)){
+    const Y = yL(t);
+    if(Y < p.y + 6 || Y > p.y + p.h - 4) continue;
+    g.globalAlpha = .55;
+    g.beginPath();
+    g.moveTo(p.x, Math.round(Y) + .5); g.lineTo(p.x + 5, Math.round(Y) + .5);
+    g.strokeStyle = col; g.lineWidth = 1; g.stroke();
+    g.globalAlpha = 1;
+    g.fillText(fmtNum(t), p.x - 3, Y);
+  }
+  g.restore();
+
+  line(g, p, sy.values, yL, col, 1.8);
+  endLabel(g, p, sy.values, yL, col, String(sy.label).slice(0, 12));
+
+  g.save();
+  g.fillStyle = C.ink3;
+  g.font = `600 ${LAY.narrow ? 9 : 10}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'left'; g.textBaseline = 'top';
+  g.fillText(`左軸: ${String(sy.label).slice(0, 10)} ・ 右軸: 株価`, p.x + 3, p.y + 2);
+  g.restore();
+
+  state._cmpY = yL;
+  state._cmpReal = true;
+  state._cmpAll = [{label: state.raw.name || state.raw.code, base: true, ci: 1,
+                    values: state.ind.c.slice()}, {...sy}];
   state._cmpNorm = state._cmpAll.map(s => s.values);
 }
 
@@ -9745,7 +9898,7 @@ async function maybeSelfTest(){
    turns candles into noise, so we show the most recent slice that still
    renders at ~3px per bar. `_fit` is resolved in redraw(), once we know the
    real plot width. */
-function visibleDefault(){ state._fit = true; }
+function visibleDefault(){ state._fit = true; state.yZoom = 1; }
 function resolveFit(){
   if(!state._fit || !LAY) return;
   state._fit = false;
@@ -9815,6 +9968,14 @@ function opBackground(op){
   return op && op.gen === OP[op.kind] && Tabs.list.includes(op.tab)
       && Tabs.list[Tabs.active] !== op.tab;
 }
+/* Newest of its kind, but the tab it started on no longer EXISTS. The
+   session restore replaces every tab object, so pressing 分析 in the moment
+   before it finishes left the answer with nowhere to go: the button went
+   back to 分析, the old chart stayed, and nothing said why. Nothing newer
+   has been asked for, so it belongs on the tab that is in front. */
+function opOrphaned(op){
+  return !!op && op.gen === OP[op.kind] && !Tabs.list.includes(op.tab);
+}
 function fillTab(tab, data){
   tab.raw = data;
   /* the same correction apply() makes: if the source gave a different
@@ -9823,7 +9984,7 @@ function fillTab(tab, data){
   if(data.granularity && owns(IV_RANGES, data.granularity) && data.granularity !== tab.interval){
     tab.interval = data.granularity;
     const allowed = IV_RANGES[tab.interval];
-    if(!allowed.includes(tab.range)) tab.range = allowed[allowed.length - 1];
+    if(!allowed.includes(tab.range)) tab.range = nearestRange(allowed, tab.range);
   }
   const keepP = P;
   setPreset(tab.interval || '1d');
@@ -9877,10 +10038,35 @@ function endSizing(){
   saveWorkspaceSoon();
 }
 
-function panelAtEdge(y){
+/* The x-range of the drawn handle, plus a little slack. Must agree with
+   drawGrips() in part4. */
+function gripSpan(p){
+  const wide = LAY.narrow ? 26 : 30;
+  return {x0: p.x + p.w - wide - 2 - 14, x1: p.x + p.w - 2 + 10};
+}
+
+/* Which divider — if any — a press at (x, y) is grabbing.
+
+   The band used to be 22px tall on TOUCH, applied to two edges per panel,
+   across the panel's whole width. On a phone that is 44px of a 74px
+   sub-panel: about a third of the chart silently became "resize" instead of
+   "pan", and the pan gesture appeared to work or not depending on where the
+   finger happened to land. That is 「動く時と動かない時がある」.
+
+   So on a coarse pointer the handle is only where the handle is DRAWN — the
+   short bar at the right-hand end. Everywhere else along the divider is
+   chart, and a swipe there pans. A mouse keeps the full-width band, because
+   a mouse can see the row-resize cursor and aim at a hairline. */
+function panelAtEdge(y, x){
   if(!LAY) return null;
+  const coarse = GRIP > GRIP_MOUSE;
   let best = null, bestD = Infinity;
   for(const p of LAY.panels){
+    if(coarse){
+      if(!isNum(x)) return null;               /* no x: cannot be sure, so no */
+      const sp = gripSpan(p);
+      if(x < sp.x0 || x > sp.x1) continue;
+    }
     /* Two places count as this panel's handle: its own bottom edge, and —
        for the price panel — the drawn grip below its date strip. Aiming at
        the edge of the panel is what people do, whatever we drew. */
@@ -9910,21 +10096,25 @@ function grabPointer(id){
   try{ cv.setPointerCapture && cv.setPointerCapture(id); }catch(err){}
 }
 
-/* Where the divider under a panel actually ended up after the last layout. */
+/* Where the divider under a panel actually ended up after the last layout.
+
+   The same line the hit test and the drawing use: measuring against the
+   panel's own bottom edge while the user had grabbed the handle 18px below
+   it made the price panel lurch by that much on the first move. */
 function dividerY(key){
   const p = LAY && LAY.panels.find(q => q.key === key);
-  return p ? p.y + p.h : null;
+  return p ? gripY(p) : null;
 }
 
 cv.addEventListener('pointermove', e => {
   if(sizing || e.pointerType === 'touch') return;
-  cv.style.cursor = panelAtEdge(localY(e)) ? 'row-resize' : '';
+  cv.style.cursor = panelAtEdge(localY(e), localX(e)) ? 'row-resize' : '';
 });
 cv.addEventListener('pointerdown', e => {
   if(sizing) return;
   /* the handle also has to be inside the plot, not out in the price gutter */
   const x = localX(e);
-  const p = panelAtEdge(localY(e));
+  const p = panelAtEdge(localY(e), x);
   if(!p || x < p.x || x > p.x + p.w) return;
   sizing = {key: p.key, id: e.pointerId, y0: localY(e), h0: p.h,
             base: p.h / (panelScale[p.key] || 1)};
@@ -9949,7 +10139,18 @@ addEventListener('pointermove', e => {
   if(cur === null){ e.preventDefault(); return; }
   const d = want - cur;
   if(Math.abs(d) >= 0.5 && sizing.base > 0){
-    setPanelScale(sizing.key, (panelScale[sizing.key] || 1) + d / sizing.base, true);
+    /* The feedback loop assumes the divider CAN move. On a phone the price
+       panel is also capped to fit one screenful, and past that cap it stops
+       moving — so the correction kept adding the same error every frame and
+       silently pumped the scale to its 3.5 limit while the drag felt dead.
+       If two attempts in a row do not move it, this panel is against a stop. */
+    const before = panelScale[sizing.key] || 1;
+    setPanelScale(sizing.key, before + d / sizing.base, true);
+    const moved = Math.abs((dividerY(sizing.key) || cur) - cur) > 0.5;
+    if(!moved){
+      sizing.stuck = (sizing.stuck || 0) + 1;
+      if(sizing.stuck >= 2){ setPanelScale(sizing.key, before, true); }
+    } else sizing.stuck = 0;
   }
   e.preventDefault();
 }, {passive: false});
@@ -9964,9 +10165,25 @@ addEventListener('pointercancel', e => {
   if(sizing && e.pointerId === sizing.id) endSizing();
 });
 addEventListener('blur', () => endSizing());
+/* A cancelled two-finger gesture (a notification, a system swipe) never
+   sends touchend, so `pinch` stayed set — and every one-finger handler bails
+   out while it is. That is the other half of 「動く時と動かない時がある」. */
+cv.addEventListener('touchcancel', () => { pinch = null; endTouchDrag(); }, {passive: true});
+addEventListener('blur', () => { pinch = null; drag = null; endTouchDrag(); });
+/* An app switch fires visibilitychange without necessarily firing blur, and
+   the pointer route never cleared `pinch` at all. Every one-finger handler
+   bails while it is set, and there is no way back except a reload. */
+addEventListener('pointercancel', () => { pinch = null; drag = null; });
+/* Any visibility transition ends a gesture: you cannot still be holding two
+   fingers on a chart across an app switch, and a stale `pinch` blocks every
+   one-finger handler with no way back except a reload. Same for pagehide,
+   which is what iOS actually fires when the tab goes into the background. */
+function endAllGestures(){ pinch = null; drag = null; endTouchDrag(); endSizing(); }
+document.addEventListener('visibilitychange', endAllGestures);
+addEventListener('pagehide', endAllGestures);
 cv.addEventListener('lostpointercapture', () => endSizing());
 cv.addEventListener('dblclick', e => {
-  const p = panelAtEdge(localY(e));
+  const p = panelAtEdge(localY(e), localX(e));
   if(p){ setPanelScale(p.key, 1); e.stopPropagation(); }
 }, true);
 
@@ -10048,7 +10265,9 @@ cv.addEventListener('pointermove', e => {
   if(sizing) return;
   if(e.pointerType === 'touch'){
     if(pinch) return;
-    if(!tdrag || e.pointerId !== tdrag.id) return;
+    if(!tdrag) return;
+    if(tdrag.adopted) tdrag.id = e.pointerId;      /* first move claims it */
+    else if(e.pointerId !== tdrag.id) return;
     const x = localX(e), y = localY(e);
     if(tdrag.mode === '?'){
       const dx = Math.abs(x - tdrag.x0), dy = Math.abs(y - tdrag.y0);
@@ -10096,7 +10315,15 @@ window.addEventListener('pointerup', e => {
 window.addEventListener('pointercancel', e => {
   if(tdrag && e.pointerId === tdrag.id) endTouchDrag();
 });
-cv.addEventListener('pointerleave', () => { state.hover = -1; paint(); });
+/* A touch pointer stops existing after pointerup, so the browser fires
+   pointerleave immediately afterwards — in the same task. That wiped the
+   value a TAP had just put on screen before it was ever painted, which is
+   why a quick tap showed nothing and a long press worked. Leaving is a
+   mouse idea; a finger that has lifted has not "left". */
+cv.addEventListener('pointerleave', e => {
+  if(e.pointerType === 'touch') return;
+  state.hover = -1; paint();
+});
 cv.addEventListener('dblclick', () => { visibleDefault(); redraw(); });
 
 cv.addEventListener('wheel', e => {
@@ -10117,26 +10344,51 @@ cv.addEventListener('wheel', e => {
 let pinch = null;
 cv.addEventListener('touchstart', e => {
   if(sizing) return;                    /* a resize is under way; not a gesture */
-  if(e.touches.length === 2){
+  /* targetTouches, not touches: `touches` lists every finger on the PAGE, so
+     a thumb resting on the header while the index finger swiped the chart
+     counted as a two-finger pinch and the chart zoomed instead of panning. */
+  const tt = e.targetTouches;
+  if(tt.length === 2){
     pinch = {
-      d: Math.abs(e.touches[0].clientX - e.touches[1].clientX) || 1,
-      mx: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      d: Math.abs(tt[0].clientX - tt[1].clientX) || 1,
+      mx: (tt[0].clientX + tt[1].clientX) / 2,
+      /* the vertical spread too: spreading the fingers apart up-and-down
+         stretches the PRICE scale, the same way spreading them sideways
+         stretches the time axis */
+      dy: Math.abs(tt[0].clientY - tt[1].clientY) || 1,
+      yz: state.yZoom || 1,
       n: state.i1 - state.i0 + 1, i0: state.i0
     };
     drag = null; endTouchDrag(); state.hover = -1; paint();
   }
 }, {passive:true});
 cv.addEventListener('touchmove', e => {
-  if(pinch && e.touches.length === 2){
+  const tt = e.targetTouches;
+  if(pinch && tt.length === 2){
     e.preventDefault();
     const p = panel('main');
-    const d = Math.abs(e.touches[0].clientX - e.touches[1].clientX) || 1;
-    const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const nn = clamp(Math.round(pinch.n * pinch.d / d), 20, state.raw.bars.length + 60);
-    const shift = Math.round(-(mx - pinch.mx) / (p.w / nn));   /* two-finger drag pans */
-    const mid = pinch.i0 + pinch.n / 2;
-    state.i0 = Math.round(mid - nn/2) + shift;
-    state.i1 = state.i0 + nn - 1;
+    const d = Math.abs(tt[0].clientX - tt[1].clientX) || 1;
+    const dy = Math.abs(tt[0].clientY - tt[1].clientY) || 1;
+    const mx = (tt[0].clientX + tt[1].clientX) / 2;
+
+    /* Which way the fingers moved decides which axis they are stretching.
+       Comparing the RATIOS rather than the raw pixels keeps a mostly-sideways
+       pinch out of the price scale and a mostly-vertical one out of the time
+       axis, while still letting a diagonal spread do a bit of both. */
+    const rx = d / pinch.d, ry = dy / pinch.dy;
+    const wantX = Math.abs(Math.log(rx)) > 0.04;
+    const wantY = Math.abs(Math.log(ry)) > 0.04;
+
+    if(wantY && Math.abs(Math.log(ry)) >= Math.abs(Math.log(rx))){
+      state.yZoom = clamp(pinch.yz * ry, 0.25, 8);
+    }
+    if(wantX || !wantY){
+      const nn = clamp(Math.round(pinch.n * pinch.d / d), 20, state.raw.bars.length + 60);
+      const shift = Math.round(-(mx - pinch.mx) / (p.w / nn));   /* two-finger drag pans */
+      const mid = pinch.i0 + pinch.n / 2;
+      state.i0 = Math.round(mid - nn/2) + shift;
+      state.i1 = state.i0 + nn - 1;
+    }
     clampView(); renderBase(); paint(); renderNavPos();
   }
 }, {passive:false});
@@ -10148,6 +10400,16 @@ cv.addEventListener('touchend', e => {
   if(pinch || e.touches.length >= 1){
     if(pinch) pinchedRecently = performance.now();
     if(e.touches.length < 2) pinch = null;
+    /* One finger still on the glass after the pinch ended. Nothing creates a
+       one-finger gesture except pointerdown, which already happened and was
+       ignored — so that finger was dead until it was lifted and put back.
+       Adopt it instead. */
+    if(!pinch && !sizing && !tdrag && e.targetTouches.length === 1){
+      const t = e.targetTouches[0], r = cv.getBoundingClientRect();
+      tdrag = {id: -1, x0: t.clientX - r.left, y0: t.clientY - r.top,
+               x: t.clientX - r.left, mode: '?',
+               i0: state.i0, i1: state.i1, adopted: true};
+    }
     lastTap = 0;
     return;
   }
@@ -10158,8 +10420,9 @@ cv.addEventListener('touchend', e => {
     /* on a divider this means "reset this panel", the same as a mouse
        double-click; anywhere else it means "reset the zoom" */
     const t = e.changedTouches && e.changedTouches[0];
-    const y = t ? t.clientY - cv.getBoundingClientRect().top : -1;
-    const p = y >= 0 ? panelAtEdge(y) : null;
+    const r0 = cv.getBoundingClientRect();
+    const y = t ? t.clientY - r0.top : -1;
+    const p = (t && y >= 0) ? panelAtEdge(y, t.clientX - r0.left) : null;
     if(p) setPanelScale(p.key, 1);
     else { visibleDefault(); redraw(); }
     lastTap = 0;
@@ -10256,11 +10519,27 @@ $$('.chip[data-t]').forEach(btn => {
       /* both are computed on demand, so the series has to be run again */
       setBusy(true);
       setTimeout(() => {
-        state.ind = recompute();
-        redraw(); renderSignals(); setBusy(false);
-        if(k === 'lorentz' && on && state.ind.lorentz && !state.ind.lorentz.enoughData)
-          notice(`Lorentzian は近傍探索の性質上、<b>800本以上</b>(できれば2000本)の学習データがほしい指標です。`
-               + `現在 ${state.raw.bars.length} 本なので、期間を「5年」「全期間」にするか、1時間足に切り替えると精度が上がります。`);
+        /* setBusy(true) disables 分析 and freezes the chart. If the recompute
+           threw — a kNN on a short series, a study that meets a bad bar — the
+           matching false was never reached and the page stayed dead until a
+           reload. That is 「動く時と動かない時がある」. */
+        try{
+          state.ind = recompute();
+          redraw(); renderSignals();
+          if(k === 'lorentz' && on && state.ind.lorentz && !state.ind.lorentz.enoughData)
+            notice(`Lorentzian は近傍探索の性質上、<b>800本以上</b>(できれば2000本)の学習データがほしい指標です。`
+                 + `現在 ${state.raw.bars.length} 本なので、期間を「5年」「全期間」にするか、1時間足に切り替えると精度が上がります。`);
+        }catch(err){
+          /* leave the toggle OFF rather than pretending it is on */
+          state.toggles[k] = false;
+          const bb = document.querySelector(`.chip[data-t="${k}"]`);
+          if(bb) bb.setAttribute('aria-pressed', 'false');
+          try { state.ind = recompute(); redraw(); renderSignals(); }catch(e2){}
+          notice(`この指標の計算でエラーが起きたので、その指標だけ切りました`
+               + `(${esc(String((err && err.message) || err), 60)})。`, true);
+        }finally{
+          setBusy(false);
+        }
       }, 16);
       return;
     }
@@ -10292,9 +10571,28 @@ const IV_BUILD = {'4h': {from: '1h', n: 4}, '8h': {from: '1h', n: 8}};
 const RANGE_LABEL = {'1d':'1日','5d':'5日','1mo':'1ヶ月','3mo':'3ヶ月','6mo':'6ヶ月',
                      '1y':'1年','2y':'2年','5y':'5年','max':'全期間'};
 
+/* roughly how long each range is, in days — only the ORDER matters */
+const RANGE_DAYS = {'1d': 1, '5d': 5, '1mo': 30, '3mo': 91, '6mo': 182,
+                    '1y': 365, '2y': 730, '5y': 1825, 'max': 20000};
+
+/* The closest available length to the one being left behind.
+
+   Switching 1時間/1ヶ月 to 日足 used to jump straight to 全期間, because the
+   fallback was "the last entry" — the longest. Nobody asking for a month of
+   hourly bars wants twenty years of daily ones. From 1ヶ月 this gives 3ヶ月. */
+function nearestRange(allowed, want){
+  const w = RANGE_DAYS[want] || 365;
+  let best = allowed[0], bestD = Infinity;
+  for(const r of allowed){
+    const d = Math.abs(Math.log((RANGE_DAYS[r] || 365) / w));
+    if(d < bestD){ bestD = d; best = r; }
+  }
+  return best;
+}
+
 function buildRanges(){
   const allowed = owns(IV_RANGES, state.interval) ? IV_RANGES[state.interval] : IV_RANGES['1d'];
-  if(!allowed.includes(state.range)) state.range = allowed[allowed.length-1];
+  if(!allowed.includes(state.range)) state.range = nearestRange(allowed, state.range);
   $('#rangeSeg').innerHTML = allowed.map(r =>
     `<button data-r="${r}"${r === state.range ? ' aria-pressed="true"' : ''}>${RANGE_LABEL[r]}</button>`
   ).join('');
@@ -10378,6 +10676,7 @@ $('#csvFile').addEventListener('change', async e => {
     setBusy(true);
     const data = await readCSVFile(f);
     if(!opValid(op)){
+      if(opOrphaned(op)){ apply(data); return; }
       if(opBackground(op)) fillTab(op.tab, data);
       return;
     }
@@ -10607,14 +10906,20 @@ function applyQuoteStrip(){
   $('#qName').textContent = state.raw.name;
   $('#qCode').textContent = state.raw.code && state.raw.code !== state.raw.name ? state.raw.code : '';
   $('#qPrice').textContent = fmtNum(d.c[n], cur);
-  const ch = n > 0 ? d.c[n] - d.c[n-1] : 0;
-  const pc = n > 0 && d.c[n-1] ? ch / d.c[n-1] * 100 : 0;
+  /* 前日比 means "against the previous trading day's close". Using the
+     previous BAR is the same thing on a daily chart and nothing like it on
+     an intraday one — a 15-minute chart was reporting the last quarter of an
+     hour and calling it 前日比. */
+  const base = prevCloseFor();
+  const ch = isNum(base) ? d.c[n] - base : (n > 0 ? d.c[n] - d.c[n-1] : 0);
+  const pc = isNum(base) && base ? ch / base * 100
+           : (n > 0 && d.c[n-1] ? ch / d.c[n-1] * 100 : 0);
   const up = ch >= 0;
   $('#qDelta').innerHTML =
     `<span aria-hidden="true" style="color:${up?'var(--up)':'var(--down)'}">${up?'▲':'▼'}</span>` +
-    `<span style="color:${up?'var(--up)':'var(--down)'}">${up?'+':'−'}${fmtNum(Math.abs(ch), cur)}` +
+    `<span style="color:${up?'var(--up)':'var(--down)'}">${up?'+':'−'}${fmtDelta(Math.abs(ch), d.c[n], cur)}` +
     ` (${up?'+':'−'}${Math.abs(pc).toFixed(2)}%)</span>` +
-    `<span style="color:var(--ink-3);font-weight:400"> ${up?'上昇':'下落'}</span>`;
+    `<span style="color:var(--ink-3);font-weight:400"> 前日比・${up?'上昇':'下落'}</span>`;
   const lastDate = fmtDate(state.raw.bars[n], true);
   /* the timeframe belongs next to the bar count: it is the thing that
      decides what every number on this page means */
@@ -10631,6 +10936,37 @@ function applyQuoteStrip(){
 }
 
 const hhmm = t => `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+
+/* The close of the previous trading day for whatever is on the chart.
+
+   The source supplies it, which is the only reliable way on an intraday
+   chart: the bars themselves may not reach back far enough, and picking
+   "the last bar of the previous market day" out of them goes wrong across
+   holidays and half-days. Falling back to the bars is still better than
+   using the previous 15 minutes. */
+function prevCloseFor(){
+  const r = state.raw, d = state.ind;
+  if(!r || !d || !d.c || !d.c.length) return null;
+  if(isNum(r.prevClose) && r.prevClose > 0) return r.prevClose;
+  const bars = r.bars, n = bars.length - 1;
+  if(n < 1) return null;
+  if(!isIntradayIv(state.interval)) return isNum(d.c[n-1]) ? d.c[n-1] : null;
+  /* intraday without a published previous close: the last bar of the last
+     market day before the one the newest bar belongs to */
+  const today = barKey(bars[n]);
+  for(let i = n - 1; i >= 0; i--){
+    if(barKey(bars[i]) !== today) return isNum(d.c[i]) ? d.c[i] : null;
+  }
+  return null;
+}
+
+/* A price DIFFERENCE takes its decimals from the price, not from its own
+   size: ¥0.5 off a ¥1,382.5 stock was printing as ¥0.5000 because the
+   formatter saw a number below 1. */
+function fmtDelta(v, price, cur){
+  if(!isNum(v)) return '—';
+  return fmtCur(v, decimalsFor(v, isNum(price) ? price : v), cur);
+}
 
 /* 「なぜ8月10日のデータなの？」 has three different answers — the market was
    shut, the relay served a cached copy, or the app never refetched — and the
@@ -10802,6 +11138,7 @@ async function run(){
   try{
     const data = await loadSymbol(raw, state.range, state.interval);
     if(!opValid(op)){
+      if(opOrphaned(op)){ apply(data); return; }
       if(opBackground(op)) fillTab(op.tab, data);   /* keep it for that tab */
       return;
     }
@@ -10876,6 +11213,11 @@ $('#histSel').addEventListener('change', e => {
 $('#histClear').addEventListener('click', () => Book.clearHist());
 
 /* ---- comparison ------------------------------------------------------ */
+$('#cmpAxis').value = cmpMode();
+$('#cmpAxis').addEventListener('change', e => {
+  Store.set('cmpAxis', e.target.value === 'real' ? 'real' : 'index');
+  redraw(); Compare.renderChips(); renderCompareStats();
+});
 $('#cmpList').addEventListener('click', e => {
   const b = e.target.closest('[data-cmp]');
   if(!b || Compare.busy) return;
@@ -11096,7 +11438,7 @@ function panBars(dir){
   state.i0 += step; state.i1 += step;
   clampView();
   state.hover = -1;
-  renderBase(); paint();
+  renderBase(); paint(); renderNavPos();
   saveWorkspaceSoon();
 }
 
@@ -11112,7 +11454,10 @@ function renderNavPos(){
   const fm = i => bars[i] ? fmtDate(bars[i], true) : '';
   el.textContent = nb ? `${fm(a)} 〜 ${fm(b)}(${b - a + 1}本 / 全${nb}本)` : '';
   const atStart = state.i0 <= 0;
-  const atEnd = state.i1 >= nb - 1 + 40;
+  /* clampView caps i1 at nb-1+future, so "nb-1+40" was never true and ▶ was
+     never disabled — it just stopped doing anything, which reads as broken. */
+  const future = state.toggles.ichimoku ? P.ichimoku[3] : 0;
+  const atEnd = state.i1 >= nb - 1 + future;
   if($('#navPrev')) $('#navPrev').disabled = atStart;
   if($('#navNext')) $('#navNext').disabled = atEnd;
 }
@@ -11404,9 +11749,17 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
     $('#selfWrap').classList.remove('hide');
     $('#selfSummary').innerHTML = '<div class="vsub">テストを実行しています…</div>';
     await new Promise(r => setTimeout(r, 30));
-    renderSelfTests(await runSelfTests());
-    wsRestoring = false;
-    $('#selfBtn').disabled = false;
+    /* if the run throws, persistence must not stay frozen for the rest of
+       the session and the button must not stay dead */
+    try{
+      renderSelfTests(await runSelfTests());
+    }catch(err){
+      $('#selfSummary').innerHTML =
+        `<div class="vsub">テストの実行中にエラーが起きました: ${esc(String((err && err.message) || err), 90)}</div>`;
+    }finally{
+      wsRestoring = false;
+      $('#selfBtn').disabled = false;
+    }
     $('#selfWrap').scrollIntoView({block:'start'});
   });
   if(/(^|[#&])selftest/.test(location.hash)){
