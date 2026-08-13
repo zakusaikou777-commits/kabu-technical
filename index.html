@@ -429,6 +429,15 @@ td:first-child,th:first-child{text-align:left}
   border-radius:999px;padding:1px 9px;min-width:22px;text-align:center}
 .favgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .favempty{font-size:12.5px;color:var(--ink-3);margin:10px 0 0;line-height:1.7}
+.navrow{display:flex;align-items:center;gap:8px;margin:9px 0 0;flex-wrap:wrap}
+.navbtn{min-width:52px;min-height:42px;font-size:15px;line-height:1;
+  display:inline-grid;place-items:center;border-radius:11px;
+  border:1px solid var(--hairline);background:var(--surface-1);color:var(--ink-1);
+  cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}
+.navbtn:disabled{opacity:.35;cursor:default}
+.navbtn:active{background:var(--wash)}
+.navpos{flex:1 1 auto;min-width:0;font-size:11.5px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;text-align:center}
 .phlist{display:flex;flex-direction:column;gap:6px;margin-top:9px}
 .phrow{display:flex;align-items:center;gap:8px}
 .phname{flex:1 1 auto;min-width:0;font-size:12.5px;color:var(--ink-2);
@@ -501,6 +510,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <div class="qdelta" id="qDelta">—</div>
       <div class="qsrc" id="qSrc">読み込み中…</div>
       <div class="qsrc hide" id="qFresh"></div>
+      <div class="qsrc hide" id="qDelay" style="line-height:1.7"></div>
       <div class="qsrc" id="qPreset"></div>
     </div>
   </div>
@@ -553,7 +563,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <span class="live" id="liveBox" data-s="off">
       <i class="dot" aria-hidden="true"></i>
       <label for="liveSel" class="sr">自動更新</label>
-      <select class="mini livesel" id="liveSel">
+      <select class="mini livesel" id="liveSel"
+        title="どれを選んでも、配信元の遅延(日本株は通常15〜20分)は縮みません">
         <option value="off">更新: 手動</option>
         <option value="30">30秒ごと</option>
         <option value="60">60秒ごと</option>
@@ -594,6 +605,15 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <canvas id="chart" role="img" aria-label="ローソク足チャートとテクニカル指標"></canvas>
       <div id="tip" role="status" aria-live="off"></div>
     </div>
+    <!-- Buttons for the same thing the sideways drag does. A gesture nobody
+         is told about is not a feature, and precise stepping is easier here. -->
+    <div class="navrow" role="group" aria-label="時間軸の移動">
+      <button class="navbtn" id="navPrev" aria-label="過去へ移動">◀</button>
+      <button class="navbtn" id="navNext" aria-label="未来へ移動">▶</button>
+      <span class="navpos" id="navPos"></span>
+      <button class="chip" id="navEnd">最新へ</button>
+      <button class="chip" id="navAll" style="border-style:dashed">全体</button>
+    </div>
     <div class="legend" id="legend"></div>
     <!-- Dragging a hairline is a mouse gesture. On a phone this is the way
          to do it: one row per visible panel, with buttons big enough to hit. -->
@@ -607,7 +627,9 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
         チャートの上でも、パネルの下端の<b>横棒(右端)</b>を上下にドラッグすると変えられます。
         棒をダブルタップするとそのパネルだけ元に戻ります。ここでの設定は端末ごとに保存されます。</p>
     </details>
-    <p class="hint">指でなぞると各日の値を表示 / 2本指のピンチで拡大縮小・移動 / ダブルタップで全体表示。PCではドラッグで移動、ホイールで拡大縮小できます。</p>
+    <p class="hint"><b>指で左右になぞると時間軸が動きます</b>(上下は画面のスクロール)。
+      指を止めるとその日の値を表示 / 2本指のピンチで拡大縮小 / ダブルタップで全体表示。
+      PCではドラッグで移動、ホイールで拡大縮小できます。</p>
   </div>
 
   <details class="tv">
@@ -962,7 +984,10 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   <footer>
     <b>ご注意:</b> 本ツールはテクニカル指標を機械的に計算・可視化するものであり、投資助言ではありません。
     シグナル判定は一般的な教科書的ルールを単純に当てはめた結果で、将来の値動きを示すものではありません。
-    データは無料の公開ソースを利用しており、遅延・欠損・調整漏れの可能性があります。実際の売買判断はご自身の責任で、正式な情報源をご確認ください。<br>
+    データは無料の公開ソースを利用しており、<b>遅延</b>・欠損・調整漏れの可能性があります。
+    日本株の無料データは取引所の規定により<b>15〜20分ほど遅れて配信</b>されるのが通常で、
+    自動更新やストリームを使ってもこの遅れは縮みません(実際の遅れは価格の下に分数で表示します)。
+    実際の売買判断はご自身の責任で、正式な情報源をご確認ください。<br>
     <b>OSGFC / Lorentzian について:</b> 各構成要素(Kaufman適応平均・Ehlersスーパースムーザー・ガウシアン加重・kNN分類)の公開されている標準式から組み直したもので、
     特定のプラットフォーム上の同名スクリプトと数値が完全一致することは保証しません。Lorentzianの的中率は過去データへの当てはめ(インサンプル)で、
     手数料・スリッページを含みません。成績評価ではなく、パラメータ調整の目安としてご覧ください。<br>
@@ -9756,6 +9781,7 @@ function redraw(){
   renderBase();
   paint();
   renderLegend();
+  renderNavPos();
   /* the panel list changes whenever an indicator is switched on or off */
   if($('#phWrap') && $('#phWrap').open) renderPanelHeights();
   if(Compare.active.length){
@@ -9976,21 +10002,100 @@ function onMove(e){
   if(moved){ state.hover = i; paint(); }
 }
 
-/* Touch and mouse get different models on purpose: on a phone a single
-   finger reads values (the thing you actually want), and two fingers
-   zoom/pan; with a mouse, drag pans and hover reads. */
+/* ---- one finger, on a phone ------------------------------------------
+   A single finger used to do exactly one thing: read values. Moving along
+   the time axis needed TWO fingers, which nobody discovers and which is
+   awkward one-handed — 「チャートを時系列を左右に動かすことができない」.
+
+   One finger now does whichever of the three things the gesture is:
+
+     sideways   → pan the time axis
+     up / down  → nothing, so the page scrolls as it always did
+     stays put  → read values, and keep reading while the finger is down
+
+   The direction is decided once, on the first few pixels of movement, and
+   then held for the rest of the gesture — deciding it per frame makes a
+   slightly diagonal drag flicker between panning and reading. A tap that
+   never moves reads the bar under it, so nothing that worked before is
+   lost. */
+const TOUCH_SLOP = 9;        /* px before a gesture has a direction at all */
+const READ_HOLD = 240;       /* ms of stillness that means "read this bar" */
+let tdrag = null, tholdTimer = null;
+
+function endTouchDrag(){
+  if(tholdTimer){ clearTimeout(tholdTimer); tholdTimer = null; }
+  tdrag = null;
+}
+
 cv.addEventListener('pointerdown', e => {
   if(sizing) return;
-  if(e.pointerType === 'touch') { onMove(e); return; }
+  if(e.pointerType === 'touch'){
+    if(pinch) return;
+    endTouchDrag();
+    tdrag = {id: e.pointerId, x0: localX(e), y0: localY(e),
+             x: localX(e), mode: '?', i0: state.i0, i1: state.i1};
+    /* a finger held still is asking to read, not to pan */
+    tholdTimer = setTimeout(() => {
+      if(tdrag && tdrag.mode === '?'){ tdrag.mode = 'read'; onMove(e); }
+    }, READ_HOLD);
+    return;
+  }
   drag = {x: localX(e), active: true};
   grabPointer(e.pointerId);
 });
+
 cv.addEventListener('pointermove', e => {
   if(sizing) return;
-  if(e.pointerType === 'touch' && pinch) return;
+  if(e.pointerType === 'touch'){
+    if(pinch) return;
+    if(!tdrag || e.pointerId !== tdrag.id) return;
+    const x = localX(e), y = localY(e);
+    if(tdrag.mode === '?'){
+      const dx = Math.abs(x - tdrag.x0), dy = Math.abs(y - tdrag.y0);
+      if(dx < TOUCH_SLOP && dy < TOUCH_SLOP) return;      /* not yet a direction */
+      if(dx > dy){
+        tdrag.mode = 'pan';
+        if(tholdTimer){ clearTimeout(tholdTimer); tholdTimer = null; }
+        state.hover = -1; paint();
+      } else {
+        /* the page's scroll, not ours */
+        tdrag.mode = 'scroll';
+        if(tholdTimer){ clearTimeout(tholdTimer); tholdTimer = null; }
+        return;
+      }
+    }
+    if(tdrag.mode === 'scroll') return;
+    if(tdrag.mode === 'pan'){
+      const p = panel('main');
+      const shift = Math.round(-(x - tdrag.x) / barW(p));
+      if(shift !== 0){
+        state.i0 += shift; state.i1 += shift;
+        clampView();
+        tdrag.x = x;
+        renderBase(); paint(); renderNavPos();
+      }
+      /* touch-action is pan-y, so the browser hands us the sideways part and
+         we have to say we used it */
+      if(e.cancelable) e.preventDefault();
+      return;
+    }
+    onMove(e);
+    return;
+  }
   onMove(e);
+}, {passive: false});
+
+window.addEventListener('pointerup', e => {
+  drag = null;
+  if(tdrag && e.pointerId === tdrag.id){
+    /* a tap that never became a direction is a request to read that bar */
+    if(tdrag.mode === '?') onMove(e);
+    endTouchDrag();
+  }
 });
-window.addEventListener('pointerup', () => { drag = null; });
+window.addEventListener('pointercancel', e => {
+  if(tdrag && e.pointerId === tdrag.id) endTouchDrag();
+});
 cv.addEventListener('pointerleave', () => { state.hover = -1; paint(); });
 cv.addEventListener('dblclick', () => { visibleDefault(); redraw(); });
 
@@ -10005,7 +10110,7 @@ cv.addEventListener('wheel', e => {
   const ratio = (anchor - state.i0) / Math.max(1, n - 1);
   state.i0 = Math.round(anchor - ratio * (nn - 1));
   state.i1 = state.i0 + nn - 1;
-  clampView(); renderBase(); paint();
+  clampView(); renderBase(); paint(); renderNavPos();
 }, {passive:false});
 
 /* pinch zoom */
@@ -10018,7 +10123,7 @@ cv.addEventListener('touchstart', e => {
       mx: (e.touches[0].clientX + e.touches[1].clientX) / 2,
       n: state.i1 - state.i0 + 1, i0: state.i0
     };
-    drag = null; state.hover = -1; paint();
+    drag = null; endTouchDrag(); state.hover = -1; paint();
   }
 }, {passive:true});
 cv.addEventListener('touchmove', e => {
@@ -10032,7 +10137,7 @@ cv.addEventListener('touchmove', e => {
     const mid = pinch.i0 + pinch.n / 2;
     state.i0 = Math.round(mid - nn/2) + shift;
     state.i1 = state.i0 + nn - 1;
-    clampView(); renderBase(); paint();
+    clampView(); renderBase(); paint(); renderNavPos();
   }
 }, {passive:false});
 /* double-tap to reset (touch has no dblclick on every browser).
@@ -10089,7 +10194,7 @@ cv.addEventListener('keydown', e => {
     const nn = clamp(Math.round(n * (e.key === '-' ? 1.25 : 0.8)), 20, state.raw.bars.length + 40);
     const mid = (state.i0 + state.i1) / 2;
     state.i0 = Math.round(mid - nn/2); state.i1 = state.i0 + nn - 1;
-    clampView(); renderBase(); paint();
+    clampView(); renderBase(); paint(); renderNavPos();
   }
   if(e.key === 'Escape'){ state.hover = -1; paint(); }
 });
@@ -10553,8 +10658,57 @@ function renderFreshness(){
   }
   if(isNum(r.fetchedAt)) bits.push(`取得 ${hhmm(new Date(r.fetchedAt))}`);
   if(r.topped) bits.push(r.topped.kind === 'append' ? '最新日を補完' : '最新値に更新');
+
+  /* 「15分ほど株価遅れとる」 — and it is, but not because the app failed to
+     ask. Two different ages get confused into one complaint, so they are
+     separated here:
+
+       配信の遅れ = 取得した時刻 − その値が付いた時刻
+                    the feed's own delay. Yahoo's free equity data is
+                    delayed by the exchange's rules; nothing this tool does
+                    changes it.
+       取得の古さ = いま − 取得した時刻
+                    how long ago WE asked. This one is fixable — turn on
+                    auto-update, or press 分析 again.
+
+     Measured rather than asserted: whatever the delay happens to be today,
+     the number on screen is the real one. */
+  const lag = (isNum(r.fetchedAt) && isNum(r.quoteAt)) ? r.fetchedAt - r.quoteAt : null;
+  const openThen = !!(r.market && r.market.open);
+  const stale = isNum(r.fetchedAt) ? Date.now() - r.fetchedAt : null;
+  if(openThen && lag !== null && lag > 60000){
+    bits.push(`配信の遅れ 約${Math.round(lag / 60000)}分`);
+  }
+  /* the half that IS fixable, and only worth saying while the market moves */
+  if(openThen && stale !== null && stale > 3 * 60000){
+    bits.push(`取得から${Math.round(stale / 60000)}分`);
+  }
   el.textContent = bits.join(' ・ ');
   el.classList.toggle('hide', !bits.length);
+
+  const note = $('#qDelay');
+  if(note){
+    /* only worth saying while the market is open: after the close the "delay"
+       is just the time since the close, which means nothing */
+    const feedLate = openThen && lag !== null && lag > 3 * 60000;
+    const weAreLate = openThen && stale !== null && stale > 3 * 60000;
+    note.classList.toggle('hide', !(feedLate || weAreLate));
+    const parts = [];
+    if(feedLate){
+      parts.push(`この<b>約${Math.round(lag / 60000)}分</b>は`
+        + `${esc(r.source, 20)}の配信そのものの遅れです`
+        + `(日本株の無料データは取引所の規定で遅延配信されます)。`
+        + `自動更新やストリームを使っても縮みません。`
+        + ` <a href="https://help.yahoo.com/kb/SLN2310.html" target="_blank"`
+        + ` rel="noopener noreferrer">配信元の説明 ↗</a>`);
+    }
+    if(weAreLate){
+      /* this half the reader can actually do something about */
+      parts.push(`取得したのは<b>${Math.round(stale / 60000)}分前</b>です。`
+        + `上の「更新」を30秒ごとかストリームにすると、以後は自動で取り直します。`);
+    }
+    note.innerHTML = parts.join('<br>');
+  }
 }
 
 function apply(data){
@@ -10928,6 +11082,56 @@ $('#alertBarX').addEventListener('click', () => $('#alertBar').classList.add('hi
 /* The判定 itself is one line per item; the paragraph explaining each rule is
    folded away, because eighteen of them is most of a screen. The button has
    to say which state you are IN, not only what it does. */
+/* The 「取得から◯分」 figure counts up on its own, so it has to be redrawn
+   even when nothing else changed. Text only, no chart work. */
+setInterval(() => { try { renderFreshness(); } catch(e){} }, 30000);
+
+/* ---- moving along the time axis, with buttons -------------------------
+   The same operation as the sideways drag, in a form that can be found and
+   repeated exactly. Half a screen per press. */
+function panBars(dir){
+  if(!state.raw || !LAY) return;
+  const n = state.i1 - state.i0 + 1;
+  const step = Math.max(1, Math.round(n / 2)) * dir;
+  state.i0 += step; state.i1 += step;
+  clampView();
+  state.hover = -1;
+  renderBase(); paint();
+  saveWorkspaceSoon();
+}
+
+/* Where the window sits in the whole series, and whether either end has
+   been reached — otherwise a button that does nothing looks broken. */
+function renderNavPos(){
+  const el = $('#navPos');
+  if(!el || !state.raw || !LAY) return;
+  const nb = state.raw.bars.length;
+  const a = clamp(state.i0, 0, Math.max(0, nb - 1));
+  const b = clamp(state.i1, 0, Math.max(0, nb - 1));
+  const bars = state.raw.bars;
+  const fm = i => bars[i] ? fmtDate(bars[i], true) : '';
+  el.textContent = nb ? `${fm(a)} 〜 ${fm(b)}(${b - a + 1}本 / 全${nb}本)` : '';
+  const atStart = state.i0 <= 0;
+  const atEnd = state.i1 >= nb - 1 + 40;
+  if($('#navPrev')) $('#navPrev').disabled = atStart;
+  if($('#navNext')) $('#navNext').disabled = atEnd;
+}
+
+$('#navPrev').addEventListener('click', () => panBars(-1));
+$('#navNext').addEventListener('click', () => panBars(1));
+$('#navEnd').addEventListener('click', () => {
+  if(!state.raw) return;
+  const n = state.i1 - state.i0 + 1;
+  state.i1 = state.raw.bars.length - 1;
+  state.i0 = state.i1 - n + 1;
+  clampView(); renderBase(); paint(); renderNavPos(); saveWorkspaceSoon();
+});
+$('#navAll').addEventListener('click', () => {
+  if(!state.raw) return;
+  state.i0 = 0; state.i1 = state.raw.bars.length - 1;
+  clampView(); redraw();
+});
+
 /* ---- panel heights, without a drag ------------------------------------
    Every visible panel gets a row with a ﹣ and a ＋. The buttons are 44px,
    which is the size a finger actually is; the divider on the canvas stays
