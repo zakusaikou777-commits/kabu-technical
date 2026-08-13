@@ -33,6 +33,25 @@ self.addEventListener('activate', event => {
   );
 });
 
+/* アラートの通知をタップしたとき。
+   すでに開いているタブがあればそれを前に出し、無ければ開きます。
+   これが無いと、iPhone では通知を押しても何も起きません。 */
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({type: 'window', includeUncontrolled: true});
+    for (const c of all) {
+      /* オリジンでは足りません。GitHub Pages は user.github.io に別プロジェクトが
+         同居するので、直前に見ていた無関係なページを前に出してしまいます。
+         scope で見れば、このアプリのタブだけが対象になります。 */
+      if (c.url.startsWith(self.registration.scope)) {
+        try { await c.focus(); return; } catch (e) {}
+      }
+    }
+    try { await self.clients.openWindow('./'); } catch (e) {}
+  })());
+});
+
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET') return;

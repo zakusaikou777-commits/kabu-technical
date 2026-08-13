@@ -11,7 +11,7 @@
      *.workers.dev is there so a relay you deploy yourself can be reached
      without editing this line; a relay on your own domain needs that domain
      added here by hand (the app says so when you save one). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src 'self' data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <!-- strict-origin rather than no-referrer: Google's sign-in needs to see which
      origin is asking, but the ticker you are looking at lives in the path and
      query, and those are never sent. -->
@@ -589,6 +589,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="st" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>スーパートレンド</button>
     <button class="chip" data-t="vwap" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>VWAP</button>
     <button class="chip" data-t="don" aria-pressed="false"><i class="sw" style="background:var(--band)"></i>ドンチャン</button>
+    <button class="chip" data-t="mtf" aria-pressed="false"><i class="sw" style="background:var(--ma3)"></i>上位足の流れ</button>
     <button class="chip" data-t="osgfc" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>OSGFC</button>
     <button class="chip" data-t="lorentz" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>Lorentzian</button>
     <button class="chip" data-t="shortPanel" aria-pressed="false"><i class="sw" style="background:var(--down)"></i>空売り残高</button>
@@ -1458,6 +1459,98 @@ function foldBars(bars, n, tz){
   return out;
 }
 
+/* ---- the timeframe above this one -----------------------------------
+   Built by folding the bars already on hand rather than fetching a second
+   series: no extra request through the relay, nothing that can get out of
+   step with the chart, and it works on an imported CSV with no network at
+   all. The cost is that it only reaches as far back as what was fetched —
+   60 days of 5-minute bars fold to 60 daily bars — which is stated on
+   screen rather than hidden. */
+const HTF_OF = {'1m':'day','5m':'day','15m':'day','30m':'day','1h':'day',
+                '4h':'day','8h':'day','1d':'week','1wk':'month','1mo':null};
+const HTF_LABEL = {day:'日足', week:'週足', month:'月足'};
+const HTF_SLOW  = {day:20, week:13, month:12};   /* ~1ヶ月 / 四半期 / 1年 */
+const HTF_FAST  = {day:5,  week:4,  month:3};
+
+/* the key a bar groups under, taken from the stamp stampBars already wrote,
+   so no timezone is needed here and the folding cannot disagree with the
+   x-axis the user is reading */
+function groupKey(b, kind){
+  const k = barKey(b);
+  if(kind === 'day') return k;
+  return periodKey(k, kind === 'week' ? '1wk' : '1mo');
+}
+
+/* Fold, and remember where each folded bar ENDS in the original series —
+   that index is what makes the mapping back causal. */
+function foldToPeriod(bars, kind){
+  const out = [], endIdx = [];
+  let cur = null, key = null;
+  for(let i=0;i<bars.length;i++){
+    const b = bars[i], k = groupKey(b, kind);
+    if(!cur || k !== key){
+      if(cur){ out.push(cur); endIdx.push(i-1); }
+      cur = {t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v || 0,
+             y: b.y, mo: b.mo, d: b.d, hh: b.hh, mi: b.mi, k: b.k};
+      key = k;
+      continue;
+    }
+    cur.h = Math.max(cur.h, b.h);
+    cur.l = Math.min(cur.l, b.l);
+    cur.c = b.c; cur.v = (cur.v || 0) + (b.v || 0);
+    cur.y = b.y; cur.mo = b.mo; cur.d = b.d; cur.hh = b.hh; cur.mi = b.mi; cur.k = b.k;
+  }
+  if(cur){ out.push(cur); endIdx.push(bars.length - 1); }
+  return {bars: out, endIdx};
+}
+
+/* The higher timeframe's own trend, mapped back onto these bars.
+
+   A bar may only ever see periods that had already CLOSED when it printed.
+   Reading the period still forming would put its final close — hours or days
+   of future — into every bar inside it, and the line would rewrite its own
+   history on each refresh. That is the "repainting" that makes multi-
+   timeframe studies look prescient in hindsight and useless live. */
+TA.mtf = function(bars, interval){
+  const kind = owns(HTF_OF, interval) ? HTF_OF[interval] : null;
+  if(!kind || !bars || bars.length < 2) return null;
+  const {bars: hb, endIdx} = foldToPeriod(bars, kind);
+  const nH = hb.length;
+  /* The window is fixed per timeframe and never derived from how much data
+     happens to be loaded. An adaptive one looks kinder on a short chart, but
+     it makes every past value a function of the series LENGTH: one new bar
+     tips the count over a threshold, the window widens, and the whole line
+     behind it changes. Same repaint, arrived at from the other direction.
+     These are natural periods instead — a quarter of weeks, a year of
+     months — so the average simply warms up and nothing is rewritten. */
+  const slowN = HTF_SLOW[kind], fastN = HTF_FAST[kind];
+  const line = new Array(bars.length).fill(null);
+  const trend = new Array(bars.length).fill(0);
+  /* a value needs a period that has CLOSED (j <= nH-2) and a full window
+     (j >= slowN-1), so nH === slowN draws nothing at all — that has to count
+     as "not enough" too, or the legend and the verdict describe an average
+     that does not exist anywhere on the chart */
+  if(nH <= slowN) return {kind, label: HTF_LABEL[kind], periods: nH, thin: true,
+                          line, trend, slowN, fastN};
+  const hc = hb.map(b => b.c);
+  const fast = TA.sma(hc, fastN), slow = TA.sma(hc, slowN);
+  const state = hb.map((b, j) => {
+    if(!isNum(fast[j]) || !isNum(slow[j])) return 0;
+    if(b.c > slow[j] && fast[j] > slow[j]) return 1;
+    if(b.c < slow[j] && fast[j] < slow[j]) return -1;
+    return 0;
+  });
+  let j = -1;
+  for(let i=0;i<bars.length;i++){
+    while(j+1 < nH && endIdx[j+1] < i) j++;   /* the last period that has closed */
+    if(j < 0) continue;
+    if(isNum(slow[j])) line[i] = slow[j];
+    trend[i] = state[j];
+  }
+  return {kind, label: HTF_LABEL[kind], periods: nH, thin: false,
+          line, trend, slowN, fastN};
+};
+
 /* An MA(25) means twenty-five BARS. Calling it 「25日線」 is only true on a
    daily chart; on the monthly chart it is a bit over two years. The unit
    travels with the timeframe so the labels cannot lie. */
@@ -1546,6 +1639,9 @@ function computeAll(bars, T, interval){
   };
   if(T.sizeflow) out.sizeflow = TA.sizeFlow(bars, {window: P.flowWin});
   if(T.osgfc)   out.osgfc   = TA.osgfc(bars, OSG);
+  /* cheap: it folds bars we already have, so it is not gated like the two
+     heavy studies below */
+  if(T.mtf) out.mtf = TA.mtf(bars, interval);
   if(T.lorentz) out.lorentz = TA.lorentzian(bars, LOR);
   return out;
 }
@@ -2872,7 +2968,7 @@ const state = {
   i0: 0, i1: 0,       /* visible bar index window (i1 may exceed bars-1 for the cloud) */
   hover: -1,
   toggles: {ma:true, bb:true, ichimoku:false, vol:true, rsi:true, macd:true, stoch:false, adx:false,
-            fib:false, st:false, vwap:false, don:false, osgfc:false, lorentz:false,
+            fib:false, st:false, vwap:false, don:false, mtf:false, osgfc:false, lorentz:false,
             shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false,
             events:true},
   range: '1y', interval: '1d'
@@ -3177,6 +3273,7 @@ function drawMain(g){
   if(T.ma) d.ma.forEach(consider);
   if(T.ichimoku){ consider(d.ich.spanA); consider(d.ich.spanB); consider(d.ich.tenkan); consider(d.ich.kijun); }
   if(T.don){ consider(d.don.upper); consider(d.don.lower); }
+  if(T.mtf && d.mtf) consider(d.mtf.line);
   if(T.vwap) consider(d.vwap);
   if(T.st) consider(d.st.line);
   if(T.osgfc && d.osgfc){ consider(d.osgfc.upper); consider(d.osgfc.lower); }
@@ -3309,6 +3406,27 @@ function drawMain(g){
     line(g, p, d.don.lower, y, C.band, 1, [5,3]);
     endLabel(g, p, d.don.upper, y, C.ink2, '20日高値');
     endLabel(g, p, d.don.lower, y, C.ink2, '20日安値');
+  }
+
+  /* The higher timeframe's average, held flat across the bars inside each of
+     its periods — a step, not a curve, because that is literally what the
+     reader is being told: this value did not change while those bars printed.
+     Drawing it smoothed would imply intra-period information it does not have. */
+  if(T.mtf && d.mtf && !d.mtf.thin){
+    const m = d.mtf;
+    g.save();
+    g.strokeStyle = C.ma[2] || C.ink2;
+    g.lineWidth = 1.5; g.setLineDash([6,3]);
+    g.beginPath();
+    let open = false;
+    for(let i = state.i0; i <= state.i1; i++){
+      const v = m.line[i];
+      if(!isNum(v)){ open = false; continue; }
+      const X = xAt(p, i), Y = y(v);
+      if(!open){ g.moveTo(X, Y); open = true; } else { g.lineTo(X, Y); }
+    }
+    g.stroke(); g.restore();
+    endLabel(g, p, m.line, y, C.ma[2] || C.ink2, m.label + 'MA' + m.slowN);
   }
 
   /* OSGFC — the filter line carries direction, so it is drawn in segments
@@ -3772,8 +3890,14 @@ function renderBase(){
    marks explain the small step down on an ex-dividend date. */
 function drawEvents(g){
   if(!state.toggles.events) return;
-  const ev = state.raw && state.raw.events;
-  if(!ev || !ev.length) return;
+  const ev = (state.raw && state.raw.events) || [];
+  /* The earnings marker lives at the bottom of this function, so returning
+     early on "no splits or dividends" took it with it — and a stock with no
+     corporate actions is the normal case, as is any intraday chart, index or
+     FX pair. The line the 決算 panel promises simply never appeared. */
+  const wantEarn = typeof earnings !== 'undefined' && earnings && earnings.next
+                   && Ext.codeKey() === earnings.code;
+  if(!ev.length && !wantEarn) return;
   const p = panel('main'), bars = state.raw.bars;
   const pos = new Map();
   for(let i = Math.max(0, state.i0); i <= Math.min(state.i1, bars.length - 1); i++)
@@ -3807,8 +3931,7 @@ function drawEvents(g){
     }
   }
   /* the scheduled earnings date, when it falls inside the visible bars */
-  if(typeof earnings !== 'undefined' && earnings && earnings.next
-     && Ext.codeKey() === earnings.code){
+  if(wantEarn){
     const i = pos.get(earnings.next.d);
     if(i !== undefined){
       const x = Math.round(xAt(p, i)) + 0.5;
@@ -4034,6 +4157,9 @@ function renderLegend(){
   }
   if(T.fib) L.push(`<span class="li"><i class="k" style="background:var(--ink-3)"></i>フィボナッチ</span>`);
   if(T.don) L.push(`<span class="li"><i class="k" style="background:var(--band)"></i>ドンチャン(${P.donchian})</span>`);
+  if(T.mtf && state.ind && state.ind.mtf) L.push(state.ind.mtf.thin
+    ? `<span class="li" style="color:var(--ink-3)">上位足: データが足りません</span>`
+    : `<span class="li"><i class="k" style="background:var(--ma3)"></i>${esc(state.ind.mtf.label,4)}のMA${state.ind.mtf.slowN}(確定した足だけ)</span>`);
   /* An instrument with no volume — FX, the indices, ^VIX, the bond yields —
      has no VWAP and no MFI to draw. Listing the key for a line that is not
      there reads as a broken chart, so say why instead. */
@@ -4087,12 +4213,69 @@ function buildSignals(){
   let score = 0;
   const add = (tag, ttl, txt, tone, w) => { out.push({tag, ttl, txt, tone}); if(w) score += w; };
 
+  /* 0. Earnings. First in the list on purpose: it is the one item here that
+     can make every item below it irrelevant. A gap through a stop is not a
+     failure of the moving averages, it is a scheduled event that was known
+     in advance — so it is said before the reader has formed a view, not
+     buried under twenty rows of technical agreement. */
+  if(earnings && earnings.code === Ext.codeKey() && earnings.next){
+    const dd = daysUntil(earnings.next.d);
+    const when = dd === 0 ? '本日' : dd === 1 ? '明日' : `あと${dd}日`;
+    const kind = earnings.next.kind ? `(${earnings.next.kind})` : '';
+    if(isNum(dd) && dd >= 0 && dd <= 5)
+      add('決算', `決算発表まで ${when}`,
+        `${earnings.next.d.slice(0,4)}/${earnings.next.d.slice(4,6)}/${earnings.next.d.slice(6,8)} に決算発表が予定されています${kind}。`
+        + `発表をまたぐと、下の判定とは無関係に窓を開けて動くことがあります。`
+        + `新規に入るなら発表後に見送る、持ち越すなら枚数を落とす、といった判断が必要な場面です。`,
+        'warn', 0);
+    else if(isNum(dd) && dd > 5 && dd <= 14)
+      add('決算', `決算発表まで ${when}`,
+        `${earnings.next.d.slice(0,4)}/${earnings.next.d.slice(4,6)}/${earnings.next.d.slice(6,8)} に決算発表が予定されています${kind}。`
+        + `まだ日はありますが、その日をまたぐ想定なら頭に入れておく時期です。`,
+        'info', 0);
+  }
+
   /* 1. moving-average alignment */
   const [m5, m25, m75] = [d.ma[0][n], d.ma[1][n], d.ma[2][n]];
+  const here = isNum(m5) && isNum(m25) && isNum(m75)
+    ? (m5 > m25 && m25 > m75 ? 1 : m5 < m25 && m25 < m75 ? -1 : 0) : 0;
   if(isNum(m5) && isNum(m25) && isNum(m75)){
     if(m5 > m25 && m25 > m75)      add('トレンド','上昇の並び(パーフェクトオーダー)',`MA5 > MA25 > MA75。短期ほど上に並び、上昇基調が続いている形です。`,'bull', 2);
     else if(m5 < m25 && m25 < m75) add('トレンド','下降の並び',`MA5 < MA25 < MA75。短期ほど下に並び、下降基調が続いている形です。`,'bear', -2);
     else                           add('トレンド','方向感が定まらない','移動平均線が絡み合っており、明確なトレンドが出ていません。','flat', 0);
+  }
+  /* 1b. the timeframe above this one. Placed right after the trend row it
+     qualifies: a signal that argues with the larger picture is the single
+     most common way a textbook entry goes wrong, and the app was silent
+     about it. Weighted, not just described — agreement is worth something
+     and conflict costs something. */
+  if(state.toggles.mtf && d.mtf){
+    const mt = d.mtf, up = mt.trend[n];
+    if(mt.thin)
+      add('上位足', `${mt.label}に畳むと ${mt.periods} 本しかありません`,
+        `いまの期間では${mt.label}の平均を出せません。期間を長くすると出ます。`, 'flat', 0);
+    else if(up === 0)
+      add('上位足', `${mt.label}は方向感なし`,
+        `${mt.label}の終値がMA${mt.slowN}の近くにあり、上位足では方向が定まっていません(確定した${mt.periods}本で判定)。`,
+        'flat', 0);
+    else if(here === 0)
+      add('上位足', `${mt.label}は${up > 0 ? '上昇' : '下降'}`,
+        `${mt.label}は${up > 0 ? '上' : '下'}向きですが、${IV_LABEL[state.interval] || 'この足'}のトレンドは定まっていません。`,
+        up > 0 ? 'bull' : 'bear', up * 0.5);
+    else if(here === up)
+      add('上位足', `${mt.label}も同じ向き(${up > 0 ? '上昇' : '下降'})`,
+        `${IV_LABEL[state.interval] || 'この足'}と${mt.label}のトレンドが一致しています。上位足に逆らわない側の判断です。`,
+        up > 0 ? 'bull' : 'bear', up * 1.5);
+    else
+      add('上位足', `${mt.label}とは逆向きです`,
+        `${IV_LABEL[state.interval] || 'この足'}は${here > 0 ? '上昇' : '下降'}ですが、${mt.label}は${up > 0 ? '上昇' : '下降'}です。`
+        + `上位足に逆らう向きの取引は、戻りに巻き込まれやすい形です。`,
+        /* the score leans the HIGHER timeframe's way, and only by 1 — less
+           than the agreement case's 1.5. The total is a tally of textbook
+           rules, and the rule here is "do not fight the larger trend"; a
+           conflict should pull the total back toward that trend without
+           pretending the smaller one is not happening. */
+        'warn', up * 1);
   }
   /* 2. golden / dead cross */
   const gc = crossedAt(d.ma[0], d.ma[1], 12, n);
@@ -8193,6 +8376,21 @@ function reportFacts(){
       + ' / ' + (d.osgfc.dir[n] > 0 ? '上' : d.osgfc.dir[n] < 0 ? '下' : '—') : '—');
   if(d.lorentz && isNum(d.lorentz.sig[n]))
     put('Lorentzian 判定', d.lorentz.sig[n] > 0 ? '買い寄り' : d.lorentz.sig[n] < 0 ? '売り寄り' : '中立');
+  /* the printed sheet is what gets read away from the screen, so the one item
+     that dates the whole thing belongs on it */
+  if(earnings && earnings.code === Ext.codeKey() && earnings.next){
+    const dd = daysUntil(earnings.next.d);
+    /* `next` is fixed when the schedule is fetched, so a tab left open over
+       the announcement date still holds yesterday. Do not print a date that
+       has passed under the heading 「次の」. */
+    if(!isNum(dd) || dd >= 0)
+      put('次の決算発表', `${earnings.next.d.slice(0,4)}/${earnings.next.d.slice(4,6)}/${earnings.next.d.slice(6,8)}`
+        + (isNum(dd) ? (dd === 0 ? '(本日)' : `(あと${dd}日)`) : ''));
+  }
+  if(state.toggles.mtf && d.mtf && !d.mtf.thin){
+    const up = d.mtf.trend[n];
+    put(`上位足(${d.mtf.label})`, up > 0 ? '上昇' : up < 0 ? '下降' : '方向感なし');
+  }
   if(d.extShort && isNum(d.extShort.ratio[n])) put('空売り残高(合計%)', rptNum(d.extShort.ratio[n], 2));
   if(d.extMargin){
     if(isNum(d.extMargin.buy[n]))  put('信用買残', String(Math.round(d.extMargin.buy[n])));
@@ -8692,10 +8890,44 @@ function announceAlerts(fired){
     box.classList.remove('hide');
     box.innerHTML = lines.map(l => `<div class="afire">${esc(l, 90)}</div>`).join('');
   }
-  if(typeof Notification === 'function' && Notification.permission === 'granted'){
+  notify(lines.slice(0, 4));
+}
+
+/* Notifications go through the service worker registration when there is one.
+
+   `new Notification(...)` is not implemented by Safari on iOS AT ALL — not in
+   a tab, not in an installed web app — so on an iPhone the previous code was
+   a no-op and the only thing that ever appeared was the bar inside the page.
+   `registration.showNotification()` is the form iOS supports (16.4+, added to
+   the home screen), and it is also the only form that survives the page being
+   backgrounded on Android. The constructor stays as the fallback for
+   file:// and anywhere the worker did not register. */
+async function notify(lines){
+  if(!lines.length) return;
+  if(typeof Notification !== 'function' || Notification.permission !== 'granted') return;
+  let reg = null;
+  try{
+    if(navigator.serviceWorker){
+      /* `controller` is deliberately NOT the test. Straight after a hard
+         reload, and for the ~200ms before clients.claim() lands, controller is
+         null while the registration is alive and usable — and those are
+         exactly the moments the constructor fallback does not work on the
+         engines that need this path. getRegistration() resolves immediately
+         to undefined when there is none, so file:// still does not wait. */
+      reg = await Promise.race([
+        navigator.serviceWorker.getRegistration(),
+        new Promise(r => setTimeout(() => r(null), 1500))    /* never hang the caller */
+      ]) || null;
+      if(reg && !reg.active) reg = null;
+    }
+  }catch(e){}
+  for(const l of lines){
+    const opts = {body: l, tag: l, icon: './icon-192.png', badge: './icon-192.png',
+                  lang: 'ja', renotify: false, data: {at: Date.now()}};
     try{
-      for(const l of lines.slice(0, 4)) new Notification('株価アラート', {body: l, tag: l});
+      if(reg && typeof reg.showNotification === 'function'){ await reg.showNotification('株価アラート', opts); continue; }
     }catch(e){}
+    try { new Notification('株価アラート', opts); }catch(e){}
   }
 }
 
@@ -8724,6 +8956,27 @@ async function askNotify(){
   if(Notification.permission === 'granted') return 'granted';
   try { return await Notification.requestPermission(); }
   catch(e){ return 'denied'; }
+}
+
+/* What this device can actually do, in the user's terms. Said plainly next to
+   the alert list, because 「アラートを追加しました」 followed by silence is the
+   worst possible outcome — and on an iPhone in a normal Safari tab, silence
+   is exactly what happens no matter what permission was granted. */
+function notifyAbility(){
+  const iOS = /iP(hone|ad|od)/.test(navigator.platform || '')
+    || (/Mac/.test(navigator.platform || '') && navigator.maxTouchPoints > 1);
+  const installed = matchMedia('(display-mode: standalone)').matches
+    || navigator.standalone === true;
+  if(typeof Notification !== 'function'){
+    return iOS && !installed
+      ? {ok: false, why: 'iPhone/iPad の Safari のタブでは通知を出せません。共有ボタンから「ホーム画面に追加」して、そのアイコンから開くと通知が使えるようになります。'}
+      : {ok: false, why: 'このブラウザは通知に対応していません。画面を開いている間だけ、上部の帯でお知らせします。'};
+  }
+  if(Notification.permission === 'denied')
+    return {ok: false, why: '通知がブロックされています。ブラウザのサイト設定から許可してください。'};
+  if(iOS && !installed)
+    return {ok: false, why: 'iPhone/iPad では「ホーム画面に追加」したアイコンから開いたときだけ通知が出せます。Safari のタブのままだと、画面を開いている間の表示だけになります。'};
+  return {ok: Notification.permission === 'granted', why: ''};
 }
 /* ============================================================
    18. What these signals actually did, on this stock
@@ -9192,6 +9445,15 @@ let earnings = null;     /* {code, list:[{d,kind}], next} */
 function nextEarning(list){
   const today = dkey(new Date());
   return (list || []).find(x => x.d >= today) || null;
+}
+
+/* Calendar days until a YYYYMMDD, or null. Shared by the card and the verdict
+   list so the two can never disagree about how close the date is. */
+function daysUntil(d){
+  if(!/^\d{8}$/.test(String(d || ''))) return null;
+  const t = dkey(new Date());
+  const at = (k) => new Date(+k.slice(0,4), +k.slice(4,6) - 1, +k.slice(6,8));
+  return Math.round((at(String(d)) - at(t)) / 86400000);
 }
 
 async function loadEarnings(){
@@ -11000,6 +11262,11 @@ $$('.chip[data-t]').forEach(btn => {
       }, 16);
       return;
     }
+    /* 上位足も computeAll のなかで on-demand (`if(T.mtf)`) なので、チップを
+       立てただけでは state.ind.mtf が undefined のまま — 線も凡例も判定行も
+       出ないのに、リロードすると出る、という状態になっていた。畳むだけで安い
+       ので、重い2つと違って setBusy を挟まずその場で計算し直す。 */
+    if(k === 'mtf') state.ind = recompute();
     /* the verdict list is toggle-dependent too — スーパートレンド, VWAP,
        一目・三役, 資金フロー and 価格帯別出来高 all appear only when their
        chip is on, and the score is weighted by them. redraw() alone left the
@@ -12136,9 +12403,12 @@ $('#alAdd').addEventListener('click', () => {
   }
   try{
     Alerts.add(code, kind, v);
+    /* Be honest at the moment the alert is created: this is where the user
+       forms the expectation that it will reach them. */
+    const ab = notifyAbility();
     $('#alMsg').textContent = 'アラートを追加しました。'
-      + (typeof Notification === 'function' && Notification.permission !== 'granted'
-         ? '「通知を許可」を押すと、他のタブを見ているときも知らせます。' : '');
+      + (ab.ok ? 'このアプリを開いている間、条件に合えば通知します。'
+         : ab.why || '「通知を許可」を押すと、他のタブを見ているときも知らせます。');
   }catch(e){ $('#alMsg').textContent = e.message; }
 });
 $('#alertList').addEventListener('click', e => {
@@ -12148,8 +12418,10 @@ $('#alertList').addEventListener('click', e => {
 });
 $('#alNotify').addEventListener('click', async () => {
   const r = await askNotify();
-  $('#alMsg').textContent = r === 'granted' ? '通知を許可しました。'
-    : r === 'unsupported' ? 'この端末では通知を使えません(画面上にはお知らせします)。'
+  const ab = notifyAbility();
+  $('#alMsg').textContent = r === 'granted'
+      ? (ab.ok ? '通知を許可しました。' : '通知は許可されましたが、' + ab.why)
+    : r === 'unsupported' ? (ab.why || 'この端末では通知を使えません(画面上にはお知らせします)。')
     : '通知は許可されませんでした(画面上にはお知らせします)。';
 });
 
