@@ -1857,7 +1857,15 @@ TA.lorentzian = function(bars, opt){
     if(moved * f.dir > 0) hit++; else if(moved * f.dir < 0) miss++;
   }
   const strength = pred.map((v, i) => isNum(v) && used[i] ? v/used[i] : null);
+  /* How much of the series the classifier could actually speak for. On a
+     4時間足/8時間足 chart of a Tokyo session there are only 2 (resp. 1) bars
+     per day, so a "1ヶ月" chart is 44 bars — below `warm`, and the study
+     returns nothing at all. That used to be a silently empty panel; callers
+     now get the numbers they need to say so. */
+  let predicted = 0;
+  for(const v of pred) if(isNum(v)) predicted++;
   return {pred, used, strength, sig, flips, kern, features: F,
+          bars: n, warm, predicted,
           enoughData: n >= 800,
           stats: {hit, miss, total: hit+miss,
                   rate: (hit+miss) ? hit/(hit+miss)*100 : null}};
@@ -2221,12 +2229,15 @@ async function fetchYahoo(sym, range, interval){
        check the chart against when it looks a day behind */
     quoteAt: isNum(m.regularMarketTime) ? m.regularMarketTime * 1000 : null,
     quotePrice: isNum(m.regularMarketPrice) ? m.regularMarketPrice : null,
-    /* The previous TRADING DAY's close. On a 15-minute chart the bar before
-       the last one is 15 minutes ago, not yesterday — so 「前日比」 computed
-       from it read +0.04% where the broker said −0.79%. This is the number
-       every quote screen means by 前日比, and the source supplies it. */
-    prevClose: isNum(m.chartPreviousClose) ? m.chartPreviousClose
-             : isNum(m.previousClose) ? m.previousClose : null,
+    /* The previous trading day's close, IF the source gives that.
+
+       Not `chartPreviousClose` — that is the close before the first bar of
+       the requested RANGE, so on a 2-year request it is a price from two
+       years ago. Using it produced 「前日比 +¥230 (+19.76%)」 on a stock that
+       had barely moved. `previousClose` is the one that means yesterday;
+       when it is absent the bars themselves are the answer (see
+       prevCloseFor), and they are always available. */
+    prevClose: isNum(m.previousClose) ? m.previousClose : null,
     fetchedAt: Date.now(),
     topped,
     market: marketState(m),
@@ -3412,9 +3423,41 @@ function drawADX(g){
   state._adxY = y;
 }
 
+/* Centred, wrapped explanation for a panel that has nothing to plot.
+   An empty box reads as a broken feature; the box has to say what it is
+   waiting for. */
+function panelMessage(g, p, lines){
+  g.save();
+  g.fillStyle = C.sub || '#8a94a6';
+  g.font = '12px system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const lh = 15, top = p.y + p.h/2 - (lines.length-1)*lh/2;
+  lines.forEach((t, i) => g.fillText(t, p.x + p.w/2, top + i*lh));
+  g.restore();
+  panelFrame(g, p);
+}
+
 function drawLorentz(g){
   const p = panel('lorentz'); if(!p || !state.ind.lorentz) return;
   const lo = state.ind.lorentz;
+
+  /* Nothing to draw is a state worth naming. On a Tokyo session a 4時間足
+     bar is half a day and an 8時間足 bar is a whole one, so "1ヶ月" is 44
+     bars and "3ヶ月" is 65 — under the 60-bar warm-up the classifier
+     returns no prediction at all and this panel came up blank. */
+  const lo0 = Math.max(0, state.i0), lo1 = Math.min(state.i1, state.raw.bars.length-1);
+  let seen = 0;
+  for(let i=lo0;i<=lo1;i++) if(isNum(lo.pred[i])) seen++;
+  if(!seen){
+    panelMessage(g, p, lo.predicted
+      ? [`表示中の${lo1-lo0+1}本は学習期間(最初の${lo.warm}本)にかかっています`,
+         `右へスクロールすると予測が出ます`]
+      : [`${lo.bars}本では予測できません(${lo.warm}本以上必要)`,
+         `${IV_LABEL[state.interval] || ''}は1日${ivPerDayLabel(state.interval)}です。期間を長くしてください`]);
+    state._lorY = null;
+    return;
+  }
+
   const y = makeY(p, -1, 1, 12, 4);
   resetSlots();
   gridline(g, p, y(0));  yLabel(g, p, y(0), '0');
@@ -4008,9 +4051,16 @@ function buildSignals(){
   /* 13. Lorentzian classifier */
   if(state.toggles.lorentz && d.lorentz){
     const lo = d.lorentz, p2 = lo.pred[n], st2 = lo.sig[n];
-    if(!lo.enoughData)
+    if(!lo.predicted)
+      add('Lorentzian', '予測を出せません(期間が短すぎます)',
+        `最初の ${lo.warm} 本は学習に使うため、${lo.bars} 本では1本も判定が出ません。`
+        + `${IV_LABEL[state.interval] || ''}は1日${typeof ivPerDayLabel === 'function' ? ivPerDayLabel(state.interval) : '数本'}です。`
+        + (typeof moreDataHint === 'function' ? moreDataHint() : ''),
+        'warn', 0);
+    else if(!lo.enoughData)
       add('Lorentzian', '学習データが不足しています',
-        `現在 ${state.raw.bars.length} 本。kNNは近傍を探す性質上、最低でも800本、できれば2000本以上ほしいところです。期間を「5年」「全期間」にするか、1時間足に切り替えてください。`,
+        `現在 ${lo.bars} 本(予測できるのは ${lo.predicted} 本)。kNNは近傍を探す性質上、最低でも800本、できれば2000本以上ほしいところです。`
+        + (typeof moreDataHint === 'function' ? moreDataHint() : ''),
         'warn', 0);
     else if(isNum(p2))
       add('Lorentzian', st2 > 0 ? '買いシグナル継続' : st2 < 0 ? '売りシグナル継続' : 'シグナルなし(フィルター遮断)',
@@ -10526,9 +10576,15 @@ $$('.chip[data-t]').forEach(btn => {
         try{
           state.ind = recompute();
           redraw(); renderSignals();
-          if(k === 'lorentz' && on && state.ind.lorentz && !state.ind.lorentz.enoughData)
-            notice(`Lorentzian は近傍探索の性質上、<b>800本以上</b>(できれば2000本)の学習データがほしい指標です。`
-                 + `現在 ${state.raw.bars.length} 本なので、期間を「5年」「全期間」にするか、1時間足に切り替えると精度が上がります。`);
+          if(k === 'lorentz' && on && state.ind.lorentz && !state.ind.lorentz.enoughData){
+            const lo = state.ind.lorentz;
+            notice(lo.predicted
+              ? `Lorentzian は近傍探索の性質上、<b>800本以上</b>(できれば2000本)の学習データがほしい指標です。`
+                + `現在 ${lo.bars} 本(うち予測できるのは ${lo.predicted} 本)。${esc(moreDataHint(), 120)}`
+              : `Lorentzian は最初の <b>${lo.warm}本</b> を学習に使うため、現在の ${lo.bars} 本では1本も予測が出ません。`
+                + `${esc(IV_LABEL[state.interval] || '', 8)}は1日${esc(ivPerDayLabel(state.interval), 12)}しかできないので、`
+                + `${esc(moreDataHint(), 120)}`, !lo.predicted);
+          }
         }catch(err){
           /* leave the toggle OFF rather than pretending it is on */
           state.toggles[k] = false;
@@ -10575,24 +10631,70 @@ const RANGE_LABEL = {'1d':'1日','5d':'5日','1mo':'1ヶ月','3mo':'3ヶ月','6m
 const RANGE_DAYS = {'1d': 1, '5d': 5, '1mo': 30, '3mo': 91, '6mo': 182,
                     '1y': 365, '2y': 730, '5y': 1825, 'max': 20000};
 
-/* The closest available length to the one being left behind.
+/* Bars per TRADING day at each interval. The Tokyo session is 5 hours, so
+   an hourly series is 6 bars a day and a folded 8時間足 is exactly one —
+   the same as a daily bar. This is the number that makes "1ヶ月" mean
+   something wildly different depending on the interval. */
+const IV_PER_DAY = {'1m':300, '5m':60, '15m':20, '30m':10, '1h':6,
+                    '4h':2, '8h':1, '1d':1, '1wk':0.2, '1mo':1/21};
+/* 250 trading days in a 365-day year */
+const TRADING_FRAC = 0.69;
+/* What the user can actually do about a short series AT THIS INTERVAL.
+   The old advice was 「期間を5年・全期間にするか1時間足に」 — but 4時間足 and
+   8時間足 stop at 2年, so it pointed at buttons that are not on the screen. */
+function moreDataHint(){
+  const iv = state.interval;
+  const allowed = owns(IV_RANGES, iv) ? IV_RANGES[iv] : IV_RANGES['1d'];
+  const longest = allowed[allowed.length-1];
+  const parts = [];
+  if(state.range !== longest)
+    parts.push(`期間を「${RANGE_LABEL[longest]}」にする(約${Math.round(estBars(iv, longest))}本)`);
+  const finer = ['1h','30m','15m'].find(x => (IV_PER_DAY[x] || 0) > (IV_PER_DAY[iv] || 0));
+  if(finer) parts.push(`${IV_LABEL[finer]}に切り替える`);
+  return parts.length ? parts.join('、または') + 'と本数が増えます。' : '';
+}
+function ivPerDayLabel(iv){
+  const n = IV_PER_DAY[iv];
+  if(!isNum(n)) return '数本';
+  if(n >= 1) return `約${Math.round(n)}本`;
+  return `${Math.round(1/n)}日で1本`;
+}
+function estBars(iv, range){
+  return (RANGE_DAYS[range] || 365) * TRADING_FRAC * (IV_PER_DAY[iv] || 1);
+}
+/* Below this the chart cannot draw its own presets: the Ichimoku span B is
+   52 bars plus 26 of forward shift, and the classifier needs 60 bars of
+   warm-up before it predicts anything at all. 4時間足/1ヶ月 is 44 bars —
+   it came up blank, which is 「4時間足以降は出ない」. */
+const MIN_STUDY_BARS = 120;
 
-   Switching 1時間/1ヶ月 to 日足 used to jump straight to 全期間, because the
-   fallback was "the last entry" — the longest. Nobody asking for a month of
-   hourly bars wants twenty years of daily ones. From 1ヶ月 this gives 3ヶ月. */
-function nearestRange(allowed, want){
-  const w = RANGE_DAYS[want] || 365;
-  let best = allowed[0], bestD = Infinity;
-  for(const r of allowed){
-    const d = Math.abs(Math.log((RANGE_DAYS[r] || 365) / w));
+/* The available length that puts about as many bars on screen as the one
+   being left behind — never a length too short to draw the indicators.
+
+   Matching by calendar days was wrong twice over. Switching 1時間/1ヶ月 to
+   日足 used to jump to 全期間 (the fallback was simply "the longest").
+   Matching days instead fixed that but kept 1ヶ月 when moving to 4時間足,
+   and a month of 4時間足 is 44 bars — an empty chart. What carries over
+   between intervals is how much chart you are looking at, not how many
+   days it spans. */
+function nearestRange(allowed, want, fromIv, toIv){
+  const to = toIv || fromIv || '1d';
+  const target = estBars(fromIv || to, want);
+  const wide = allowed.filter(r => estBars(to, r) >= MIN_STUDY_BARS);
+  const pool = wide.length ? wide : allowed;
+  let best = pool[0], bestD = Infinity;
+  for(const r of pool){
+    const d = Math.abs(Math.log(estBars(to, r) / target));
     if(d < bestD){ bestD = d; best = r; }
   }
   return best;
 }
 
-function buildRanges(){
+function buildRanges(prevIv){
   const allowed = owns(IV_RANGES, state.interval) ? IV_RANGES[state.interval] : IV_RANGES['1d'];
-  if(!allowed.includes(state.range)) state.range = nearestRange(allowed, state.range);
+  const from = prevIv || state.interval;
+  if(!allowed.includes(state.range) || (prevIv && prevIv !== state.interval))
+    state.range = nearestRange(allowed, state.range, from, state.interval);
   $('#rangeSeg').innerHTML = allowed.map(r =>
     `<button data-r="${r}"${r === state.range ? ' aria-pressed="true"' : ''}>${RANGE_LABEL[r]}</button>`
   ).join('');
@@ -10610,9 +10712,10 @@ function segWire(sel, attr, apply){
 }
 segWire('#rangeSeg', 'r', v => { state.range = v; run(); });   /* Compare.refresh runs inside run() */
 segWire('#ivSeg',   'i', v => {
+  const prev = state.interval;
   state.interval = v;
   setPreset(v);
-  buildRanges();
+  buildRanges(prev);      /* the old interval decides how much chart to keep */
   showPreset();
   run();
 });
@@ -10947,17 +11050,34 @@ const hhmm = t => `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes
 function prevCloseFor(){
   const r = state.raw, d = state.ind;
   if(!r || !d || !d.c || !d.c.length) return null;
-  if(isNum(r.prevClose) && r.prevClose > 0) return r.prevClose;
   const bars = r.bars, n = bars.length - 1;
   if(n < 1) return null;
+
+  /* THE BARS FIRST, always.
+
+     They are the same series everything else on screen is computed from, so
+     the figure agrees with the chart by construction. The source's own field
+     is only a fallback, because the obvious-looking one
+     (`chartPreviousClose`) is relative to the requested range rather than to
+     today — on a 2-year request it is a two-year-old price. */
   if(!isIntradayIv(state.interval)) return isNum(d.c[n-1]) ? d.c[n-1] : null;
-  /* intraday without a published previous close: the last bar of the last
-     market day before the one the newest bar belongs to */
+
+  /* Walk back to the last bar of the previous market day — but only trust
+     that walk when the series really does hold several bars for today. A
+     「15分足」 whose bars are one per calendar day is not intraday data at
+     all (a downgraded response, an imported CSV): there the previous bar
+     IS the previous day, and stepping back past it would overshoot by a
+     session. In that case the source's own previousClose is the answer. */
   const today = barKey(bars[n]);
+  let sameDay = 0;
   for(let i = n - 1; i >= 0; i--){
-    if(barKey(bars[i]) !== today) return isNum(d.c[i]) ? d.c[i] : null;
+    if(barKey(bars[i]) === today){ sameDay++; continue; }
+    if(sameDay) return isNum(d.c[i]) ? d.c[i] : null;
+    break;                       /* one bar per day — not really intraday */
   }
-  return null;
+  /* the window holds a single market day: nothing here can answer it */
+  if(isNum(r.prevClose) && r.prevClose > 0) return r.prevClose;
+  return sameDay ? null : (isNum(d.c[n-1]) ? d.c[n-1] : null);
 }
 
 /* A price DIFFERENCE takes its decimals from the price, not from its own
