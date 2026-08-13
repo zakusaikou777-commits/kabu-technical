@@ -429,6 +429,18 @@ td:first-child,th:first-child{text-align:left}
   border-radius:999px;padding:1px 9px;min-width:22px;text-align:center}
 .favgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .favempty{font-size:12.5px;color:var(--ink-3);margin:10px 0 0;line-height:1.7}
+.phlist{display:flex;flex-direction:column;gap:6px;margin-top:9px}
+.phrow{display:flex;align-items:center;gap:8px}
+.phname{flex:1 1 auto;min-width:0;font-size:12.5px;color:var(--ink-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phpct{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;
+  min-width:44px;text-align:right}
+.phbtn{flex:0 0 auto;min-width:44px;min-height:40px;font-size:17px;font-weight:600;
+  line-height:1;display:inline-grid;place-items:center;border-radius:11px;
+  border:1px solid var(--hairline);background:var(--surface-1);color:var(--ink-1);
+  cursor:pointer;padding:0}
+.phbtn:disabled{opacity:.35;cursor:default}
+.phbtn:active{background:var(--wash)}
 #pasteBox{width:100%;box-sizing:border-box;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
   padding:10px 11px;border-radius:11px;border:1px solid var(--hairline);
   background:var(--surface-1);color:var(--ink-1);resize:vertical;min-height:110px}
@@ -583,6 +595,18 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <div id="tip" role="status" aria-live="off"></div>
     </div>
     <div class="legend" id="legend"></div>
+    <!-- Dragging a hairline is a mouse gesture. On a phone this is the way
+         to do it: one row per visible panel, with buttons big enough to hit. -->
+    <details class="dhelp" id="phWrap">
+      <summary><b>パネルの高さを変える</b>(スマホはこちらが確実です)</summary>
+      <div id="phList" class="phlist"></div>
+      <div class="filters" style="margin:8px 0 0">
+        <button class="chip" id="phReset" style="border-style:dashed">全部もとに戻す</button>
+      </div>
+      <p class="qsrc" style="margin:8px 0 0;line-height:1.7">
+        チャートの上でも、パネルの下端の<b>横棒(右端)</b>を上下にドラッグすると変えられます。
+        棒をダブルタップするとそのパネルだけ元に戻ります。ここでの設定は端末ごとに保存されます。</p>
+    </details>
     <p class="hint">指でなぞると各日の値を表示 / 2本指のピンチで拡大縮小・移動 / ダブルタップで全体表示。PCではドラッグで移動、ホイールで拡大縮小できます。</p>
   </div>
 
@@ -737,8 +761,13 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
 
   <div class="card">
     <h2>PC ↔ スマホで共用</h2>
-    <p class="qsrc" style="margin:0 0 10px">お気に入り・閲覧履歴・タブ構成・指標のオンオフ・テーマを共用できます。
-      株価データ本体は含めません(取得し直せるため)。画面の段組みは端末ごとの設定なので同期しません。</p>
+    <p class="qsrc" style="margin:0 0 10px"><b>同期するもの</b>:
+      お気に入り ・ 閲覧履歴 ・ タブ構成 ・ 指標のオンオフ ・ テーマ ・
+      <b>アラート</b> ・ <b>中継サーバーのURL</b> ・ 自動取得のオンオフ ・ シグナル説明の開閉。
+      空売り・信用の蓄積データは下のチェックを入れたときだけ。<br>
+      <b>同期しないもの</b>: 株価データ本体(取得し直せるため) ・ 画面の段組み ・
+      <b>パネルの高さ</b>。最後の2つは、スマホと大きな画面で同じにすると
+      かえって使いにくくなるため、端末ごとの設定にしています。</p>
 
     <div id="driveBox">
       <div class="dhead">Googleドライブで自動同期<span class="dbadge">おすすめ</span></div>
@@ -2718,25 +2747,35 @@ function layout(){
   let mainH;
   if(full){
     /* fill what the viewport has left, never less than a usable price panel */
-    mainH = Math.max(140, Math.round(vh - 46) - subsH - axisH - 8);
+    mainH = Math.max(140, Math.round(vh - 46) - subsH - axisH * (subs.length ? 2 : 1) - 8);
     mainH = Math.round(mainH * scaleOf('main'));
   } else {
     mainH = clamp(Math.round(w * (narrow ? 0.72 : 0.40)), narrow ? 250 : 280, 430);
     mainH = Math.round(mainH * scaleOf('main'));
     /* on a short screen, keep the whole chart inside one screenful */
-    const budget = Math.round(vh * (shortScreen ? 0.78 : 0.92)) - subsH - axisH - 8;
+    const budget = Math.round(vh * (shortScreen ? 0.78 : 0.92))
+                 - subsH - axisH * (subs.length ? 2 : 1) - 8;
     if(budget > 120) mainH = Math.min(mainH, budget);
   }
   const totalH = mainH + subsH + axisH + 8;
 
   const panels = [{key:'main', x:padL, y:6, w:w-padL-padR, h:mainH}];
-  let y = 6 + mainH + gap;
+  /* A date strip directly under the price panel.
+
+     There was one axis, at the very bottom of the canvas. With five or six
+     sub-panels stacked below the candles, "which day is this?" meant looking
+     several hundred pixels away from the thing being read — and on a phone,
+     scrolling. The price panel gets its own dates; the bottom axis stays for
+     the panels underneath it. */
+  const midAxis = subs.length ? 6 + mainH + 8 : 0;
+  let y = 6 + mainH + (subs.length ? axisH : 0) + gap;
   for(const s of subs){
     const h = hOf(s.key);
     panels.push({key:s.key, title:s.title, x:padL, y, w:w-padL-padR, h});
     y += h + gap;
   }
-  return {w, h:totalH, padL, padR, axisH, narrow, panels, axisY:y};
+  return {w, h: totalH + (subs.length ? axisH : 0), padL, padR, axisH, narrow,
+          panels, axisY: y, midAxis};
 }
 
 function sizeCanvas(){
@@ -2894,10 +2933,18 @@ function endLabel(g, p, arr, y, color, text){
 
 /* ---- panels -------------------------------------------------------- */
 function drawMain(g){
-  /* comparison mode replaces the price panel entirely: candles and an
-     index scale cannot share an axis honestly */
-  if(typeof Compare !== 'undefined' && Compare.active.length){ drawCompareMain(g); return; }
   const p = panel('main'), d = state.ind, T = state.toggles;
+  /* Comparison mode used to REPLACE the price panel: two bare rebased lines,
+     no candles, no moving averages, no cloud. It was honest about the scale
+     and useless as a chart — 「テクニカルチャート記載も消えてる」.
+
+     The honesty was about the axis, not about the candles. So the axis
+     becomes the index (display start = 100) and EVERYTHING in price space —
+     candles, MAs, Bollinger, Ichimoku, VWAP — is divided by the same number
+     and drawn on it. Nothing is invented, nothing is hidden, and the chart
+     is still a chart. */
+  const cmpOn = typeof Compare !== 'undefined' && Compare.active.length > 0;
+  const cmp = cmpOn ? prepCompare(p) : null;
   let min = Infinity, max = -Infinity;
   const nb = state.raw.bars.length;
   for(let i = Math.max(0,state.i0); i <= Math.min(state.i1, nb-1); i++){
@@ -2916,18 +2963,42 @@ function drawMain(g){
   if(T.lorentz && d.lorentz) consider(d.lorentz.kern);
   if(!isFinite(min) || !isFinite(max)) { min = 0; max = 1; }
   const pad = (max-min) * 0.06 || 1;
-  const y = makeY(p, min-pad, max+pad, 4, 4);
   resetSlots(); resetAxisSlots();
 
-  /* the last-price tag owns its band; a tick label that would sit under it
-     is skipped rather than half-drawn */
-  const lastC = d.c[nb-1];
-  if(isNum(lastC) && state.i1 >= nb-1) axisFree(y(lastC), 18);
-  for(const t of ticks(min-pad, max+pad, LAY.narrow ? 4 : 6)){
-    const Y = y(t);
-    if(Y < p.y || Y > p.y+p.h) continue;
-    gridline(g, p, Y);
-    if(axisFree(Y, 14)) yLabel(g, p, Y, fmtNum(t));
+  let y, yIdx = null;
+  if(cmp && cmp.base){
+    /* one axis, in index terms; price maps onto it through the same divisor */
+    const toIdx = v => v / cmp.base * 100;
+    let lo = toIdx(min - pad), hi = toIdx(max + pad);
+    for(const v of cmp.range){ if(v < lo) lo = v; if(v > hi) hi = v; }
+    const ipad = (hi - lo) * 0.06 || 1;
+    yIdx = makeY(p, lo - ipad, hi + ipad, 4, 4);
+    y = v => yIdx(toIdx(v));
+    for(const t of ticks(lo - ipad, hi + ipad, LAY.narrow ? 4 : 6)){
+      const Y = yIdx(t);
+      if(Y < p.y || Y > p.y+p.h) continue;
+      gridline(g, p, Y);
+      if(axisFree(Y, 14)) yLabel(g, p, Y, t.toFixed(0));
+    }
+    /* the 100 line is where every series started, so it is drawn solid */
+    const Y100 = yIdx(100);
+    if(Y100 >= p.y && Y100 <= p.y + p.h){
+      g.save(); g.strokeStyle = C.axis; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(p.x, Math.round(Y100)+.5); g.lineTo(p.x+p.w, Math.round(Y100)+.5);
+      g.stroke(); g.restore();
+    }
+  } else {
+    y = makeY(p, min-pad, max+pad, 4, 4);
+    /* the last-price tag owns its band; a tick label that would sit under it
+       is skipped rather than half-drawn */
+    const lastC = d.c[nb-1];
+    if(isNum(lastC) && state.i1 >= nb-1) axisFree(y(lastC), 18);
+    for(const t of ticks(min-pad, max+pad, LAY.narrow ? 4 : 6)){
+      const Y = y(t);
+      if(Y < p.y || Y > p.y+p.h) continue;
+      gridline(g, p, Y);
+      if(axisFree(Y, 14)) yLabel(g, p, Y, fmtNum(t));
+    }
   }
 
   /* Ichimoku cloud — a diverging fill: the sign of (A−B) is the meaning */
@@ -3144,6 +3215,7 @@ function drawMain(g){
     g.textAlign='left'; g.textBaseline='middle';
     g.fillText(fmtNum(lc), p.x+p.w+6, Y);
   }
+  if(cmp && yIdx) drawCompareLines(g, p, cmp, yIdx);
   panelFrame(g, p);
   state._mainY = y;
 }
@@ -3370,11 +3442,42 @@ function drawXAxis(g){
       prevKey = yr;
     }
     g.fillText(label, X, LAY.axisY - 2);
-    /* vertical hairline for the tick */
+    /* the same label under the candles, where it is actually being read */
+    if(LAY.midAxis) g.fillText(label, X, LAY.midAxis - 2);
+    /* vertical hairline for the tick — broken around the mid axis so the
+       gridline does not run through the dates it is labelling */
     g.save(); g.strokeStyle = C.grid; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(Math.round(X)+.5, LAY.panels[0].y); g.lineTo(Math.round(X)+.5, LAY.axisY-6); g.stroke();
+    const XX = Math.round(X) + .5, top = LAY.panels[0].y;
+    if(LAY.midAxis){
+      const mp = LAY.panels[0], sub = LAY.panels[1];
+      g.beginPath(); g.moveTo(XX, top); g.lineTo(XX, mp.y + mp.h); g.stroke();
+      if(sub){ g.beginPath(); g.moveTo(XX, sub.y); g.lineTo(XX, LAY.axisY - 6); g.stroke(); }
+    } else {
+      g.beginPath(); g.moveTo(XX, top); g.lineTo(XX, LAY.axisY - 6); g.stroke();
+    }
     g.restore();
   }
+}
+
+/* The dividers are draggable, and on a phone there was nothing to say so.
+   A short bar at the right-hand end of each divider — out of the way of the
+   chart, next to where a thumb already is. */
+function drawGrips(g){
+  if(!LAY || typeof gripY !== 'function') return;
+  const wide = LAY.narrow ? 26 : 30, thick = 3;
+  g.save();
+  for(const p of LAY.panels){
+    const y = Math.round(gripY(p)) + .5;
+    if(y < 2 || y > LAY.h - 2) continue;
+    const x = p.x + p.w - wide - 2;
+    g.fillStyle = C.axis;
+    g.globalAlpha = .85;
+    g.beginPath();
+    if(g.roundRect) g.roundRect(x, y - thick / 2, wide, thick, thick / 2);
+    else g.rect(x, y - thick / 2, wide, thick);
+    g.fill();
+  }
+  g.restore();
 }
 
 function renderBase(){
@@ -3388,6 +3491,7 @@ function renderBase(){
   drawVol(bctx); drawRSI(bctx); drawMACD(bctx); drawStoch(bctx); drawADX(bctx); drawLorentz(bctx);
   drawShortPanel(bctx); drawMarginPanel(bctx);
   drawFlowPanel(bctx); drawSizeFlowPanel(bctx);
+  drawGrips(bctx);
 }
 
 /* ---- corporate actions ----------------------------------------------
@@ -4368,7 +4472,8 @@ const Compare = {
         aria-pressed="${this.has(p.sym)}"${this.busy ? ' disabled' : ''}>
         <i class="sw" style="background:${this.colorOf(p.sym) || 'var(--ink-3)'}"></i>${p.label}</button>`).join('');
     $('#cmpNote').textContent = this.active.length
-      ? `表示中の左端を100として指数化しています(1本の軸・2軸チャートは使いません)。`
+      ? `表示中の左端を100として指数化しています(1本の軸だけ・2軸チャートは使いません)。`
+        + `ローソク足と指標も同じ倍率で置き直しているので、形はそのままです。`
       : '';
   },
 
@@ -4378,56 +4483,52 @@ const Compare = {
   }
 };
 
-/* ---- indexed line rendering ---------------------------------------- */
-function drawCompareMain(g){
-  const p = panel('main'), d = state.ind, nb = state.raw.bars.length;
+/* ---- comparison overlay --------------------------------------------
+   Two jobs, split apart: work out the rebasing, then draw the lines. The
+   price panel does its own drawing with the same numbers, so the candles
+   and the comparison lines can never end up on different scales.
+   -------------------------------------------------------------------- */
+
+/* the divisor for each series, and the index range they cover */
+function prepCompare(p){
+  const d = state.ind, nb = state.raw.bars.length;
   const series = Compare.seriesFor(state.raw.bars, state.interval);
-  const all = [{label: state.raw.name || state.raw.code, values: d.c, base: true, ci: 1}, ...series];
-
-  /* rebase each series at the first visible bar it has a value for */
-  const idx = all.map(s => {
-    let b = null;
-    for(let i=Math.max(0,state.i0);i<=Math.min(state.i1, nb-1);i++){
-      if(isNum(s.values[i])){ b = s.values[i]; break; }
-    }
-    return b;
+  const first = vals => {
+    for(let i = Math.max(0, state.i0); i <= Math.min(state.i1, nb - 1); i++)
+      if(isNum(vals[i])) return vals[i];
+    return null;
+  };
+  const base = first(d.c);
+  if(!base) return {base: null, series: [], range: []};
+  const norm = series.map(sy => {
+    const b = first(sy.values);
+    return {...sy, base: b,
+      values: sy.values.map(v => (isNum(v) && b) ? v / b * 100 : null)};
   });
-  let min = Infinity, max = -Infinity;
-  const norm = all.map((s, k) => s.values.map(v =>
-    (isNum(v) && isNum(idx[k]) && idx[k]) ? v/idx[k]*100 : null));
-  norm.forEach(a => { for(let i=Math.max(0,state.i0);i<=Math.min(state.i1,nb-1);i++){
-    const v = a[i]; if(isNum(v)){ if(v<min) min=v; if(v>max) max=v; } } });
-  if(!isFinite(min)){ min = 90; max = 110; }
-  const pad = (max-min)*0.08 || 2;
-  const y = makeY(p, min-pad, max+pad, 4, 4);
-  resetSlots();
+  const range = [];
+  for(const sy of norm)
+    for(let i = Math.max(0, state.i0); i <= Math.min(state.i1, nb - 1); i++)
+      if(isNum(sy.values[i])) range.push(sy.values[i]);
+  return {base, series: norm, range};
+}
 
-  for(const t of ticks(min-pad, max+pad, LAY.narrow ? 4 : 6)){
-    const Y = y(t);
-    if(Y < p.y || Y > p.y+p.h) continue;
-    gridline(g, p, Y);
-    yLabel(g, p, Y, t.toFixed(0));
-  }
-  /* the 100 line is the anchor of the whole reading, so it is drawn solid */
-  if(y(100) >= p.y && y(100) <= p.y+p.h){
-    g.save(); g.strokeStyle = C.axis; g.lineWidth = 1.5;
-    g.beginPath(); g.moveTo(p.x, Math.round(y(100))+.5); g.lineTo(p.x+p.w, Math.round(y(100))+.5);
-    g.stroke(); g.restore();
-    yLabel(g, p, y(100), '100', C.ink2);
-  }
-
-  norm.forEach((a, k) => {
-    line(g, p, a, y, cssVar('--cmp' + all[k].ci), k === 0 ? 2.4 : 1.8);
-  });
-  norm.forEach((a, k) => {
-    endLabel(g, p, a, y, cssVar('--cmp' + all[k].ci),
-      k === 0 ? String(state.raw.code || '本銘柄').slice(0,12) : String(all[k].label).slice(0,12));
-  });
-  panelFrame(g, p);
-  state._mainY = null;      /* no price scale in this mode */
-  state._cmpY = y;
-  state._cmpNorm = norm;
-  state._cmpAll = all;
+function drawCompareLines(g, p, cmp, yIdx){
+  for(const sy of cmp.series) line(g, p, sy.values, yIdx, cssVar('--cmp' + sy.ci), 1.8);
+  for(const sy of cmp.series)
+    endLabel(g, p, sy.values, yIdx, cssVar('--cmp' + sy.ci), String(sy.label).slice(0, 12));
+  /* a caption, because "100" on the axis needs saying once */
+  g.save();
+  g.fillStyle = C.ink3;
+  g.font = `600 ${LAY.narrow ? 9 : 10}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'left'; g.textBaseline = 'top';
+  g.fillText('表示開始を100とした指数', p.x + 3, p.y + 2);
+  g.restore();
+  /* what the crosshair and the stats table read */
+  state._cmpY = yIdx;
+  state._cmpAll = [{label: state.raw.name || state.raw.code, base: true, ci: 1,
+                    values: state.ind.c.map(v => isNum(v) && cmp.base ? v / cmp.base * 100 : null)},
+                   ...cmp.series];
+  state._cmpNorm = state._cmpAll.map(s => s.values);
 }
 
 /* Pearson correlation of log returns over the visible window — the number
@@ -6462,7 +6563,7 @@ async function refreshSyncInfo(){
    the screen you are looking at, not of you.
    ============================================================ */
 
-const SYNC_V = 1;
+const SYNC_V = 2;
 const SYNC_FILE = 'ta-tool-sync.json';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
@@ -6527,9 +6628,33 @@ function syncDoc(){
   for(const h of Book.hist) hist[h.code] = {
     n: h.name || h.code, p: isNum(h.price) ? h.price : null,
     c: h.cur || null, at: h.at || 0};
+  /* --- alerts: same shape as the favourites, keyed by id --------------
+     These were never in the document at all. Neither was the relay URL, nor
+     the on/off preferences — so 「Google同期できてない」 was exactly right
+     about them: the sync only ever carried stars, history, tabs and theme. */
+  const alerts = Object.create(null);
+  for(const a of Alerts.list.slice(0, 60)){
+    alerts[String(a.id)] = {c: a.code, k: a.kind, v: a.v, on: a.on ? 1 : 0,
+                            at: a.at || 0};
+  }
+  for(const id of Object.keys(Alerts.tomb).slice(0, 200)){
+    const at = Alerts.tomb[id];
+    if(!isNum(at) || now - at > TOMB_MS) continue;
+    if(!alerts[id] || alerts[id].at < at) alerts[id] = {at, d: 1};
+  }
+
   return {
     kind: 'ta-tool-sync', v: SYNC_V, at: now, dev: deviceLabel(),
     favs, hist, histCleared: Book.histCleared || 0,
+    alerts,
+    /* Settings that belong to the person, not to the device they are holding.
+       Each carries its own timestamp so the newer edit wins per setting
+       rather than the whole block being replaced. */
+    prefs: {
+      relay:   {v: String(Store.get('relay', '') || ''),   at: +Store.get('relayAt', 0) || 0},
+      autoExt: {v: autoExtOn() ? 1 : 0,                    at: +Store.get('autoExtSetAt', 0) || 0},
+      sigOpen: {v: Store.get('sigOpen', false) ? 1 : 0,    at: +Store.get('sigOpenAt', 0) || 0}
+    },
     theme: {v: document.documentElement.getAttribute('data-theme') || 'auto',
             at: +Store.get('themeAt', 0) || 0},
     view: {at: wsSavedAt || now, dev: deviceLabel(), active: Tabs.active,
@@ -6548,7 +6673,8 @@ function syncDoc(){
    anywhere. Codes and names go through the same cleaners as network data.
    --------------------------------------------------------------------- */
 async function mergeSync(remote){
-  const rep = {favAdd: 0, favDel: 0, hist: 0, theme: false, supply: 0, view: null};
+  const rep = {favAdd: 0, favDel: 0, hist: 0, theme: false, supply: 0, view: null,
+               alertAdd: 0, alertDel: 0, alertUpd: 0, prefs: []};
   if(!remote || typeof remote !== 'object') return rep;
   if(remote.kind !== 'ta-tool-sync') throw new Error('同期ファイルの形式が違います');
   if(+remote.v > SYNC_V) throw new Error('新しいバージョンの同期データです。ツールを更新してください');
@@ -6648,6 +6774,45 @@ async function mergeSync(remote){
     }
   }
 
+  /* --- alerts: last write wins per id, deletions included ------------- */
+  const am = new Map(Alerts.list.map(a => [String(a.id), a]));
+  const ra = (remote.alerts && typeof remote.alerts === 'object') ? remote.alerts : {};
+  for(const rawId of Object.keys(ra).slice(0, 300)){
+    if(!/^\d{1,20}$/.test(rawId)) continue;
+    const e = ra[rawId];
+    if(!e || typeof e !== 'object') continue;
+    const at = isNum(e.at) ? e.at : 0;
+    if(at > now + SKEW) continue;
+    if(e.d){
+      if(now - at > TOMB_MS) continue;
+      if(at > (Alerts.tomb[rawId] || 0)) Alerts.tomb[rawId] = at;
+      const cur = am.get(rawId);
+      if(cur && (cur.at || 0) < at){ am.delete(rawId); rep.alertDel++; }
+      continue;
+    }
+    if(at <= (Alerts.tomb[rawId] || 0)) continue;    /* deleted here, more recently */
+    const cur = am.get(rawId);
+    if(cur && at <= (cur.at || 0)) continue;
+    const one = sanitizeAlerts([{id: +rawId, code: e.c, kind: e.k, v: e.v,
+                                 on: e.on !== 0, at}])[0];
+    if(!one) continue;
+    if(cur) rep.alertUpd++; else rep.alertAdd++;
+    am.set(rawId, one);
+  }
+  /* An EDIT is neither an add nor a delete, and the write-back was guarded on
+     those two alone — so switching an alert off on the phone never reached
+     the PC. */
+  if(rep.alertAdd || rep.alertDel || rep.alertUpd){
+    Alerts.list = [...am.values()].slice(0, 60);
+    Store.set('alerts', Alerts.list);
+    Store.set('alertdel', Alerts.tomb);
+    renderAlerts();
+    if(typeof fillAlertForm === 'function') fillAlertForm();
+  }
+
+  /* --- settings that belong to the account, not the device ------------ */
+  rep.prefs = applyRemotePrefs(remote.prefs, now, SKEW);
+
   /* --- tabs: held, not applied ---------------------------------------
      Only worth offering if some OTHER device wrote it — restoring your own
      last screen is what the session restore already does. */
@@ -6661,6 +6826,74 @@ async function mergeSync(remote){
   /* --- accumulated short-selling / margin history -------------------- */
   if(remote.supply) rep.supply = await mergeSupplyIn(remote.supply);
   return rep;
+}
+
+/* Settings that are about the person, not the screen.
+
+   Each one is last-write-wins on its own timestamp, so changing the relay on
+   the phone and the auto-fetch switch on the PC keeps both — a single
+   timestamp for the whole block would have thrown one of them away.
+
+   `panelScale` and the column layout are deliberately NOT here: a phone and
+   a 27-inch monitor want different panel heights, and copying one to the
+   other is a bug, not a feature. The card says so. */
+const SYNC_PREFS = [
+  {k: 'relay', at: 'relayAt', label: '中継サーバー',
+   read: () => String(Store.get('relay', '') || ''),
+   ok: v => typeof v === 'string' && (v === '' || OWN_RELAY_OK.test(v)),
+   same: v => v === String(Store.get('relay', '') || ''),
+   apply: v => {
+     Store.set('relay', v);
+     const box = $('#relayUrl');
+     if(box) box.value = v;
+     relayStatus(v ? '別の端末で設定された中継サーバーを受け取りました: ' + esc(v, 60)
+                   : '別の端末で公開の中継サーバーに戻されました。', v ? 'ok' : '');
+   }},
+  {k: 'autoExt', at: 'autoExtSetAt', label: '自動取得',
+   read: () => autoExtOn() ? 1 : 0,
+   ok: v => v === 0 || v === 1,
+   same: v => (v === 1) === autoExtOn(),
+   apply: v => {
+     Store.set('autoExt', v ? 1 : 0);
+     const b = $('#autoExt');
+     if(b) b.checked = !!v;
+     if(typeof renderAutoExtStatus === 'function') renderAutoExtStatus();
+   }},
+  {k: 'sigOpen', at: 'sigOpenAt', label: 'シグナルの説明',
+   read: () => Store.get('sigOpen', false) ? 1 : 0,
+   ok: v => v === 0 || v === 1,
+   same: v => (v === 1) === (Store.get('sigOpen', false) === true),
+   apply: v => {
+     Store.set('sigOpen', !!v);
+     if(typeof setSigOpen === 'function') setSigOpen(!!v);
+   }}
+];
+
+/* Record that a setting changed HERE, and push it. Without the stamp the
+   other device's zero always loses and the setting never travels. */
+function markPref(key){
+  const p = SYNC_PREFS.find(x => x.k === key);
+  if(!p) return;
+  Store.set(p.at, Date.now());
+  if(typeof scheduleSync === 'function') scheduleSync();
+}
+
+function applyRemotePrefs(prefs, now, SKEW){
+  const changed = [];
+  if(!prefs || typeof prefs !== 'object') return changed;
+  for(const p of SYNC_PREFS){
+    const e = prefs[p.k];
+    if(!e || typeof e !== 'object') continue;
+    const at = isNum(e.at) ? e.at : 0;
+    if(!at || at > now + SKEW) continue;
+    if(at <= (+Store.get(p.at, 0) || 0)) continue;   /* ours is newer */
+    if(!p.ok(e.v)) continue;
+    Store.set(p.at, at);
+    if(p.same(e.v)) continue;                        /* already the same value */
+    p.apply(e.v);
+    changed.push(p.label);
+  }
+  return changed;
 }
 
 /* Rebuilt field by field rather than stored as received: an incoming point
@@ -6993,6 +7226,10 @@ async function doSync(opts){
     if(rep.hist)   bits.push('履歴 ' + rep.hist);
     if(rep.favDrop) bits.push('上限40件のため見送り ' + rep.favDrop);
     if(rep.supply) bits.push('需給 ' + rep.supply + '日分');
+    if(rep.alertAdd) bits.push('アラート +' + rep.alertAdd);
+    if(rep.alertDel) bits.push('アラート削除 ' + rep.alertDel);
+    if(rep.alertUpd) bits.push('アラート変更 ' + rep.alertUpd);
+    if(rep.prefs && rep.prefs.length) bits.push('設定: ' + rep.prefs.join('・'));
     if(rep.theme)  bits.push('テーマ');
     driveStatus('同期しました(' + new Date().toLocaleTimeString('ja-JP') + ')'
       + (bits.length ? ' — ' + esc(bits.join(' / '), 90) : ' — 受け取る変更はありませんでした')
@@ -7773,6 +8010,9 @@ function sanitizeAlerts(list){
     kind: owns(ALERT_KINDS, a && a.kind) ? a.kind : '',
     v: isNum(a && a.v) ? a.v : null,
     on: a ? a.on !== false : true,
+    /* when this alert was last changed — the sync needs it to decide which
+       device's version of an edit is the newer one */
+    at: isNum(a && a.at) ? a.at : 0,
     hit: isNum(a && a.hit) ? a.hit : 0
   })).filter(a => a.code && a.kind);
 }
@@ -7787,16 +8027,37 @@ const Alerts = {
     while(used.has(id)) id++;
     return id;
   },
-  save(){ Store.set('alerts', this.list); renderAlerts(); },
+  /* deleted alerts, so a deletion here is not undone by the other device
+     still having the alert. Same shape as the favourites' tombstones. */
+  tomb: (() => {
+    const raw = Store.get('alertdel', {});
+    const out = Object.create(null);
+    if(raw && typeof raw === 'object')
+      for(const k of Object.keys(raw).slice(0, 200))
+        if(/^\d{1,20}$/.test(k) && isNum(raw[k])) out[k] = raw[k];
+    return out;
+  })(),
+  save(){
+    Store.set('alerts', this.list);
+    Store.set('alertdel', this.tomb);
+    renderAlerts();
+    /* alerts are an account-level intention, not a device setting */
+    if(typeof scheduleSync === 'function') scheduleSync();
+  },
   add(code, kind, v){
     if(this.list.length >= 60) throw new Error('アラートは60件までです');
-    this.list.push({id: this.nextId(), code, kind, v: isNum(v) ? v : null, on: true, hit: 0});
+    this.list.push({id: this.nextId(), code, kind, v: isNum(v) ? v : null,
+                    on: true, hit: 0, at: Date.now()});
     this.save();
   },
-  remove(id){ this.list = this.list.filter(a => a.id !== id); this.save(); },
+  remove(id){
+    if(this.list.some(a => a.id === id)) this.tomb[String(id)] = Date.now();
+    this.list = this.list.filter(a => a.id !== id);
+    this.save();
+  },
   toggle(id){
     const a = this.list.find(x => x.id === id);
-    if(a){ a.on = !a.on; this.save(); }
+    if(a){ a.on = !a.on; a.at = Date.now(); this.save(); }
   }
 };
 
@@ -9495,6 +9756,8 @@ function redraw(){
   renderBase();
   paint();
   renderLegend();
+  /* the panel list changes whenever an indicator is switched on or off */
+  if($('#phWrap') && $('#phWrap').open) renderPanelHeights();
   if(Compare.active.length){
     /* the numbers are labelled "over the displayed period", so they have to
        follow the zoom — debounced because correlation is O(visible bars) */
@@ -9564,7 +9827,19 @@ const hostEl = $('#chartHost');
    one, including the price panel, so a chart can be arranged for whatever
    is actually being looked at rather than for the default mix.
    --------------------------------------------------------------------- */
-const GRIP = 9;
+/* A 9-pixel band is a mouse target, not a finger. Apple and Google both put
+   the minimum touch target at ~44 CSS pixels; a divider you have to hit
+   within 9 is why resizing 「やりにくい」 on a phone. Coarse pointers get a
+   much taller band, and a visible grip to aim at. */
+const GRIP_MOUSE = 9, GRIP_TOUCH = 22;
+const coarsePointer = () => {
+  try { return window.matchMedia('(pointer: coarse)').matches; } catch(e){ return false; }
+};
+let GRIP = coarsePointer() ? GRIP_TOUCH : GRIP_MOUSE;
+try {
+  window.matchMedia('(pointer: coarse)').addEventListener('change',
+    e => { GRIP = e.matches ? GRIP_TOUCH : GRIP_MOUSE; });
+} catch(e){}
 let sizing = null;
 
 function endSizing(){
@@ -9578,11 +9853,23 @@ function endSizing(){
 
 function panelAtEdge(y){
   if(!LAY) return null;
+  let best = null, bestD = Infinity;
   for(const p of LAY.panels){
-    const edge = p.y + p.h;
-    if(Math.abs(y - edge) <= GRIP) return p;
+    /* Two places count as this panel's handle: its own bottom edge, and —
+       for the price panel — the drawn grip below its date strip. Aiming at
+       the edge of the panel is what people do, whatever we drew. */
+    for(const edge of [p.y + p.h, gripY(p)]){
+      const d = Math.abs(y - edge);
+      if(d <= GRIP && d < bestD){ best = p; bestD = d; }
+    }
   }
-  return null;
+  return best;
+}
+
+/* Where each divider's handle is drawn, so the drawing and the hit test can
+   never disagree about it. */
+function gripY(p){
+  return (p.key === 'main' && LAY.midAxis) ? p.y + p.h + LAY.axisH - 4 : p.y + p.h;
 }
 function localY(e){
   const r = cv.getBoundingClientRect();
@@ -10472,6 +10759,7 @@ $('#earnBtn').addEventListener('click', () => loadEarnings());
 $('#shinaBtn').addEventListener('click', () => loadShina());
 $('#autoExt').addEventListener('change', e => {
   Store.set('autoExt', e.target.checked ? 1 : 0);
+  markPref('autoExt');
   renderAutoExtStatus();
 });
 $('#shortFileBtn').addEventListener('click', () => $('#shortFile').click());
@@ -10640,6 +10928,44 @@ $('#alertBarX').addEventListener('click', () => $('#alertBar').classList.add('hi
 /* The判定 itself is one line per item; the paragraph explaining each rule is
    folded away, because eighteen of them is most of a screen. The button has
    to say which state you are IN, not only what it does. */
+/* ---- panel heights, without a drag ------------------------------------
+   Every visible panel gets a row with a ﹣ and a ＋. The buttons are 44px,
+   which is the size a finger actually is; the divider on the canvas stays
+   for people with a mouse. */
+const PH_STEP = 1.25;                     /* one press = 25% taller/shorter */
+const PH_MIN = 0.4, PH_MAX = 3.5;
+
+function phScaleOf(key){ return clamp(+(panelScale[key] || 1), PH_MIN, PH_MAX); }
+
+function renderPanelHeights(){
+  const box = $('#phList');
+  if(!box || !LAY) return;
+  box.innerHTML = LAY.panels.map(p => {
+    const sc = phScaleOf(p.key);
+    const name = p.key === 'main' ? '価格チャート' : (p.title || p.key);
+    return `<div class="phrow" data-ph="${esc(p.key, 20)}">
+      <span class="phname">${esc(name, 40)}</span>
+      <span class="phpct">${Math.round(sc * 100)}%</span>
+      <button class="phbtn" data-phd="-1" aria-label="${esc(name, 40)}を低くする"
+        ${sc <= PH_MIN + 1e-6 ? 'disabled' : ''}>−</button>
+      <button class="phbtn" data-phd="1" aria-label="${esc(name, 40)}を高くする"
+        ${sc >= PH_MAX - 1e-6 ? 'disabled' : ''}>＋</button>
+    </div>`;
+  }).join('');
+}
+
+$('#phList').addEventListener('click', e => {
+  const b = e.target.closest('[data-phd]');
+  if(!b) return;
+  const key = b.closest('[data-ph]').dataset.ph;
+  const dir = +b.dataset.phd;
+  const next = phScaleOf(key) * (dir > 0 ? PH_STEP : 1 / PH_STEP);
+  setPanelScale(key, clamp(next, PH_MIN, PH_MAX));
+  renderPanelHeights();
+});
+$('#phReset').addEventListener('click', () => { resetPanelScales(); renderPanelHeights(); });
+$('#phWrap').addEventListener('toggle', () => { if($('#phWrap').open) renderPanelHeights(); });
+
 function setSigOpen(on){
   $('#signals').classList.toggle('open', on);
   const b = $('#sigMore');
@@ -10650,6 +10976,7 @@ $('#sigMore').addEventListener('click', () => {
   const on = !$('#signals').classList.contains('open');
   setSigOpen(on);
   Store.set('sigOpen', on);
+  markPref('sigOpen');
 });
 setSigOpen(Store.get('sigOpen', false) === true);
 
@@ -10771,7 +11098,9 @@ $('#relaySave').addEventListener('click', async () => {
   try{
     await testRelay(v);
     Store.set('relay', v);
-    relayStatus('つながりました。これ以降、株価・ニュース・空売り・信用の取得はここを通ります。', 'ok');
+    markPref('relay');
+    relayStatus('つながりました。これ以降、株価・ニュース・空売り・信用の取得はここを通ります。'
+      + 'Googleドライブ同期を使っていれば、もう一方の端末にもこの設定が届きます。', 'ok');
   }catch(e){
     relayStatus('つながりませんでした(' + esc(e.message, 60) + ')。'
       + 'デプロイ直後は数十秒かかることがあります。保存はしていません。', 'err');
@@ -10779,6 +11108,7 @@ $('#relaySave').addEventListener('click', async () => {
 });
 $('#relayClear').addEventListener('click', () => {
   Store.set('relay', '');
+  markPref('relay');
   $('#relayUrl').value = '';
   relayStatus('公開の中継サーバーに戻しました。');
 });
