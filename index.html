@@ -1000,9 +1000,15 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     日本株の無料データは取引所の規定により<b>15〜20分ほど遅れて配信</b>されるのが通常で、
     自動更新やストリームを使ってもこの遅れは縮みません(実際の遅れは価格の下に分数で表示します)。
     実際の売買判断はご自身の責任で、正式な情報源をご確認ください。<br>
-    <b>OSGFC / Lorentzian について:</b> 各構成要素(Kaufman適応平均・Ehlersスーパースムーザー・ガウシアン加重・kNN分類)の公開されている標準式から組み直したもので、
-    特定のプラットフォーム上の同名スクリプトと数値が完全一致することは保証しません。Lorentzianの的中率は過去データへの当てはめ(インサンプル)で、
-    手数料・スリッページを含みません。成績評価ではなく、パラメータ調整の目安としてご覧ください。<br>
+    <b>OSGFC について:</b> 各構成要素(Kaufman適応平均・Ehlersスーパースムーザー・ガウシアン加重)の公開されている標準式から組み直したもので、
+    特定のプラットフォーム上の同名スクリプトと数値が完全一致することは保証しません。<br>
+    <b>Lorentzian について:</b> 公開されているオリジナル(jdehorty 版)の<b>コードに合わせて</b>実装しています。
+    そのコードは説明文と2か所食い違っており(学習ラベルは「次の4本」ではなく<b>直近4本の値動きを反転</b>したもの、
+    近傍の間引きは「4本ごと」ではなく<b>4の倍数を除く3/4</b>)、本ツールはコードの側に合わせました。
+    したがって、これは順張りではなく<b>逆張り寄りのモデル</b>です。
+    ▲▼はシグナルが変わった点そのものではなく、カーネルの向きが一致した<b>エントリ</b>だけを出しています。
+    的中率は過去データへの当てはめ(インサンプル)で、手数料・スリッページを含みません。
+    成績評価ではなく、パラメータ調整の目安としてご覧ください。<br>
     <b>空売り残高について:</b> 金融商品取引法にもとづく報告制度で、<b>残高割合0.5%以上</b>のものだけが公表されます。
     報告が無いことは空売りが無いことを意味しません。銘柄別の信用取引残高はJPXがPDFのみで公開しているため、本ツールでは自動抽出せずリンクのみを提供しています。<br>
     <b>通信について:</b> ブラウザから株価サイトへ直接アクセスできないため、無料の公開中継サーバー(CORSプロキシ)を経由します。
@@ -1500,11 +1506,15 @@ function detectInterval(bars){
 const OSG = {smoother:'kaufman', smoothPeriod:10, depth:10, extra:10,
              atrPeriod:21, atrMult:0.628};
 
-/* Lorentzian classifier settings */
+/* Lorentzian classifier settings — the published study's own defaults.
+   `adxLength` is 14 on purpose: the ADX *filter* upstream is a different
+   length from the ADX *feature* (20), and `useKernelFilter` is on, which is
+   what keeps roughly two thirds of the raw signal changes off the chart. */
 const LOR = {featureCount:5, neighbors:8, maxBarsBack:2000, horizon:4,
              useVolatility:true, useRegime:true, regimeThreshold:-0.1,
-             useAdx:false, adxThreshold:20, useEma:false, useSma:false,
-             kLookback:8, kWeight:8, kStart:25};
+             useAdx:false, adxThreshold:20, adxLength:14,
+             useEma:false, emaPeriod:200, useSma:false, smaPeriod:200,
+             useKernelFilter:true, kLookback:8, kWeight:8, kStart:25};
 
 /* ------------------------------------------------------------
    One pass over the series. The two expensive studies (OSGFC and
@@ -1765,82 +1775,146 @@ function normalizeRunning(arr){
 }
 
 /* ---- Lorentzian Classification --------------------------------------
-   An approximate k-nearest-neighbour classifier in the spirit of the
-   well-known TradingView study: features are normalised technical
-   readings, distance is Σ log(1+|Δ|) (the "Lorentzian" part, which is
-   far less sensitive to one wild feature than Euclidean distance), and
-   each neighbour votes with what the market actually did `horizon`
-   bars after it.
+   This follows the CODE of the published TradingView study ("Machine
+   Learning: Lorentzian Classification", jdehorty) rather than a tidied-up
+   reading of it, so the numbers line up with what that chart shows. Two
+   places where the published code contradicts its own documentation are
+   reproduced on purpose — please do not "correct" them back:
+
+   (1) The training label is the INVERTED PAST `horizon`-bar direction
+       (`src[4] < src[0] ? short : long`), even though the header above it
+       says the model predicts the next 4 bars. Paired with oscillator
+       features this makes each neighbour a mean-reversion voter, which is
+       what the published indicator actually does on a chart.
+   (2) `i%4` in the neighbour scan is a truthiness test, so it KEEPS the
+       three bars in four whose index is not a multiple of 4. It does not
+       sample "every 4th bar" as the comment beside it claims. Keeping only
+       every 4th bar quarters the candidate pool and starves the vote —
+       typically five voters instead of eight.
+
+   One upstream detail is deliberately not copied, because here it would be
+   a look-ahead: the search there starts at `last_bar_index - maxBarsBack`,
+   which requires knowing where the series ends. This starts at bar 0. The
+   neighbour pool is the same either way (indices 0..min(maxBarsBack-1, i)),
+   so a series of `maxBarsBack` bars or fewer matches upstream exactly and a
+   longer one differs only in that the carried-over vote arrays arrive warm.
    --------------------------------------------------------------------- */
 TA.lorentzian = function(bars, opt){
-  const h = bars.map(b=>b.h), l = bars.map(b=>b.l), c = bars.map(b=>b.c);
+  const op = bars.map(b=>b.o), h = bars.map(b=>b.h),
+        l  = bars.map(b=>b.l), c = bars.map(b=>b.c);
   const n = c.length;
 
-  /* --- features (all 0..1) --- */
+  /* --- features (all 0..1) ---
+     CCI is fed plain closes rather than the usual typical price: upstream
+     calls n_cci(close, ...) and Pine's ta.cci uses whatever source it is
+     handed. Passing close as all three legs makes our hlc3 collapse to it.
+     ADX gets no extra smoothing either — n_adx ignores its second
+     parameter, so the "2" in the study's settings dialog does nothing. */
   const fRsi14 = rescaleFixed(TA.ema(TA.rsi(c, 14), 1), 0, 100);
   const fRsi9  = rescaleFixed(TA.ema(TA.rsi(c, 9),  1), 0, 100);
   const fWt    = normalizeRunning(TA.waveTrend(h, l, c, 10, 11).diff);
-  const fCci   = normalizeRunning(TA.ema(TA.cci(h, l, c, 20), 1));
-  const fAdx   = rescaleFixed(TA.ema(TA.dmi(h, l, c, 20).adx, 2), 0, 100);
+  const fCci   = normalizeRunning(TA.ema(TA.cci(c, c, c, 20), 1));
+  const fAdx   = rescaleFixed(TA.dmi(h, l, c, 20).adx, 0, 100);
   const F = [fRsi14, fWt, fCci, fAdx, fRsi9].slice(0, opt.featureCount);
+  const fc = F.length;
 
-  /* --- training labels: what happened `horizon` bars later --- */
+  /* --- training labels: see (1) in the header. The sign is inverted and
+         the window is behind the bar, not ahead of it. --- */
   const y = new Array(n).fill(0);
-  for(let i=0;i<n-opt.horizon;i++){
-    const fut = c[i+opt.horizon];
-    y[i] = fut < c[i] ? -1 : fut > c[i] ? 1 : 0;
+  for(let i=opt.horizon;i<n;i++){
+    const past = c[i-opt.horizon];
+    y[i] = past < c[i] ? -1 : past > c[i] ? 1 : 0;
   }
 
   /* --- filters --- */
   const atrFast = TA.atr(h, l, c, 1), atrSlow = TA.atr(h, l, c, 10);
-  const adx20 = TA.dmi(h, l, c, 20).adx;
-  const ema200 = TA.ema(c, 200), sma200 = TA.sma(c, 200);
+  const adxFilt = TA.dmi(h, l, c, opt.adxLength).adx;
+  const emaTr = TA.ema(c, opt.emaPeriod), smaTr = TA.sma(c, opt.smaPeriod);
   const volOk = c.map((_, i) => !opt.useVolatility ||
       (isNum(atrFast[i]) && isNum(atrSlow[i]) ? atrFast[i] > atrSlow[i] : false));
-  /* regime: slope of a lightly smoothed price, in ATR units */
-  const smooth = TA.superSmoother(c, 20);
-  const regimeOk = c.map((_, i) => {
-    if(!opt.useRegime) return true;
-    if(i < 21 || !isNum(smooth[i]) || !isNum(smooth[i-20]) || !isNum(atrSlow[i]) || !atrSlow[i]) return false;
-    return (smooth[i]-smooth[i-20]) / atrSlow[i] > opt.regimeThreshold;
-  });
-  const adxOk = c.map((_, i) => !opt.useAdx || (isNum(adx20[i]) && adx20[i] > opt.adxThreshold));
+  const adxOk = c.map((_, i) => !opt.useAdx ||
+      (isNum(adxFilt[i]) && adxFilt[i] > opt.adxThreshold));
+
+  /* Regime filter: a Kalman-style adaptive smoother of ohlc4, then the
+     question "is its slope still close to its own 200-bar average?". That
+     measures how far the trend has decayed, not which way it points, so it
+     gates longs and shorts alike — a plain "price is rising" test would
+     quietly turn the whole study into a long-only system. */
+  const regimeOk = new Array(n).fill(true);
+  if(opt.useRegime){
+    const src = c.map((_, i) => (op[i]+h[i]+l[i]+c[i])/4);
+    const slope = new Array(n).fill(0);
+    let v1 = 0, v2 = 0, prevK = 0;
+    for(let i=0;i<n;i++){
+      v1 = 0.2*(src[i] - (i ? src[i-1] : src[i])) + 0.8*v1;
+      v2 = 0.1*(h[i]-l[i]) + 0.8*v2;
+      /* v2 is a decaying average of bar range; it is only zero on a series
+         that has not moved at all, where alpha may as well be zero */
+      const om = v2 ? Math.abs(v1/v2) : 0;
+      const alpha = (-(om*om) + Math.sqrt(om*om*om*om + 16*om*om)) / 8;
+      const k = alpha*src[i] + (1-alpha)*prevK;
+      slope[i] = Math.abs(k - prevK);
+      prevK = k;
+    }
+    const base = TA.ema(slope, 200);
+    for(let i=0;i<n;i++){
+      regimeOk[i] = isNum(base[i]) && base[i] !== 0
+        ? (slope[i]-base[i])/base[i] >= opt.regimeThreshold : false;
+    }
+  }
 
   /* --- kNN over history ---
-     The rising-distance rule is what the original algorithm uses to
-     sample a diverse neighbourhood cheaply; a side effect is that a
-     short history yields fewer than `neighbors` votes, so we also report
-     how many actually voted and normalise the strength by that. */
+     `distances` and `predictions` are `var` arrays upstream: they are never
+     cleared, so a bar that turns up no new neighbour simply re-uses the
+     previous bar's votes. `lastDistance` is not persistent — it restarts at
+     -1 on every bar, and that is what makes the scan walk up a rising
+     sequence of distances instead of taking the k smallest. */
   const pred = new Array(n).fill(null);
   const used = new Array(n).fill(0);
   const warm = 60;
-  for(let i=warm;i<n;i++){
-    if(F.some(f => !isNum(f[i]))) continue;
-    const start = Math.max(0, i - opt.maxBarsBack);
-    const dists = [], votes = [];
-    let lastDist = -1;
-    for(let j=start;j<i-opt.horizon;j++){
-      if(j % 4 !== 0) continue;            /* chronological spacing: neighbours
-                                              from adjacent bars are the same
-                                              observation counted four times */
-      let d = 0, ok = true;
-      for(const f of F){
-        if(!isNum(f[j])){ ok = false; break; }
-        d += Math.log(1 + Math.abs(f[i]-f[j]));
-      }
-      if(!ok || d < lastDist) continue;
-      lastDist = d;
-      dists.push(d); votes.push(y[j]);
-      if(votes.length > opt.neighbors){
-        lastDist = dists[Math.round(opt.neighbors*3/4)];
-        dists.shift(); votes.shift();
+  const dists = [], votes = [];
+  const cur = new Array(fc);
+  for(let i=0;i<n;i++){
+    let curOk = true;
+    for(let k=0;k<fc;k++){
+      if(!isNum(F[k][i])){ curOk = false; break; }
+      cur[k] = F[k][i];
+    }
+    /* with any feature still warming up every distance is na, and upstream's
+       na comparisons all fail, so the bar contributes nothing */
+    if(curOk){
+      let lastDist = -1;
+      const stop = Math.min(opt.maxBarsBack - 1, i);
+      for(let j=0;j<=stop;j++){
+        if(j % 4 === 0) continue;         /* see (2) in the header */
+        let d = 0, ok = true;
+        for(let k=0;k<fc;k++){
+          const v = F[k][j];
+          if(!isNum(v)){ ok = false; break; }
+          d += Math.log(1 + Math.abs(cur[k]-v));
+        }
+        if(!ok || d < lastDist) continue;
+        lastDist = d;
+        dists.push(d); votes.push(y[j]);
+        if(votes.length > opt.neighbors){
+          /* drop back to a distance already inside the kept set, so the next
+             accepted neighbour has to clear a lower bar than the one just
+             pushed — otherwise the scan runs away to the far end */
+          lastDist = dists[Math.round(opt.neighbors*3/4)];
+          dists.shift(); votes.shift();
+        }
       }
     }
-    pred[i] = votes.length ? votes.reduce((a,b)=>a+b, 0) : 0;
-    used[i] = votes.length;
+    if(i >= warm){
+      pred[i] = votes.reduce((a, b) => a + b, 0);
+      used[i] = votes.length;
+    }
   }
 
-  /* --- signal: prediction plus filter agreement, held until it flips --- */
+  /* --- signal: prediction plus filter agreement, held until it flips.
+     This is upstream's `signal`, which is NOT kernel-gated. The kernel and
+     the EMA/SMA trend filters only decide whether a *change* of this signal
+     is allowed to become an entry — see `flips` below. --- */
   const sig = new Array(n).fill(0);
   let held = 0;
   for(let i=0;i<n;i++){
@@ -1848,26 +1922,47 @@ TA.lorentzian = function(bars, opt){
     const pass = volOk[i] && regimeOk[i] && adxOk[i];
     if(isNum(p) && pass && p > 0)      held = 1;
     else if(isNum(p) && pass && p < 0) held = -1;
-    if(opt.useEma && isNum(ema200[i])) { if(held ===  1 && c[i] < ema200[i]) held = 0; }
-    if(opt.useSma && isNum(sma200[i])) { if(held === -1 && c[i] > sma200[i]) held = 0; }
     sig[i] = held;
   }
-  const flips = [];
-  for(let i=1;i<n;i++) if(sig[i] !== sig[i-1] && sig[i] !== 0) flips.push({i, dir: sig[i]});
 
-  /* --- Nadaraya-Watson kernel regression (rational quadratic) --- */
+  /* --- Nadaraya-Watson kernel regression (rational quadratic) ---
+     Upstream's loop bound collapses to `kStart + 2` terms, because the array
+     whose size it measures holds a single element. The estimate therefore
+     only ever looks back 26 bars however long the series is; summing the
+     whole history instead moves the line by about 0.03%, but it would no
+     longer be the published curve. */
   const kern = new Array(n).fill(null);
   const {kLookback: hK, kWeight: aK, kStart} = opt;
-  for(let i=kStart;i<n;i++){
-    let num = 0, den = 0;
-    for(let j=0;j<=Math.min(i, opt.maxBarsBack);j++){
-      const w = Math.pow(1 + (j*j)/(2*aK*hK*hK), -aK);
-      num += c[i-j]*w; den += w;
-    }
-    kern[i] = den ? num/den : null;
+  const terms = kStart + 2;
+  const kw = [];
+  for(let j=0;j<terms;j++) kw.push(Math.pow(1 + (j*j)/(hK*hK*2*aK), -aK));
+  const kden = kw.reduce((a, b) => a + b, 0);
+  for(let i=terms-1;i<n;i++){
+    let num = 0;
+    for(let j=0;j<terms;j++) num += c[i-j]*kw[j];
+    kern[i] = kden ? num/kden : null;
   }
 
-  /* --- in-sample hit rate of the flips (explicitly not a backtest) --- */
+  /* --- entries: upstream's startLongTrade / startShortTrade, i.e. the
+     arrows on the chart. A buy needs BOTH trend filters pointing up (a sell
+     needs both pointing down) and the kernel estimate to be turning the
+     same way; either filter is off by default, in which case it passes. */
+  const emaUp = c.map((_, i) => !opt.useEma || (isNum(emaTr[i]) && c[i] > emaTr[i]));
+  const emaDn = c.map((_, i) => !opt.useEma || (isNum(emaTr[i]) && c[i] < emaTr[i]));
+  const smaUp = c.map((_, i) => !opt.useSma || (isNum(smaTr[i]) && c[i] > smaTr[i]));
+  const smaDn = c.map((_, i) => !opt.useSma || (isNum(smaTr[i]) && c[i] < smaTr[i]));
+  const flips = [];
+  for(let i=1;i<n;i++){
+    if(sig[i] === sig[i-1]) continue;
+    const rising = isNum(kern[i]) && isNum(kern[i-1]) && kern[i-1] < kern[i];
+    const falling = isNum(kern[i]) && isNum(kern[i-1]) && kern[i-1] > kern[i];
+    const kUp = !opt.useKernelFilter || rising;
+    const kDn = !opt.useKernelFilter || falling;
+    if(sig[i] ===  1 && kUp && emaUp[i] && smaUp[i]) flips.push({i, dir:  1});
+    else if(sig[i] === -1 && kDn && emaDn[i] && smaDn[i]) flips.push({i, dir: -1});
+  }
+
+  /* --- in-sample hit rate of the entries (explicitly not a backtest) --- */
   let hit = 0, miss = 0;
   for(const f of flips){
     const j = f.i + opt.horizon;
@@ -3947,7 +4042,7 @@ function renderLegend(){
     : `<span class="li" style="color:var(--ink-3)">VWAP: この銘柄は出来高が配信されないため出せません</span>`);
   if(T.st) L.push(`<span class="li"><i class="k" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>スーパートレンド(${P.st.join(',')}) 上昇=赤 / 下降=青</span>`);
   if(T.osgfc) L.push(`<span class="li"><i class="k" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>OSGFC(深度${OSG.depth}, ATR${OSG.atrPeriod}×${OSG.atrMult})</span>`);
-  if(T.lorentz) L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>カーネル回帰 ・ ▲▼=シグナル転換</span>`);
+  if(T.lorentz) L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>カーネル回帰 ・ ▲▼=エントリ(カーネルの向きが一致した転換のみ)</span>`);
   if(T.flow){
     if(hasVals(state.ind && state.ind.mfi)){
       L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>MFI(出来高込みの過熱感)</span>`);
@@ -4127,7 +4222,10 @@ function buildSignals(){
     else if(isNum(p2))
       add('Lorentzian', st2 > 0 ? '買いシグナル継続' : st2 < 0 ? '売りシグナル継続' : 'シグナルなし(フィルター遮断)',
         `近傍${lo.used[n]}件の投票は ${p2 > 0 ? '+' : ''}${p2}(強さ ${(lo.strength[n]*100).toFixed(0)}%)。`
-        + (lo.stats.total ? ` 過去のシグナル転換 ${lo.stats.total} 回のうち ${lo.stats.hit} 回が${LOR.horizon}本後に想定方向へ動きました(的中率 ${lo.stats.rate.toFixed(0)}%、インサンプル)。` : ''),
+        /* upstream holds the signal when the vote is a tie or the filters
+           block it, so 「投票 0 なのに売り継続」 is correct — say why */
+        + (p2 === 0 && st2 !== 0 ? ' いまの足では票が割れているため、直前の転換の向きをそのまま保っています。' : '')
+        + (lo.stats.total ? ` 過去のエントリ ${lo.stats.total} 回のうち ${lo.stats.hit} 回が${LOR.horizon}本後に想定方向へ動きました(的中率 ${lo.stats.rate.toFixed(0)}%、インサンプル)。` : ''),
         st2 > 0 ? 'bull' : st2 < 0 ? 'bear' : 'flat', st2 * 1.5);
   }
   /* 14. VWAP */
@@ -5388,8 +5486,11 @@ const Ext = {
         this.margin = {points: cleaned.points.map(p => ({...p, k: kind})),
                        src: cleanText(m.src, 60), kind};
         marginDropped = cleaned.dropped;
-        /* write the healed record back, so this only happens once */
-        if(cleaned.dropped) this.saveMargin(k);
+        /* write the healed record back, so this only happens once — including
+           when nothing was dropped but the stored record had no `kind` of its
+           own (anything that came in through a sync, before the wire carried
+           it). Otherwise the label is re-guessed on every single read. */
+        if(cleaned.dropped || m.kind !== kind) this.saveMargin(k);
       }
     }
   },
@@ -5465,7 +5566,12 @@ let marginDropped = 0;
 /* 日証金 is the only 貸借残 source this app has; everything else it reads is
    the market-wide 信用残. */
 function kindFromSrc(src){
-  return /日証金|taisyaku|zandaka|貸借/.test(String(src || '')) ? 'loan' : 'credit';
+  /* No bare 「zandaka」. 残高 is what BOTH statistics are called, so an
+     ordinary broker export saved as zandaka_weekly.csv was read as 日証金's
+     貸借残 — and once the sync stopped carrying `kind`, that guess was what
+     decided whether the user's 信用残 history survived being reloaded.
+     Everything this app writes for 貸借残 says 日証金 or 貸借 outright. */
+  return /日証金|taisyaku|貸借|融資|貸株/.test(String(src || '')) ? 'loan' : 'credit';
 }
 
 /* Remove points that plainly belong to the other statistic.
@@ -5481,8 +5587,12 @@ const FOREIGN_FACTOR = 4;
 function dropForeignPoints(points, kind){
   const tagged = points.filter(p => p.k);
   /* if the points say what they are, that is the answer */
-  if(tagged.length === points.length){
+  if(points.length && tagged.length === points.length){
     const keep = points.filter(p => p.k === kind);
+    /* ...and if EVERY point disagrees with the label, it is the label that is
+       wrong, not the data. `kind` may be a guess made from the source file's
+       name; a guess must never be grounds for deleting an entire history. */
+    if(!keep.length) return {points, dropped: 0, flip: true};
     return {points: keep, dropped: points.length - keep.length};
   }
   const vals = points.map(p => p.buy).filter(v => isNum(v) && v > 0).sort((a, b) => a - b);
@@ -7319,8 +7429,15 @@ function cleanPoint(kind, p){
         ratio: isNum(h && h.ratio) ? h.ratio : null,
         qty: isNum(h && h.qty) ? h.qty : null}))};
   }
+  /* `k` says WHICH statistic this point is — 信用残 or 貸借残. It has to
+     travel: dropped here, every point came back untagged, the record it
+     landed in lost its `kind` too, and the far end had to guess the label
+     back from the source name. When that guess disagreed with the points
+     already on disk, dropForeignPoints threw the whole accumulated series
+     away — 「同期すると信用残が消える」. */
   return {d: String(p.d), buy: isNum(p.buy) ? p.buy : null,
-          sell: isNum(p.sell) ? p.sell : null, ratio: isNum(p.ratio) ? p.ratio : null};
+          sell: isNum(p.sell) ? p.sell : null, ratio: isNum(p.ratio) ? p.ratio : null,
+          k: p.k === 'loan' || p.k === 'credit' ? p.k : null};
 }
 /* Short-selling data is stored as the FILINGS, with the displayed series
    folded from them. Sending only the folded series across loses the
@@ -7362,7 +7479,9 @@ function cleanSupply(sup){
       const points = inc.points.slice(-400).map(p => cleanPoint(kind, p)).filter(Boolean);
       if(!points.length) continue;
       out[code] = out[code] || {};
-      out[code][kind] = {points, src: cleanText(inc.src, 60)};
+      /* carry the statistic's identity, not just its numbers */
+      out[code][kind] = {points, src: cleanText(inc.src, 60),
+        kind: inc.kind === 'loan' || inc.kind === 'credit' ? inc.kind : null};
     }
   }
   return out;
@@ -7404,15 +7523,30 @@ async function mergeSupplyIn(raw0){
       if(!inc) continue;
       let cur = null;
       try { cur = await DB.get(kind + '.' + code); } catch(e){}
+      const curKind = cur && (cur.kind === 'loan' || cur.kind === 'credit') ? cur.kind : null;
+      const incKind = inc.kind || null;
+      /* 信用残 and 貸借残 are different statistics an order of magnitude apart.
+         If the two sides hold different ones, keep ours — merging them puts
+         both on one axis, which is what dropForeignPoints exists to undo. */
+      if(curKind && incKind && curKind !== incKind) continue;
+      const recKind = curKind || incKind;
       const map = new Map((cur && Array.isArray(cur.points) ? cur.points : []).map(p => [p.d, p]));
       let added = 0;
       for(const p of inc.points){
-        if(!map.has(p.d)){ map.set(p.d, p); added++; }
+        if(!map.has(p.d)){ map.set(p.d, Object.assign({}, p, {k: p.k || recKind || null})); added++; }
       }
       if(!added) continue;
       const points = [...map.values()]
         .sort((a, b) => String(a.d).localeCompare(String(b.d))).slice(-400);
-      try { await DB.set(kind + '.' + code, {points, src: cleanText(inc.src, 60) || (cur && cur.src) || ''}); }
+      try {
+        /* `kind` is written back. Leaving it off meant the label had to be
+           re-guessed from the file name on every read, and 「zandaka」 in an
+           ordinary broker export reads as 貸借残 — which then discarded a
+           whole 信用残 history as belonging to the other statistic. */
+        const rec = {points, src: cleanText(inc.src, 60) || (cur && cur.src) || ''};
+        if(recKind) rec.kind = recKind;
+        await DB.set(kind + '.' + code, rec);
+      }
       catch(e){ continue; }
       n += added; touched = true;
     }
