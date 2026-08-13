@@ -77,14 +77,12 @@ export default {
     if (request.method !== 'GET') {
       return deny('GET only', 405, origin);
     }
-    /* 自分のページ専用にしている場合 */
-    if (ALLOW_ORIGIN && origin && origin !== ALLOW_ORIGIN) {
-      return deny('origin not allowed', 403, origin);
-    }
-
     const here = new URL(request.url);
 
-    /* ブラウザで直接開いたときの動作確認用 */
+    /* ブラウザで直接開いたときの動作確認用。
+       何も中継しないので、ALLOW_ORIGIN の判定より前に置いています。
+       アドレス欄から開いた場合 Origin ヘッダは付かないため、後ろに
+       置くと「作り方」の手順どおりに確認しただけで 403 になります。 */
     if (!here.searchParams.has('url')) {
       return new Response(
         '中継サーバーは動いています。\n\n' +
@@ -92,6 +90,14 @@ export default {
         '中継できる取得先: ' + ALLOW.join(', ') + '\n',
         {status: 200, headers: Object.assign({'Content-Type': 'text/plain; charset=utf-8'}, cors(origin))}
       );
+    }
+
+    /* 自分のページ専用にしている場合。
+       Origin ヘッダが無い相手(curl・スクリプト・サーバ間)も断ります。
+       以前は origin が空だと素通りしていたので、URLさえ知っていれば
+       ブラウザ以外からは誰でも使えていました。 */
+    if (ALLOW_ORIGIN && origin !== ALLOW_ORIGIN) {
+      return deny('origin not allowed', 403, origin);
     }
 
     let target;
@@ -103,19 +109,38 @@ export default {
     if (target.protocol !== 'https:') return deny('https only', 400, origin);
     if (!allowed(target.hostname)) return deny('host not allowed: ' + target.hostname, 403, origin);
 
+    const hdrs = {
+      /* 素のfetchだと弾く相手がいるので、ふつうのブラウザとして名乗ります */
+      'User-Agent': 'Mozilla/5.0 (compatible; ta-relay/1.0)',
+      'Accept': request.headers.get('Accept') || '*/*',
+      'Accept-Language': 'ja,en;q=0.8'
+    };
+
     let upstream;
     try {
+      /* follow ではなく manual。ALLOW の判定は fetch の *前* に一度きり
+         なので、追跡を任せると「許可ホストが 302 で外部へ飛ばす」だけで
+         ALLOW 外の中身がそのまま返り、オープンプロキシになっていました。
+         (news.google.com のように転送を持つ相手が1つあれば成立します) */
       upstream = await fetch(target.href, {
-        method: 'GET',
-        headers: {
-          /* 素のfetchだと弾く相手がいるので、ふつうのブラウザとして名乗ります */
-          'User-Agent': 'Mozilla/5.0 (compatible; ta-relay/1.0)',
-          'Accept': request.headers.get('Accept') || '*/*',
-          'Accept-Language': 'ja,en;q=0.8'
-        },
-        redirect: 'follow',
+        method: 'GET', headers: hdrs, redirect: 'manual',
         cf: {cacheTtl: 20, cacheEverything: false}
       });
+
+      /* 転送先も1ホップずつ ALLOW にかけます */
+      for (let hop = 0; upstream.status >= 300 && upstream.status < 400 && hop < 4; hop++) {
+        let next = null;
+        try { next = new URL(upstream.headers.get('location') || '', upstream.url || target.href); }
+        catch (e) { next = null; }
+        if (!next) break;
+        if (next.protocol !== 'https:' || !allowed(next.hostname)) {
+          return deny('redirect not allowed: ' + (next.hostname || '?'), 403, origin);
+        }
+        upstream = await fetch(next.href, {
+          method: 'GET', headers: hdrs, redirect: 'manual',
+          cf: {cacheTtl: 20, cacheEverything: false}
+        });
+      }
     } catch (e) {
       return deny('upstream error', 502, origin);
     }
@@ -128,6 +153,20 @@ export default {
     if (ct) headers.set('Content-Type', ct);
     headers.set('Cache-Control', 'no-store');
 
-    return new Response(upstream.body, {status: upstream.status, headers: headers});
+    /* content-length が無い応答(chunked・圧縮解除後)では上の判定が効かない
+       ので、流しながら数えて打ち切ります。以前は無制限に素通ししていました。 */
+    let body = upstream.body;
+    if (body) {
+      let seen = 0;
+      body = body.pipeThrough(new TransformStream({
+        transform(chunk, ctrl) {
+          seen += chunk.byteLength;
+          if (seen > MAX_BYTES) { ctrl.error(new Error('too large')); return; }
+          ctrl.enqueue(chunk);
+        }
+      }));
+    }
+
+    return new Response(body, {status: upstream.status, headers: headers});
   }
 };

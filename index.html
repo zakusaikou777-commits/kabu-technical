@@ -453,7 +453,11 @@ td:first-child,th:first-child{text-align:left}
 #pasteBox{width:100%;box-sizing:border-box;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
   padding:10px 11px;border-radius:11px;border:1px solid var(--hairline);
   background:var(--surface-1);color:var(--ink-1);resize:vertical;min-height:110px}
-#pasteBox:focus{outline:2px solid var(--accent);outline-offset:1px}
+/* --accent was never defined anywhere, so this resolved to nothing, the
+   whole declaration became invalid, and `outline` fell back to none —
+   overriding the browser's own ring and leaving keyboard users with no
+   visible focus on this box at all. */
+#pasteBox:focus{outline:2px solid var(--ink-1);outline-offset:1px}
 .pprev{border:1px solid var(--hairline);border-radius:11px;padding:9px 11px;background:var(--wash);
   font-size:12.5px;line-height:1.75;color:var(--ink-2)}
 .pprev b{color:var(--ink-1)}
@@ -1041,6 +1045,13 @@ function esc(v, max){
   if(max && s.length > max) s = s.slice(0, max) + '…';
   return s.replace(/[&<>"'`]/g, c => ESC_MAP[c]);
 }
+/* A Tokyo listing code: four digits, or the three-digits-plus-a-letter form
+   the exchange started issuing in 2024 (285A and the like). Written once,
+   because /^[0-9A-Z]{4}$/ also matches AAPL, MSFT, NVDA and META — and every
+   caller of this is about to go and scrape JPX. */
+const JP_CODE_RE = /^(?:\d{4}|\d{3}[A-Z])$/;
+const isJpCode = c => JP_CODE_RE.test(String(c || '').toUpperCase());
+
 /* Only http(s) links are ever written to an href — this is what stops
    javascript: and data: URLs arriving in an RSS <link>. */
 function safeUrl(u){
@@ -1152,7 +1163,10 @@ function fmtMoney(v){
   const a = Math.abs(v), s = v < 0 ? '−' : '';
   if(a >= 1e12) return s + (a/1e12).toFixed(2) + '兆円';
   if(a >= 1e8)  return s + (a/1e8).toFixed(1) + '億円';
-  if(a >= 1e4)  return s + (a/1e4).toFixed(0) + '万円';
+  /* one decimal below 100万 — at toFixed(0) the bottom of this band lost a
+     third of the value (14,999円 showed as 1万円, 15,000円 as 2万円) while
+     兆 and 億 above it kept two digits and one */
+  if(a >= 1e4)  return s + (a/1e4).toFixed(a >= 1e6 ? 0 : 1) + '万円';
   return s + Math.round(a).toLocaleString('ja-JP') + '円';
 }
 /* the axis gutter is narrow; the unit still has to survive */
@@ -1689,7 +1703,12 @@ TA.vwap = function(bars, sessionReset, rollN){
       const tp = (bars[i].h + bars[i].l + bars[i].c)/3;
       const v = bars[i].v || 0;
       pv += tp*v; vv += v;
-      out[i] = vv > 0 ? pv/vv : tp;
+      /* No volume, no average cost. Yahoo returns none at all for FX, the
+         indices, ^VIX and the bond yields, and falling back to this bar's own
+         HLC3 drew the PRICE under a VWAP label — the signal list then read
+         「VWAPから -0.00%」 off it and called it 売買の平均コスト. The rolling
+         branch below already returns null in the same situation. */
+      out[i] = vv > 0 ? pv/vv : null;
     }
   } else {
     for(let i=rollN-1;i<bars.length;i++){
@@ -1920,8 +1939,12 @@ TA.mfi = function(h, l, c, v, n){
   }
   const out = new Array(c.length).fill(null);
   for(let i=n;i<c.length;i++){
-    let p = 0, q = 0;
-    for(let j=i-n+1;j<=i;j++){ p += pos[j]; q += neg[j]; }
+    let p = 0, q = 0, vol = 0;
+    for(let j=i-n+1;j<=i;j++){ p += pos[j]; q += neg[j]; vol += (v[j] || 0); }
+    /* an instrument with no volume has no money flow to index. Returning 50
+       drew a flat neutral line and reported 「MFI 50」 as a reading, which is
+       the made-up-POC problem TA.volumeProfile refuses by name. */
+    if(!(vol > 0)) continue;
     /* a negative volume in an imported file could drive p/q to −1 and send
        the index to ±Infinity; MFI is only defined for non-negative flows */
     if(p < 0) p = 0;
@@ -2104,14 +2127,17 @@ function normalizeSymbol(raw){
   const lower = s.toLowerCase();
   if(JP_INDEX[lower]) return {y: JP_INDEX[lower], label: s, jp: lower.match(/日経|topix|マザーズ/) ? true : false};
   s = s.replace(/\s+/g, '');
-  if(/^\d{4}$/.test(s))          return {y: s + '.T', label: s, jp: true};   /* 東証4桁 */
-  if(/^\d{4}\.[A-Za-z]+$/.test(s)) return {y: s.toUpperCase(), label: s, jp: true};
+  /* 東証4桁、および2024年から発行されている3桁+英字(285A など)。後者を
+     落としていたので、証券会社の画面どおりに入れても .T が付かず、Yahoo でも
+     stooq(285a.us を米国株として引きに行く)でも必ず外れていた */
+  if(isJpCode(s))                return {y: s.toUpperCase() + '.T', label: s, jp: true};
+  if(/^(?:\d{4}|\d{3}[A-Za-z])\.[A-Za-z]+$/.test(s)) return {y: s.toUpperCase(), label: s, jp: true};
   if(/^\^/.test(s))              return {y: s.toUpperCase(), label: s, jp: false};
   return {y: s.toUpperCase(), label: s.toUpperCase(), jp: false};
 }
 
 function stooqSymbol(sym){
-  if(/^\d{4}\.T$/.test(sym)) return sym.slice(0,4).toLowerCase() + '.jp';
+  if(/^(?:\d{4}|\d{3}[A-Z])\.T$/.test(sym)) return sym.slice(0,4).toLowerCase() + '.jp';
   if(sym === '^N225') return '^nkx';
   if(sym === '^GSPC') return '^spx';
   if(sym === '^DJI')  return '^dji';
@@ -2261,6 +2287,25 @@ async function fetchYahoo(sym, range, interval){
    appended if it belongs to a market day the series does not have yet,
    merged into the last bar if it belongs to that one. Intraday series get
    their bars from the series itself and are left alone. */
+
+/* Which BAR a market day belongs to. A daily bar is its own day, but a weekly
+   bar is stamped on the Monday and a monthly one on the 1st, so comparing raw
+   day keys said "the meta is newer than the last bar" for every day of the
+   week or month after the first — and a second candle for the same period got
+   appended. Every indicator then read one bar short, next to a volume spike
+   that was one day's trading standing in for a month's. */
+function periodKey(dayKey, gran){
+  const k = String(dayKey || '');
+  if(k.length !== 8) return k;
+  if(gran === '1mo') return k.slice(0, 6);
+  if(gran === '1wk'){
+    const d = new Date(Date.UTC(+k.slice(0,4), +k.slice(4,6) - 1, +k.slice(6,8)));
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));   /* back to Monday */
+    return d.toISOString().slice(0,10).replace(/-/g,'');
+  }
+  return k;
+}
+
 function topUpLastBar(bars, m, gran, tz){
   if(!bars.length || isIntradayIv(gran)) return null;
   const at = isNum(m.regularMarketTime) ? m.regularMarketTime * 1000 : null;
@@ -2274,13 +2319,17 @@ function topUpLastBar(bars, m, gran, tz){
   const probe = [{t: new Date(at)}];
   stampBars(probe, tz);
   const key = probe[0].k;
-  if(key < barKey(last)) return null;               /* meta is behind: ignore */
+  /* compared per BAR, not per day, so a weekly or monthly bar already in
+     progress is recognised as the one the quote belongs to */
+  const pKey = periodKey(key, gran);
+  const pLast = periodKey(barKey(last), gran);
+  if(pKey < pLast) return null;                     /* meta is behind: ignore */
 
   const hi = isNum(m.regularMarketDayHigh) ? m.regularMarketDayHigh : null;
   const lo = isNum(m.regularMarketDayLow)  ? m.regularMarketDayLow  : null;
   const vol = isNum(m.regularMarketVolume) ? m.regularMarketVolume : 0;
 
-  if(key === barKey(last)){
+  if(pKey === pLast){
     /* same session — only correct it if the series really is stale */
     if(Math.abs(last.c - px) < 1e-9) return null;
     last.c = px;
@@ -3863,17 +3912,21 @@ function placeTip(X, Y){
   tip.style.top  = clamp(top, lo, hi) + 'px';
 }
 
+const hasVals = a => Array.isArray(a) && a.some(isNum);
+
 function renderLegend(){
   const T = state.toggles, L = [];
   if(Compare.active.length && state._cmpAll){
-    /* in comparison mode the candles are gone, so the legend describes the
-       indexed lines instead of price marks */
+    /* The comparison lines go FIRST, then the ordinary keys — drawMain still
+       draws the candles, the moving averages and the bands in this mode, and
+       returning here left everything on screen unlabelled. The note also has
+       to follow the axis actually in use: on 「実数(左軸)」 nothing is indexed
+       to 100, which is what #cmpNote beside it already says. */
     state._cmpAll.forEach((s2, k) => L.push(
       `<span class="li"><i class="k" style="background:var(--cmp${s2.ci || k+1})"></i>`
       + `${esc(k === 0 ? (state.raw.code || '本銘柄') + '(基準)' : s2.label, 24)}</span>`));
-    L.push('<span class="li" style="color:var(--ink-3)">表示開始を100とした指数 ・ 下のパネルは基準銘柄のもの</span>');
-    $('#legend').innerHTML = L.join('');
-    return;
+    L.push(`<span class="li" style="color:var(--ink-3)">${state._cmpReal
+      ? '左軸=比較先の実数 / 右軸=この銘柄' : '表示開始を100とした指数'} ・ 下のパネルは基準銘柄のもの</span>`);
   }
   L.push(`<span class="li"><i class="kb" style="background:var(--up);border:1px solid var(--up)"></i>陽線(終値≧始値)</span>`);
   L.push(`<span class="li"><i class="kb" style="background:var(--down)"></i>陰線(終値&lt;始値)</span>`);
@@ -3886,13 +3939,22 @@ function renderLegend(){
   }
   if(T.fib) L.push(`<span class="li"><i class="k" style="background:var(--ink-3)"></i>フィボナッチ</span>`);
   if(T.don) L.push(`<span class="li"><i class="k" style="background:var(--band)"></i>ドンチャン(${P.donchian})</span>`);
-  if(T.vwap) L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>VWAP</span>`);
+  /* An instrument with no volume — FX, the indices, ^VIX, the bond yields —
+     has no VWAP and no MFI to draw. Listing the key for a line that is not
+     there reads as a broken chart, so say why instead. */
+  if(T.vwap) L.push(hasVals(state.ind && state.ind.vwap)
+    ? `<span class="li"><i class="k" style="background:var(--ma2)"></i>VWAP</span>`
+    : `<span class="li" style="color:var(--ink-3)">VWAP: この銘柄は出来高が配信されないため出せません</span>`);
   if(T.st) L.push(`<span class="li"><i class="k" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>スーパートレンド(${P.st.join(',')}) 上昇=赤 / 下降=青</span>`);
   if(T.osgfc) L.push(`<span class="li"><i class="k" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>OSGFC(深度${OSG.depth}, ATR${OSG.atrPeriod}×${OSG.atrMult})</span>`);
   if(T.lorentz) L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>カーネル回帰 ・ ▲▼=シグナル転換</span>`);
   if(T.flow){
-    L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>MFI(出来高込みの過熱感)</span>`);
-    L.push(`<span class="li"><i class="kb" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>CMF 買い=赤 / 売り=青</span>`);
+    if(hasVals(state.ind && state.ind.mfi)){
+      L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>MFI(出来高込みの過熱感)</span>`);
+      L.push(`<span class="li"><i class="kb" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>CMF 買い=赤 / 売り=青</span>`);
+    } else {
+      L.push(`<span class="li" style="color:var(--ink-3)">資金フロー: この銘柄は出来高が配信されないため出せません</span>`);
+    }
   }
   if(T.sizeflow){
     L.push(`<span class="li"><i class="k" style="background:var(--ma3)"></i>大口以上の資金(推定・累計)</span>`);
@@ -4075,6 +4137,11 @@ function buildSignals(){
       gap >= 0 ? '売買の平均コストより上にあり、買い方が優位な位置です。'
                : '売買の平均コストより下にあり、戻り売りが出やすい位置です。',
       gap >= 0 ? 'bull' : 'bear', clamp(gap/2, -1, 1));
+  } else if(state.toggles.vwap && !hasVals(d.vwap)){
+    /* say so, rather than silently dropping the row the user switched on */
+    add('VWAP', '出せません',
+      'この銘柄は出来高が配信されない(為替・指数・利回りなど)ため、売買の平均コストを計算できません。',
+      'flat', 0);
   }
   /* 15. Ichimoku three-role check */
   if(state.toggles.ichimoku && isNum(d.ich.tenkan[n]) && isNum(d.ich.kijun[n]) && isNum(A) && isNum(B)){
@@ -4830,7 +4897,8 @@ function renderCompareStats(){
    is having a slow day times out on it and the short one often still
    lands — and 9 seconds was simply not enough for a proxied RSS fetch. */
 function newsQueries(name, code){
-  const num = code && /^\d{4}/.test(code) ? code.replace(/\.T$/, '') : '';
+  const bare = String(code || '').replace(/\.T$/, '');
+  const num = isJpCode(bare) ? bare : '';
   const long = [name, num, '株価'].filter(Boolean).join(' ');
   const short = name || num;
   return long === short ? [long] : [long, short];
@@ -5081,11 +5149,15 @@ function parseShortWorkbook(XLSX, buf, code4){
     return asFraction ? +(n * 100).toFixed(4) : n;
   };
 
-  const want = String(code4).replace(/\D/g,'').slice(0,4);
+  /* letters are part of the code, not noise: stripping them made 130A, 130B
+     and 130C all read as "130", so one stock collected three companies' short
+     balances */
+  const codeOf = v => String(v == null ? '' : v).toUpperCase().replace(/[^0-9A-Z]/g,'').slice(0,4);
+  const want = codeOf(code4);
   const out = [];
   for(let i=hdr+1;i<rows.length;i++){
     const r = rows[i]; if(!r) continue;
-    const cd = String(r[map.code] == null ? '' : r[map.code]).replace(/\D/g,'').slice(0,4);
+    const cd = codeOf(r[map.code]);
     if(!cd || cd !== want) continue;
     const fr = fmtRows[i] || [];
     const holder = String(r[map.holder] ?? '');
@@ -5223,7 +5295,10 @@ function renderMarginStatus(status){
 /* ---- outbound links for the things that cannot be scraped ----------- */
 function updateExternalLinks(){
   const code = state.raw && state.raw.code ? String(state.raw.code).replace(/\.T$/,'') : '';
-  const jp = /^\d{4}$/.test(code);
+  /* the same test the data side uses. Left at four digits, 285A drew a real
+     JPX short-balance series while this panel said 「日本株のみの制度です」
+     and pointed the quote link at the US Yahoo. */
+  const jp = isJpCode(code);
   const set = (id, href, on) => {
     const a = $(id); if(!a) return;
     a.href = href || '#';
@@ -5271,6 +5346,11 @@ const Ext = {
     this.short = this.margin = null;
     this.loan = null;
     marginDropped = 0;
+    /* per-stock, like marginDropped beside it. Left standing, one stock with
+       an old cache made every stock opened afterwards claim its percentages
+       had been stored a hundredfold small — and invite the user to delete
+       perfectly good data. */
+    legacyRescaled = false;
     if(!k) return;
     const okDate = d => /^\d{8}$/.test(String(d));
     /* neither IndexedDB nor localStorage is a trust boundary — anything that
@@ -5281,32 +5361,11 @@ const Ext = {
        balances on this chart also poisons the cache, because saveShort()
        keys off whatever codeKey() says at write time */
     if(mine !== this.gen || this.codeKey() !== k) return;
-    const s = cached.short;
-    if(s){
-        const cleanRows = rows => (Array.isArray(rows) ? rows : []).slice(0, 120).map(h => ({
-        holder: cleanText(h && h.holder, 80),
-        /* the 委託者: without it two funds run by the same manager collapse
-           into one on the way out of the cache, and the total came back
-           smaller after every reload than it was before */
-        tr: cleanText(h && h.tr, 80),
-        ratio: isNum(h && h.ratio) ? h.ratio : null,
-        qty: isNum(h && h.qty) ? h.qty : null})).filter(r => r.holder);
-      let reports = null;
-      if(Array.isArray(s.reports)){
-        reports = s.reports.filter(r => r && okDate(r.d))
-          .slice(-400).map(r => ({d: r.d, rows: cleanRows(r.rows)}));
-      } else if(Array.isArray(s.points)){
-        /* caches written before the carry-forward fix stored each day's
-           own filings under `holders` — the same rows, read the wrong way.
-           They convert cleanly rather than having to be re-downloaded. */
-        reports = s.points.filter(p => p && okDate(p.d))
-          .slice(-400).map(p => ({d: p.d, rows: cleanRows(p.holders)}));
-      }
-      if(reports && reports.length){
-        if(+s.v !== 2) reports = rescaleLegacyRatios(reports);
-        this.short = {v: 2, reports, points: foldShortReports(reports), src: cleanText(s.src, 60)};
-      }
-    }
+    /* every reader of a stored record goes through normalizeShortRecord — the
+       crawler used to merge the raw rows straight off the disk, which skipped
+       both migrations and wrote the result back stamped v:2 */
+    const ns = normalizeShortRecord(cached.short);
+    if(ns) this.short = ns;
     const m = cached.margin;
     if(m && Array.isArray(m.points)){
       const pts = m.points.filter(p => p && okDate(p.d)).slice(-400).map(p => ({
@@ -5556,11 +5615,50 @@ function rescaleLegacyRatios(reports){
   legacyRescaled = true;
   return reports.map(r => ({d: r.d, rows: (r.rows || []).map(row => ({
     holder: row.holder,
+    /* the 委託者 has to survive the rescale too — holderKey() is
+       (holder, tr), so dropping it here collapses two funds run by the
+       same manager into one and the total comes back smaller */
+    tr: row.tr,
     ratio: isNum(row.ratio) ? +(row.ratio * 100).toFixed(4) : null,
     qty: row.qty
   }))}));
 }
 let legacyRescaled = false;
+
+/* The one way to read a stored 空売り record. Both the cache loader and the
+   crawler go through here, so a legacy record is migrated exactly once no
+   matter which of them touches it first. Returns null when there is nothing
+   usable — the caller keeps whatever it already had. */
+function normalizeShortRecord(s){
+  if(!s) return null;
+  const okDate = d => /^\d{8}$/.test(String(d));
+  const cleanRows = rows => (Array.isArray(rows) ? rows : []).slice(0, 120).map(h => ({
+    holder: cleanText(h && h.holder, 80),
+    /* the 委託者: without it two funds run by the same manager collapse
+       into one on the way out of the cache, and the total came back
+       smaller after every reload than it was before */
+    tr: cleanText(h && h.tr, 80),
+    ratio: isNum(h && h.ratio) ? h.ratio : null,
+    qty: isNum(h && h.qty) ? h.qty : null})).filter(r => r.holder);
+  let reports = null;
+  if(Array.isArray(s.reports)){
+    reports = s.reports.filter(r => r && okDate(r.d))
+      .slice(-400).map(r => ({d: r.d, rows: cleanRows(r.rows)}));
+  } else if(Array.isArray(s.points)){
+    /* caches written before the carry-forward fix stored each day's
+       own filings under `holders` — the same rows, read the wrong way.
+       They convert cleanly rather than having to be re-downloaded. */
+    reports = s.points.filter(p => p && okDate(p.d))
+      .slice(-400).map(p => ({d: p.d, rows: cleanRows(p.holders)}));
+  }
+  if(!reports || !reports.length) return null;
+  if(+s.v !== 2) reports = rescaleLegacyRatios(reports);
+  return {v: 2, reports, points: foldShortReports(reports), src: cleanText(s.src, 60)};
+}
+
+/* The disclosure threshold. Below it there is no duty to file, so a report
+   under this figure is a retreat, not a balance. */
+const SHORT_MIN_RATIO = 0.5;
 
 /* reports (any order) -> one point per report date, each carrying the
    running state of every reporter */
@@ -5575,7 +5673,11 @@ function foldShortReports(reports){
          balance stands rather than being silently wiped. */
       if(!isNum(r.ratio)) continue;
       const k = holderKey(r);
-      if(r.ratio <= 0) held.delete(k);
+      /* Anything under 0.5% is a closing report too. The duty to file ends
+         there, so that row is the LAST one this reporter will ever send —
+         carrying it forward pins a balance that no longer exists, and the
+         total drifts further above the real one with every retreat. */
+      if(r.ratio < SHORT_MIN_RATIO) held.delete(k);
       else held.set(k, {ratio: r.ratio, qty: isNum(r.qty) ? r.qty : null,
                         holder: r.holder, tr: r.tr || ''});
     }
@@ -5652,12 +5754,18 @@ async function findShortFiles(months){
 }
 let onArchiveStep = null;
 
+/* Set while a crawl is in flight, so the automatic fetch stands aside rather
+   than sending a second wave of requests at JPX for the same files. */
+let shortBusy = false;
+
 async function loadShortSeries(maxDays, months){
   const code = Ext.codeKey();
-  if(!/^[0-9A-Z]{4}$/.test(code)){
-    renderShorts({error: '空売り残高報告は日本株(東証4桁コード)のみの制度です。'});
-    return;
+  if(!isJpCode(code)){
+    renderShorts({error: '空売り残高報告は日本株(東証コード)のみの制度です。'});
+    return false;
   }
+  if(shortBusy) return false;
+  shortBusy = true;
   renderShorts({loading: true, msg: 'JPXのファイル一覧を確認しています…'});
   try{
     const XLSX = await loadXLSX();
@@ -5670,7 +5778,7 @@ async function loadShortSeries(maxDays, months){
     const todo = files.filter(f => !have.has(f.d)).slice(0, maxDays);
     if(!todo.length){
       renderShorts({error: '新しく取得できる日付がありませんでした(すでに取得済みです)。'});
-      return;
+      return true;                  /* nothing missing IS the success case */
     }
     const got = [];
     let done = 0, failed = 0;
@@ -5694,7 +5802,14 @@ async function loadShortSeries(maxDays, months){
        overwrite the accumulated history with only the days it just
        fetched — and so the work still lands if the user has moved on. */
     const base = await extLoadFromDB(code);
-    const keep = new Map((((base.short && base.short.reports) || [])).map(r => [r.d, r]));
+    /* through the same migration the cache loader uses. Reading the raw rows
+       off the disk skipped BOTH of them: a pre-carry-forward record has no
+       `reports` at all, so `keep` started empty and the accumulated history
+       was replaced by however many days this crawl happened to fetch — and a
+       fraction-scaled record got mixed with fresh percentages and then
+       stamped v:2, which puts it beyond the reach of the repair. */
+    const baseShort = normalizeShortRecord(base.short);
+    const keep = new Map(((baseShort && baseShort.reports) || []).map(r => [r.d, r]));
     for(const r of got) keep.set(r.d, r);
     const all = [...keep.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
     const rec = {v: 2, reports: all, points: foldShortReports(all), src: 'JPX 空売り残高報告'};
@@ -5702,13 +5817,15 @@ async function loadShortSeries(maxDays, months){
     if(Ext.codeKey() !== code){
       renderShorts({error: '表示中の銘柄が変わったため画面には反映していません'
         + `(${got.length}日分は保存済みで、次にこの銘柄を開いたときに出ます)。`});
-      return;                       /* never file 9984's rows under 7203 */
+      return true;                  /* never file 9984's rows under 7203 */
     }
     Ext.short = rec;
     afterExtUpdate();
     renderShorts({ok: true, added: got.length, failed});
+    return true;
   }catch(e){
     renderShorts({error: e.message});
+    return false;
   }finally{
     shortBusy = false;
   }
@@ -5843,7 +5960,7 @@ async function fetchJSFTable(){
   for(let i = 1; i < lines.length; i++){
     const c = splitLine(lines[i]);
     const code = String(c[iCode] || '').replace(/["\s]/g, '');
-    if(!/^[0-9A-Z]{4}$/.test(code) || rows.has(code)) continue;
+    if(!isJpCode(code) || rows.has(code)) continue;
     rows.set(code, c);
   }
   /* the extra columns worth having: what is actually lent out, and the
@@ -5887,7 +6004,7 @@ async function fetchShinaTable(){
   for(let i = head + 1; i < lines.length; i++){
     const c = splitLine(lines[i]);
     const code = String(c[cols.code] || '').replace(/["\s]/g, '');
-    if(!/^[0-9A-Z]{4}$/.test(code) || rows.has(code)) continue;
+    if(!isJpCode(code) || rows.has(code)) continue;
     rows.set(code, c);
   }
   shinaCache = {rows, cols, at: Date.now()};
@@ -5896,7 +6013,7 @@ async function fetchShinaTable(){
 
 async function loadShina(){
   const code = Ext.codeKey();
-  if(!/^[0-9A-Z]{4}$/.test(code)){
+  if(!isJpCode(code)){
     renderShina({error: '逆日歩(品貸料率)は日本の貸借銘柄のみです。'});
     return;
   }
@@ -5959,8 +6076,8 @@ function scrapeJSF(html){
 
 async function loadJSF(){
   const code = Ext.codeKey();
-  if(!/^[0-9A-Z]{4}$/.test(code)){
-    renderMarginStatus({error: '日証金の貸借取引残高は日本株(東証4桁コード)のみです。'});
+  if(!isJpCode(code)){
+    renderMarginStatus({error: '日証金の貸借取引残高は日本株(東証コード)のみです。'});
     return;
   }
   renderMarginStatus({loading: true, msg: '日証金の当日ファイルを取得しています…'});
@@ -6029,15 +6146,17 @@ async function loadMarginFile(file){
     if((text.match(/�/g) || []).length > 3){
       try { text = new TextDecoder('shift_jis').decode(buf); } catch(e){}
     }
-    let pts;
+    let pts, sheet;
     if(/\.xls[x]?$/i.test(file.name)){
       const XLSX = await loadXLSX();
       freezeProto();
       const wb = XLSX.read(buf, {type:'array', cellDates:true});
       const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
       pts = parseMarginCSV(csv);
+      sheet = csv;
     } else {
       pts = parseMarginCSV(text);
+      sheet = text;
     }
     if(Ext.codeKey() !== code0){
       renderMarginStatus({error: '読み込み中に別の銘柄へ切り替わったため中止しました。'});
@@ -6045,8 +6164,12 @@ async function loadMarginFile(file){
     }
     /* Which statistic is in this file: 融資/貸株 is 日証金's, 信用買残/売残 is
        the market's. Getting this wrong is what put two incompatible series
-       on one axis, so it is read off the headings rather than assumed. */
-    const head4k = text.slice(0, 4000);
+       on one axis, so it is read off the headings rather than assumed.
+
+       Off the PARSED sheet, not off `text` — for .xlsx, `text` is a zip
+       decoded as UTF-8, so the headings are not in it at any point and every
+       spreadsheet, 日証金's included, came out as 'credit'. */
+    const head4k = String(sheet || '').slice(0, 4000);
     const kind = (/融資|貸株|貸借/.test(head4k) && !/信用買残|信用売残/.test(head4k))
       ? 'loan' : 'credit';
     const r3 = Ext.mergeMargin(pts, file.name, code0, kind);
@@ -6110,8 +6233,8 @@ function renderAutoExtStatus(){
     el.textContent = 'いまは自動取得を切っています。上のボタンで手動で取得できます。';
     return;
   }
-  if(!/^[0-9A-Z]{4}$/.test(code)){
-    el.textContent = '自動取得は日本株(東証4桁コード)のみです。';
+  if(!isJpCode(code)){
+    el.textContent = '自動取得は日本株(東証コード)のみです。';
     return;
   }
   const at = +Store.get('autoExtAt.' + code, 0);
@@ -6139,7 +6262,7 @@ function autoExtOn(){ return Store.get('autoExt', 1) === 1; }
 async function autoFetchExt(){
   if(!autoExtOn()) return;
   const code = Ext.codeKey();
-  if(!/^[0-9A-Z]{4}$/.test(code)) return;          /* JP listings only */
+  if(!isJpCode(code)) return;          /* JP listings only */
   if(navigator.onLine === false) return;
   const today = dkey(new Date());
   const mark = 'autoExt.' + code;
@@ -6150,8 +6273,12 @@ async function autoFetchExt(){
   const done = [];
   const fresh = pts => pts && pts.length && pts[pts.length - 1].d >= today;
   try{
-    if(!fresh(Ext.short && Ext.short.points)){ await loadShortSeries(10, 1); done.push('空売り残高10日分'); }
-    worked = true;
+    /* loadShortSeries reports its own failures to the panel and returns
+       normally, so it cannot be judged by whether it threw — a morning when
+       every relay was busy used to be recorded as today's success and the
+       stock was then skipped for the rest of the day. */
+    if(fresh(Ext.short && Ext.short.points)) worked = true;
+    else if(await loadShortSeries(10, 1)){ done.push('空売り残高10日分'); worked = true; }
   }catch(e){}
   if(Ext.codeKey() !== code) return;
   try{
@@ -6396,6 +6523,13 @@ async function restoreWorkspace(){
       const bars = t.bars ? unpackBars(t.bars) : null;
       const tab = {
         id: Tabs.seq++,
+        /* A tab restored WITHOUT a series is still empty, and has to say so.
+           Without this flag Tabs.snapshot() saw a tab with no series next to
+           a state.raw holding the sample stock — because init() paints the
+           demo before the restore — and filed the demo bars under that tab.
+           They then came back next session as "前回の続き", with no notice
+           that the prices were invented and no refresh to correct them. */
+        pristine: !(bars && t.meta),
         label: t.label || t.symbol || '新規',
         symbol: t.symbol || '',
         interval: owns(IV_RANGES, t.interval) ? t.interval : '1d',
@@ -6562,7 +6696,10 @@ function sanitizeBundle(raw){
       symbol: cleanText(t && t.symbol, 24),
       interval: okIv(t && t.interval) ? t.interval : '1d',
       range: cleanText(t && t.range, 8) || '1y',
-      toggles: (t && typeof t.toggles === 'object')
+      /* typeof null === 'object', so a hand-edited or truncated file with
+         "toggles": null threw out of the very function whose job is to not
+         trust the file, and the user got a raw English TypeError */
+      toggles: (t && t.toggles && typeof t.toggles === 'object')
         ? Object.fromEntries(Object.keys(state.toggles).map(k => [k, !!t.toggles[k]])) : null,
       compare: (Array.isArray(t && t.compare) ? t.compare : []).map(cleanSymbol).filter(Boolean).slice(0, 4)
     })),
@@ -6624,22 +6761,50 @@ async function applyBundle(raw, mode){
 
   /* favourites merge by code so importing never costs you the ones that
      only exist on this device */
-  const mergeList = (mine, theirs, cap, tomb) => {
+  const mergeList = (mine, theirs, tomb, newest) => {
     const seen = new Map();
     for(const x of (merge ? mine : [])) seen.set(x.code, x);
     for(const x of theirs){
       /* something deleted here more recently than the file was written
          must not walk back in */
       if(tomb && (Book.tomb[x.code] || 0) > (x.at || 0)) continue;
-      if(!seen.has(x.code)) seen.set(x.code, x);
+      const cur = seen.get(x.code);
+      /* for history the later visit wins; a star keeps whatever this device
+         already recorded, so importing never renames or re-dates one */
+      if(!cur) seen.set(x.code, x);
+      else if(newest && (x.at || 0) > (cur.at || 0)) seen.set(x.code, x);
     }
-    return [...seen.values()].slice(0, cap);
+    /* NO cap here — capping the insertion order threw away everything the
+       file brought before it was ever ranked, so importing a phone's 30
+       recent visits into a PC that already had 30 old ones added nothing
+       while still reporting "履歴 30件". Rank first, then cut. */
+    return [...seen.values()];
   };
-  Book.favs = mergeList(Book.favs, b.favs, 40, true);
-  Book.hist = mergeList(Book.hist, b.hist, 30).sort((x,y) => (y.at||0) - (x.at||0));
+
+  /* Take the file's deletions FIRST, then drop anything of ours that is
+     older than the deletion. Only the "we deleted it more recently" side was
+     handled, so a star unstarred on the phone came back on the PC and stayed
+     — while the tombstone it arrived with was kept too, which meant the
+     screen showed the star and the next Drive sync published it as deleted. */
   for(const c in b.favdel){
     if(b.favdel[c] > (Book.tomb[c] || 0)) Book.tomb[c] = b.favdel[c];
   }
+  Book.favs = mergeList(Book.favs.filter(f => (f.at || 0) >= (Book.tomb[f.code] || 0)),
+                        b.favs, true, false).slice(0, 40);
+
+  /* Clearing history is a decision this device made at a known moment;
+     a file written before it does not undo it. Ignoring this both revived
+     the cleared entries here AND, on the next sync, told the other device
+     to clear its own history while rejecting every entry we sent with it. */
+  /* only when MERGING. 「置き換え」 means "make it what the file says", so a
+     restore-from-backup after clearing history has to be allowed to bring it
+     back — filtering there turned that restore into a silent no-op. */
+  const histCut = merge ? (Book.histCleared || 0) : 0;
+  Book.hist = mergeList(Book.hist, b.hist.filter(h => (h.at || 0) > histCut), false, true)
+                .sort((x,y) => (y.at||0) - (x.at||0)).slice(0, 30);
+  /* a replace takes the file's decision about history too, clock included */
+  if(!merge){ Book.histCleared = 0; Store.set('histCleared', 0); }
+
   for(const c of Object.keys(Book.tomb)){
     const live = Book.favs.find(f => f.code === c);
     if(live && (live.at || 0) >= Book.tomb[c]) delete Book.tomb[c];
@@ -6659,11 +6824,21 @@ async function applyBundle(raw, mode){
       if(v && v.short){
         /* rebuild the displayed series from the filings, the same way the
            live cache does — writing a folded snapshot back would lose the
-           difference between "no filing" and "position closed" */
-        const reports = cleanReports(v.short.reports);
-        if(reports.length){
+           difference between "no filing" and "position closed".
+           Both sides go through normalizeShortRecord: the file may have been
+           written by an older build, and so may what is already on disk. */
+        const incoming = normalizeShortRecord({v: v.short.v, src: v.short.src,
+                                               reports: cleanReports(v.short.reports)});
+        if(incoming){
+          let cur = null;
+          try { cur = await DB.get('short.' + code); } catch(e){}
+          const curN = normalizeShortRecord(cur);
+          const map = new Map(((curN && curN.reports) || []).map(r => [r.d, r]));
+          for(const r of incoming.reports) map.set(r.d, r);
+          const reports = [...map.values()]
+            .sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
           await DB.set('short.' + code, {v: 2, reports, points: foldShortReports(reports),
-            src: cleanText(v.short.src, 60)});
+            src: incoming.src || (curN && curN.src) || ''});
           added++;
         }
       }
@@ -6805,6 +6980,9 @@ const SYNC_MAX = 9 * 1024 * 1024;
 
 let gsiPromise = null, tokenClient = null;
 let accessToken = null, tokenExpiry = 0, tokenWaiters = [];
+/* one consent window per round of asking, however many times the button is
+   pressed while it is open */
+let consentSent = false;
 let syncFileId = null, syncTimer = null, syncApplying = false;
 let syncQueue = Promise.resolve(), queuedCount = 0;
 let remoteView = null;                    /* the other device's tabs, waiting to be asked for */
@@ -7030,10 +7208,14 @@ async function mergeSync(remote){
   /* An EDIT is neither an add nor a delete, and the write-back was guarded on
      those two alone — so switching an alert off on the phone never reached
      the PC. */
+  /* Tombstones are saved unconditionally, like Book.tomb above. A device that
+     never held the alert counts no change, so the deletion it just learned
+     about lived in memory only and was gone after a reload — and the alert
+     came back from whichever device still had it. */
+  Store.set('alertdel', Alerts.tomb);
   if(rep.alertAdd || rep.alertDel || rep.alertUpd){
     Alerts.list = [...am.values()].slice(0, 60);
     Store.set('alerts', Alerts.list);
-    Store.set('alertdel', Alerts.tomb);
     renderAlerts();
     if(typeof fillAlertForm === 'function') fillAlertForm();
   }
@@ -7197,7 +7379,12 @@ async function mergeSupplyIn(raw0){
     if(sh){
       let cur = null;
       try { cur = await DB.get('short.' + code); } catch(e){}
-      const have = (cur && Array.isArray(cur.reports)) ? cur.reports : [];
+      /* through the migration, like every other reader. Taking cur.reports
+         raw meant a pre-carry-forward record (points only) started this merge
+         empty and lost its history, and a fraction-scaled one was written back
+         stamped v:2 — and this runs on every Drive sync, not just once. */
+      const curN = normalizeShortRecord(cur);
+      const have = (curN && curN.reports) || [];
       const map = new Map(have.map(r => [r.d, r]));
       let added = 0;
       for(const r of sh.reports) if(!map.has(r.d)){ map.set(r.d, r); added++; }
@@ -7207,7 +7394,7 @@ async function mergeSupplyIn(raw0){
         try{
           await DB.set('short.' + code, {v: 2, reports,
             points: foldShortReports(reports),
-            src: cleanText(sh.src, 60) || (cur && cur.src) || ''});
+            src: cleanText(sh.src, 60) || (curN && curN.src) || ''});
           n += added; touched = true;
         }catch(e){}
       }
@@ -7268,6 +7455,7 @@ function onToken(resp){
   }
   const waiters = tokenWaiters;
   tokenWaiters = [];
+  consentSent = false;
   for(const fn of waiters){ try { fn(accessToken); } catch(e){} }
 }
 
@@ -7290,15 +7478,29 @@ async function ensureToken(interactive){
   if(!(await initTokenClient())) return null;
   return new Promise(resolve => {
     tokenWaiters.push(resolve);
-    if(tokenWaiters.length === 1){
+    /* An interactive request has to be sent even when a silent one is already
+       in flight, because only it opens the consent window. Start-up fires a
+       silent request that never comes back when third-party cookies are
+       blocked; the user then presses 「Googleドライブに接続」, was queued
+       behind it as the second waiter, and nothing was ever asked of Google —
+       25 seconds later they were told to check their popup blocker.
+       Once, though: the button is not disabled while it works, so sending one
+       per press would open a consent window per press. */
+    if(tokenWaiters.length === 1 || (interactive && !consentSent)){
+      if(interactive) consentSent = true;
       try { tokenClient.requestAccessToken({prompt: interactive ? 'consent' : ''}); }
       catch(e){ onToken(null); return; }
     }
+    /* Resolve unconditionally on the way out. The waiter list is emptied
+       wholesale by driveDisconnect(), and a timeout that only fired for
+       waiters still ON that list left the promise pending forever — which
+       stalled doSync(), and syncQueue chained onto a promise that never
+       settled, so Drive sync stayed dead until a reload. */
     setTimeout(() => {
-      if(tokenWaiters.includes(resolve)){
-        tokenWaiters = tokenWaiters.filter(f => f !== resolve);
-        resolve(null);
-      }
+      const i = tokenWaiters.indexOf(resolve);
+      if(i >= 0) tokenWaiters.splice(i, 1);
+      if(!tokenWaiters.length) consentSent = false;   /* the round is over */
+      resolve(null);
     }, 25000);
   });
 }
@@ -7504,7 +7706,7 @@ async function applyRemoteView(){
     range: /^[0-9a-z]{1,8}$/.test(t && t.range) ? t.range : '1y',
     i0: 0, i1: 0, pristine: true,
     toggles: Object.assign({}, state.toggles,
-      (t && typeof t.toggles === 'object')
+      (t && t.toggles && typeof t.toggles === 'object')
         ? Object.fromEntries(Object.keys(state.toggles).map(k => [k, !!t.toggles[k]])) : {}),
     compare: (Array.isArray(t && t.compare) ? t.compare : []).map(cleanSymbol).filter(Boolean).slice(0, 4)
       .map(sym => ({sym, label: (CMP_PRESETS.find(p => p.sym === sym) || {}).label || sym, map: new Map()}))
@@ -7570,7 +7772,12 @@ function refreshDriveUi(quiet){
 
 function driveDisconnect(){
   Store.set('driveOn', 0);
-  accessToken = null; tokenExpiry = 0; tokenWaiters = []; syncFileId = null;
+  accessToken = null; tokenExpiry = 0; syncFileId = null;
+  /* release anyone mid-await rather than dropping their resolvers on the
+     floor — whoever is inside ensureToken() gets null and unwinds normally */
+  const waiters = tokenWaiters; tokenWaiters = [];
+  consentSent = false;
+  for(const fn of waiters){ try { fn(null); } catch(e){} }
   clearTimeout(syncTimer);
   refreshDriveUi();
   driveStatus('接続を解除しました。この端末のお気に入りや履歴はそのまま残ります。');
@@ -8641,14 +8848,12 @@ export default {
     if (request.method !== 'GET') {
       return deny('GET only', 405, origin);
     }
-    /* 自分のページ専用にしている場合 */
-    if (ALLOW_ORIGIN && origin && origin !== ALLOW_ORIGIN) {
-      return deny('origin not allowed', 403, origin);
-    }
-
     const here = new URL(request.url);
 
-    /* ブラウザで直接開いたときの動作確認用 */
+    /* ブラウザで直接開いたときの動作確認用。
+       何も中継しないので、ALLOW_ORIGIN の判定より前に置いています。
+       アドレス欄から開いた場合 Origin ヘッダは付かないため、後ろに
+       置くと「作り方」の手順どおりに確認しただけで 403 になります。 */
     if (!here.searchParams.has('url')) {
       return new Response(
         '中継サーバーは動いています。\\n\\n' +
@@ -8656,6 +8861,14 @@ export default {
         '中継できる取得先: ' + ALLOW.join(', ') + '\\n',
         {status: 200, headers: Object.assign({'Content-Type': 'text/plain; charset=utf-8'}, cors(origin))}
       );
+    }
+
+    /* 自分のページ専用にしている場合。
+       Origin ヘッダが無い相手(curl・スクリプト・サーバ間)も断ります。
+       以前は origin が空だと素通りしていたので、URLさえ知っていれば
+       ブラウザ以外からは誰でも使えていました。 */
+    if (ALLOW_ORIGIN && origin !== ALLOW_ORIGIN) {
+      return deny('origin not allowed', 403, origin);
     }
 
     let target;
@@ -8667,19 +8880,38 @@ export default {
     if (target.protocol !== 'https:') return deny('https only', 400, origin);
     if (!allowed(target.hostname)) return deny('host not allowed: ' + target.hostname, 403, origin);
 
+    const hdrs = {
+      /* 素のfetchだと弾く相手がいるので、ふつうのブラウザとして名乗ります */
+      'User-Agent': 'Mozilla/5.0 (compatible; ta-relay/1.0)',
+      'Accept': request.headers.get('Accept') || '*/*',
+      'Accept-Language': 'ja,en;q=0.8'
+    };
+
     let upstream;
     try {
+      /* follow ではなく manual。ALLOW の判定は fetch の *前* に一度きり
+         なので、追跡を任せると「許可ホストが 302 で外部へ飛ばす」だけで
+         ALLOW 外の中身がそのまま返り、オープンプロキシになっていました。
+         (news.google.com のように転送を持つ相手が1つあれば成立します) */
       upstream = await fetch(target.href, {
-        method: 'GET',
-        headers: {
-          /* 素のfetchだと弾く相手がいるので、ふつうのブラウザとして名乗ります */
-          'User-Agent': 'Mozilla/5.0 (compatible; ta-relay/1.0)',
-          'Accept': request.headers.get('Accept') || '*/*',
-          'Accept-Language': 'ja,en;q=0.8'
-        },
-        redirect: 'follow',
+        method: 'GET', headers: hdrs, redirect: 'manual',
         cf: {cacheTtl: 20, cacheEverything: false}
       });
+
+      /* 転送先も1ホップずつ ALLOW にかけます */
+      for (let hop = 0; upstream.status >= 300 && upstream.status < 400 && hop < 4; hop++) {
+        let next = null;
+        try { next = new URL(upstream.headers.get('location') || '', upstream.url || target.href); }
+        catch (e) { next = null; }
+        if (!next) break;
+        if (next.protocol !== 'https:' || !allowed(next.hostname)) {
+          return deny('redirect not allowed: ' + (next.hostname || '?'), 403, origin);
+        }
+        upstream = await fetch(next.href, {
+          method: 'GET', headers: hdrs, redirect: 'manual',
+          cf: {cacheTtl: 20, cacheEverything: false}
+        });
+      }
     } catch (e) {
       return deny('upstream error', 502, origin);
     }
@@ -8692,7 +8924,21 @@ export default {
     if (ct) headers.set('Content-Type', ct);
     headers.set('Cache-Control', 'no-store');
 
-    return new Response(upstream.body, {status: upstream.status, headers: headers});
+    /* content-length が無い応答(chunked・圧縮解除後)では上の判定が効かない
+       ので、流しながら数えて打ち切ります。以前は無制限に素通ししていました。 */
+    let body = upstream.body;
+    if (body) {
+      let seen = 0;
+      body = body.pipeThrough(new TransformStream({
+        transform(chunk, ctrl) {
+          seen += chunk.byteLength;
+          if (seen > MAX_BYTES) { ctrl.error(new Error('too large')); return; }
+          ctrl.enqueue(chunk);
+        }
+      }));
+    }
+
+    return new Response(body, {status: upstream.status, headers: headers});
   }
 };
 `;
@@ -8767,7 +9013,7 @@ function parseKessanSheet(XLSX, buf){
     for(let r = head + 1; r < rows.length; r++){
       const row = rows[r] || [];
       const code = String(row[iCode] || '').replace(/[^0-9A-Za-z]/g, '');
-      if(!/^[0-9A-Z]{4}$/.test(code)) continue;
+      if(!isJpCode(code)) continue;
       const d = parseJPDate(row[iDate]);
       if(!d) continue;
       const rec = {d: dkey(d), kind: cleanText(row[iKind], 20),
@@ -8816,7 +9062,7 @@ function nextEarning(list){
 
 async function loadEarnings(){
   const code = Ext.codeKey();
-  if(!/^[0-9A-Z]{4}$/.test(code)){
+  if(!isJpCode(code)){
     renderEarnings({error: '決算発表予定はJPXが公表している日本株のみです。'});
     return;
   }
@@ -8894,6 +9140,12 @@ function renderEarnings(st){
    the last thing tried rather than the first. */
 function pasteSplit(line){
   if(line.indexOf('\t') >= 0) return line.split('\t');
+  /* Excel writes 1,234,000 as "1,234,000" — quoted precisely so the commas
+     inside are not separators. The last resort below used to split it anyway,
+     and because the numbers keep their quotes while the header row loses
+     its own, the columns still lined up: 信用買残 1,234,000 vanished and
+     信用売残 567,000 was stored as 234, with no row counted as skipped. */
+  if(line.indexOf('"') >= 0 && line.indexOf(',') >= 0) return splitLine(line);
   if(line.indexOf(',') >= 0 && !/\d,\d{3}(\D|$)/.test(line)) return line.split(',');
   if(/[ 　]{2,}/.test(line)) return line.split(/[ 　]{2,}/);
   if(line.indexOf(',') >= 0) return line.split(',');
@@ -8911,7 +9163,8 @@ const PASTE_COLS = {
 /* A pasted date is a calendar date in the reader's own terms. Two-digit
    years and bare MM/DD both turn up on these pages. */
 function pasteDate(v){
-  const s = String(v == null ? '' : v).trim()
+  /* quotes survive a quoted-CSV split; they are packaging, not content */
+  const s = String(v == null ? '' : v).replace(/^\s*"|"\s*$/g, '').trim()
     .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
   let m = /^(\d{4})\s*[\/\-年.]\s*(\d{1,2})\s*[\/\-月.]\s*(\d{1,2})/.exec(s);
   if(m) return mkDate(+m[1], +m[2], +m[3]);
@@ -8939,7 +9192,7 @@ function mkDate(y, mo, d){
 
 /* 12,345,600 / 1.2万株 / △1,200 (a minus, on Japanese financial pages) */
 function pasteNum(v){
-  let s = String(v == null ? '' : v).trim()
+  let s = String(v == null ? '' : v).replace(/^\s*"|"\s*$/g, '').trim()
     .replace(/[０-９．，－]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
   if(s === '' || /^[-—–ー―‐]+$/.test(s)) return null;
   const neg = /^[△▲\-−]/.test(s);
@@ -9755,9 +10008,15 @@ async function runSelfTests(){
 
     /* keys that are properties of every object: '__proto__' silently refuses
        to be stored, 'constructor' is truthy on any lookup table */
-    S1.magic = await runMerge([], {}, S({favs:{
-      '__proto__': {n:'x', at: now}, 'constructor': {n:'x', at: now},
-      'toString': {n:'x', at: now}, 'hasOwnProperty': {n:'x', at: now}}}));
+    /* through JSON.parse, which is how these actually arrive from Drive.
+       Written as an object literal, '__proto__': v sets the prototype
+       instead of creating an own key — so it never reached Object.keys()
+       and the case this test is named after was not being run at all. */
+    S1.magic = await runMerge([], {}, S({favs: JSON.parse('{'
+      + '"__proto__":{"n":"x","at":' + now + '},'
+      + '"constructor":{"n":"x","at":' + now + '},'
+      + '"toString":{"n":"x","at":' + now + '},'
+      + '"hasOwnProperty":{"n":"x","at":' + now + '}}')}));
     S1.magicOut = codes(S1.magic.favs);
     S1.protoIntact = ({}).n === undefined && [].n === undefined;
 
@@ -9873,7 +10132,11 @@ async function runSelfTests(){
       return ok || 'IV_RANGES の判定が継承プロパティを拾っています';
     } finally { state.interval = before; }
   });
-  test('自分の書いた同期ファイルを読み戻せる', () => S1.round === true || S1.roundDetail);
+  /* the '未実行' fallback the neighbouring cases use: test() counts an
+     undefined result as a pass, so if the block above threw before setting
+     these, this reported ✓ for something that never ran */
+  test('自分の書いた同期ファイルを読み戻せる',
+    () => S1.round === true || S1.roundDetail || '同期の統合が途中で失敗したため実行されていません');
   test('他のアプリのファイルを読み込まない', () => foreign);
   test('新しすぎる版を拒否する', () => newer);
   test('段組みは同期対象に入っていない', () =>
@@ -10254,7 +10517,11 @@ function onMove(e){
       clampView();
       if(state.i1 - state.i0 !== n){ /* hit an edge */ }
       drag.x = x;
-      renderBase();
+      /* the ◀▶ buttons and the range readout are part of the view too —
+         wheel, touch and panBars() all refresh them, this path did not, so
+         dragging to the start of the series left ◀ enabled and the dates
+         showing wherever the drag began */
+      renderBase(); renderNavPos();
     }
     state.hover = -1;
     paint();
@@ -10495,7 +10762,7 @@ cv.addEventListener('keydown', e => {
       state.i0 += dir; state.i1 += dir;
       clampView();
       state.hover = clamp(want, state.i0, state.i1);
-      renderBase(); paint();
+      renderBase(); paint(); renderNavPos();
       return;
     }
     state.hover = clamp(want, state.i0, state.i1);
@@ -10599,7 +10866,11 @@ $$('.chip[data-t]').forEach(btn => {
       }, 16);
       return;
     }
-    redraw();
+    /* the verdict list is toggle-dependent too — スーパートレンド, VWAP,
+       一目・三役, 資金フロー and 価格帯別出来高 all appear only when their
+       chip is on, and the score is weighted by them. redraw() alone left the
+       chart and the list disagreeing until the next fetch. */
+    redraw(); renderSignals();
   });
 });
 
@@ -10905,7 +11176,13 @@ function onTick(tick){
     state.ind = recompute(state.raw.bars, light);
     for(const k of ['lorentz','osgfc','sizeflow'])
       if(state.toggles[k] && keep && keep[k]) state.ind[k] = keep[k];
-    if(what === 'new' && state.i1 >= state.raw.bars.length - 2) state.i1++;
+    /* follow the new bar, keeping the WIDTH — moving only i1 widened the
+       window by one bar each time, so an intraday session on a stream slowly
+       zoomed itself out. refreshQuietly() shifts both, the same way. */
+    if(what === 'new' && state.i1 >= state.raw.bars.length - 2){
+      state.i1++;
+      if(state.i0 > 0) state.i0++;
+    }
     redraw(); applyQuoteStrip(); renderSignals(); renderTable();
   } else if(!tickPending){
     tickPending = true;

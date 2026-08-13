@@ -2,7 +2,10 @@
    キャッシュしてよいのは「変わらないもの」だけです。株価・空売り残高・
    ニュース・Googleの認証は必ずネットワークへ流します(古い値を返すと、
    ただ間違った分析になるため)。 */
-const CACHE = 'ta-tool-v2';
+/* 名前を変えると、activate で古いキャッシュがまとめて消えます。
+   v2 には、CDNのエラー応答やWi-Fiのログインページを保存してしまった端末が
+   あり得ます(そのままだとSheetJSが永久に壊れたままになるため)。 */
+const CACHE = 'ta-tool-v3';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 /* SheetJS など、内容が固定でSRI検証もかかるもの */
@@ -47,7 +50,14 @@ self.addEventListener('fetch', event => {
       if (hit) return hit;
       try {
         const res = await fetch(req);
-        cache.put(req, res.clone()).catch(() => {});   /* 保存に失敗しても配信は続ける */
+        /* 成功した応答だけを残します。ここは cache-first で二度と取り直さない
+           ので、404 や、ホテル・空港Wi-Fiのログインページ(全部200で返ります)を
+           そのまま保存すると、SheetJS がその中身で固定され、以後ずっと
+           「改ざん検知(SRI)」で失敗し続けます。サイトデータを消すまで
+           空売り残高も決算予定もExcel取り込みも動かなくなります。 */
+        if (res && res.ok && res.type !== 'opaque') {
+          cache.put(req, res.clone()).catch(() => {});   /* 保存に失敗しても配信は続ける */
+        }
         return res;
       } catch (e) {
         return new Response('', {status: 504, statusText: 'offline'});
@@ -80,13 +90,26 @@ self.addEventListener('fetch', event => {
           fetch(fresh),
           new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 3000))
         ]);
-        if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
-        return res;
+        if (res && res.ok) {
+          cache.put(req, res.clone()).catch(() => {});
+          return res;
+        }
+        /* 404 や 502 も「応答」なので例外にはならず、そのまま表示されて
+           いました。デプロイ中の一瞬の404や、プロキシの502で、完全な版が
+           キャッシュにあるのに GitHub のエラーページが出ます。下の
+           フォールバックへ落とします。 */
+        const err = new Error('bad status ' + (res && res.status));
+        err.res = res;          /* キャッシュが空なら、これを見せます */
+        throw err;
       } catch (e) {
         const hit = await cache.match(req)
                  || await cache.match('./index.html')
                  || await cache.match('./');
         if (hit) return hit;
+        /* まだ一度もキャッシュできていない端末では、サーバの404/502を
+           そのまま見せます。ここで投げると、ステータスも本文も見えない
+           ブラウザのネットワークエラー画面になってしまいます。 */
+        if (e && e.res) return e.res;
         throw e;
       }
     })());
