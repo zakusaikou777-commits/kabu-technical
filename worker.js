@@ -43,7 +43,9 @@ const ALLOW = [
   'news.google.com',
   'www.jpx.co.jp',
   'jpx.co.jp',
-  'www.taisyaku.jp'
+  'www.taisyaku.jp',
+  /* 米国株の空売り比率(FINRA Reg SHO 日次ファイル) */
+  'cdn.finra.org'
 ];
 
 const MAX_BYTES = 25 * 1024 * 1024;

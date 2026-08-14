@@ -11,7 +11,7 @@
      *.workers.dev is there so a relay you deploy yourself can be reached
      without editing this line; a relay on your own domain needs that domain
      added here by hand (the app says so when you save one). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src 'self' data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://cdn.finra.org https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src 'self' data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <!-- strict-origin rather than no-referrer: Google's sign-in needs to see which
      origin is asking, but the ticker you are looking at lives in the path and
      query, and those are never sent. -->
@@ -458,6 +458,14 @@ td:first-child,th:first-child{text-align:left}
    overriding the browser's own ring and leaving keyboard users with no
    visible focus on this box at all. */
 #pasteBox:focus{outline:2px solid var(--ink-1);outline-offset:1px}
+/* 遅延バッジ。分足ほど効いてくるので、足種で強さを変える */
+#qLive{display:inline-flex;align-items:center;gap:5px;margin-top:5px;
+  padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;
+  border:1px solid var(--axis);color:var(--ink-2)}
+#qLive[data-lv="warn"]{border-color:var(--warn);color:var(--warn);
+  background:color-mix(in srgb, var(--warn) 12%, transparent)}
+#qLive[data-lv="hot"]{border-color:var(--critical);color:#fff;
+  background:var(--critical)}
 .pprev{border:1px solid var(--hairline);border-radius:11px;padding:9px 11px;background:var(--wash);
   font-size:12.5px;line-height:1.75;color:var(--ink-2)}
 .pprev b{color:var(--ink-1)}
@@ -514,6 +522,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <div class="qdelta" id="qDelta">—</div>
       <div class="qsrc" id="qSrc">読み込み中…</div>
       <div class="qsrc hide" id="qFresh"></div>
+      <div class="hide" id="qLive"></div>
       <div class="qsrc hide" id="qDelay" style="line-height:1.7"></div>
       <div class="qsrc" id="qPreset"></div>
     </div>
@@ -618,6 +627,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <span class="navpos" id="navPos"></span>
       <button class="chip" id="navEnd">最新へ</button>
       <button class="chip" id="navAll" style="border-style:dashed">全体</button>
+      <button class="chip hide" id="navYReset" style="border-color:var(--warn)">縦の拡大を戻す</button>
     </div>
     <div class="legend" id="legend"></div>
     <!-- Dragging a hairline is a mouse gesture. On a phone this is the way
@@ -683,7 +693,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   </div>
 
   <div class="card">
-    <h2>空売り残高(機関投資家の報告)</h2>
+    <h2 id="shortH2">空売り残高(機関投資家の報告)</h2>
     <div class="filters" style="margin-bottom:8px">
       <button class="chip" id="short10">直近10日を取得</button>
       <button class="chip" id="short30">直近30日を取得</button>
@@ -696,7 +706,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <p class="qsrc" id="autoExtStat" style="margin:0 0 8px"></p>
     <p class="qsrc" id="extShortStat" style="margin:0 0 10px"></p>
     <div id="shortBox"></div>
-    <p class="qsrc" style="margin:10px 0 0;line-height:1.7">
+    <p class="qsrc" id="shortNoteJp" style="margin:10px 0 0;line-height:1.7">
       表示しているのは<b>報告者ごとの最新報告を足し合わせた残高</b>です。
       JPXの日次ファイルは「その日に出された報告」なので、単純に合計すると
       報告の無い日が0になってしまいます(以前はそうなっていました)。<br>
@@ -3040,7 +3050,12 @@ function layout(){
   const gap = narrow || shortScreen ? 10 : 14, axisH = 22;
 
   const subs = [];
-  if(state.toggles.vol)   subs.push({key:'vol',   title:'出来高'});
+  /* FX, the indices, ^VIX and the bond yields carry no volume at all, so this
+     panel was 74px of empty box under every currency chart — and on a phone
+     that is height the price panel needed. */
+  const hasVol = !!(state.ind && Array.isArray(state.ind.v)
+                    && state.ind.v.some(x => isNum(x) && x > 0));
+  if(state.toggles.vol && hasVol) subs.push({key:'vol',   title:'出来高'});
   if(state.toggles.rsi)   subs.push({key:'rsi',
     title: state.toggles.flow ? `RSI(${P.rsi}) / MFI(${P.mfi})` : 'RSI(' + P.rsi + ')'});
   if(state.toggles.flow)  subs.push({key:'flow', title:`資金フロー CMF(${P.cmf})`});
@@ -3049,7 +3064,8 @@ function layout(){
   if(state.toggles.stoch) subs.push({key:'stoch', title:'ストキャスティクス(' + P.stoch.join(',') + ')'});
   if(state.toggles.adx)   subs.push({key:'adx',   title:'DMI / ADX(' + P.adx + ')'});
   if(state.toggles.lorentz) subs.push({key:'lorentz', title:'Lorentzian 予測'});
-  if(state.toggles.shortPanel)  subs.push({key:'shortPanel',  title:'空売り残高(報告合計 %)'});
+  if(state.toggles.shortPanel)  subs.push({key:'shortPanel',
+    title: shortIsUs() ? '空売り比率(報告出来高に占める %)' : '空売り残高(報告合計 %)'});
   if(state.toggles.marginPanel) subs.push({key:'marginPanel',
     title: (Ext.margin && Ext.margin.kind === 'loan')
       ? '貸借残(融資 / 貸株・日証金)' : '信用残(買残 / 売残)'});
@@ -3126,8 +3142,21 @@ function ticks(min, max, count){
   const mag = Math.pow(10, Math.floor(Math.log10(raw)));
   const norm = raw / mag;
   const step = (norm >= 5 ? 5 : norm >= 2 ? 2 : norm >= 1 ? 1 : 0.5) * mag;
+  /* If the step is smaller than the resolution of the numbers themselves,
+     `v += step` returns v unchanged and this loop runs until the array hits
+     its maximum length — about twenty seconds of frozen tab, half a gigabyte
+     of memory, and then a RangeError that surfaces as 「読み込めませんでした」.
+
+     It is reachable with real data: a halted or suspended stock prints the
+     same price for weeks, and then the only span left is the rounding
+     residue inside the moving averages — a few ULP of the price level.
+     Every panel calls this, so it is not only the price axis. */
+  const eps = Math.max(Math.abs(min), Math.abs(max), 1) * Number.EPSILON * 4;
+  if(!(step > eps)) return [min, max];
   const out = [];
-  for(let v = Math.ceil(min/step)*step; v <= max + 1e-9; v += step) out.push(+v.toFixed(10));
+  const lim = count * 4 + 8;                    /* belt and braces */
+  for(let v = Math.ceil(min/step)*step; v <= max + 1e-9 && out.length < lim; v += step)
+    out.push(+v.toFixed(10));
   return out;
 }
 
@@ -3215,11 +3244,23 @@ function line(g, p, arr, y, color, width, dash){
    is genuinely full (the value is still in the tooltip and the table). */
 let SLOTS = [];
 function resetSlots(){ SLOTS = []; }
-function claimSlot(y, h){
+/* `lo`/`hi` bound where the label may end up. Without them the collision
+   dodge could shift a label up to 33px out of its panel — the POC and the
+   Fibonacci percentages were being drawn above the top of the chart, and on a
+   narrow screen in full-screen mode, off the canvas entirely. */
+function claimSlot(y, h, lo, hi){
   const half = h/2;
+  /* No room at all is the only reason to give up. Rejecting a candidate for
+     being out of range instead of PULLING IT BACK threw away labels that used
+     to render perfectly well — MA5 overhanging its panel by 0.4px lost its
+     end label entirely. Clamp first, then look for a free slot. */
+  if(isNum(lo) && isNum(hi) && hi - lo < h) return null;
   for(const dy of [0,-11,11,-22,22,-33,33]){
-    const a = y+dy-half, b = y+dy+half;
-    if(!SLOTS.some(s => a < s[1] && b > s[0])){ SLOTS.push([a,b]); return y+dy; }
+    let c = y + dy;
+    if(isNum(lo)) c = Math.max(c, lo + half);
+    if(isNum(hi)) c = Math.min(c, hi - half);
+    const a = c - half, b = c + half;
+    if(!SLOTS.some(s => a < s[1] && b > s[0])){ SLOTS.push([a,b]); return c; }
   }
   return null;
 }
@@ -3228,7 +3269,7 @@ function endLabel(g, p, arr, y, color, text){
     if(!isNum(arr[i])) continue;
     const Y0 = y(arr[i]);
     if(Y0 < p.y + 2 || Y0 > p.y + p.h - 2) return;
-    const Y = claimSlot(Y0, 15);
+    const Y = claimSlot(Y0, 15, p.y + 2, p.y + p.h - 2);
     if(Y === null) return;
     g.font = `600 ${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'right'; g.textBaseline = 'middle';
@@ -3282,7 +3323,11 @@ function drawMain(g){
   /* The price scale the reader chose. A two-finger vertical spread sets it;
      1 means "fit what is on screen", which is what it always did. Zooming
      about the CENTRE keeps the candles you were looking at in view. */
-  const yz = clamp(+(state.yZoom || 1), 0.25, 8);
+  /* 0.25 meant the axis covered FOUR TIMES the data, which is what a stray
+     two-finger scroll on a phone left behind: candles shrunk into a band in
+     the middle with empty space above and below, and no obvious way back.
+     Half to quadruple is still a wide range and every value stays legible. */
+  const yz = clamp(+(state.yZoom || 1), 0.5, 4);
   if(Math.abs(yz - 1) > 1e-6){
     const mid = (min + max) / 2, half = (max - min) / 2 / yz;
     min = mid - half; max = mid + half;
@@ -3298,7 +3343,7 @@ function drawMain(g){
     if(isNum(lastC2) && state.i1 >= nb-1) axisFree(y(lastC2), 18);
     for(const t of ticks(min-pad, max+pad, LAY.narrow ? 4 : 6)){
       const Y = y(t);
-      if(Y < p.y || Y > p.y+p.h) continue;
+      if(!isNum(Y) || Y < p.y || Y > p.y+p.h) continue;   /* NaN compares false both ways */
       gridline(g, p, Y);
       if(axisFree(Y, 14)) yLabel(g, p, Y, fmtNum(t));
     }
@@ -3312,7 +3357,7 @@ function drawMain(g){
     y = v => yIdx(toIdx(v));
     for(const t of ticks(lo - ipad, hi + ipad, LAY.narrow ? 4 : 6)){
       const Y = yIdx(t);
-      if(Y < p.y || Y > p.y+p.h) continue;
+      if(!isNum(Y) || Y < p.y || Y > p.y+p.h) continue;   /* NaN compares false both ways */
       gridline(g, p, Y);
       if(axisFree(Y, 14)) yLabel(g, p, Y, t.toFixed(0));
     }
@@ -3331,7 +3376,7 @@ function drawMain(g){
     if(isNum(lastC) && state.i1 >= nb-1) axisFree(y(lastC), 18);
     for(const t of ticks(min-pad, max+pad, LAY.narrow ? 4 : 6)){
       const Y = y(t);
-      if(Y < p.y || Y > p.y+p.h) continue;
+      if(!isNum(Y) || Y < p.y || Y > p.y+p.h) continue;   /* NaN compares false both ways */
       gridline(g, p, Y);
       if(axisFree(Y, 14)) yLabel(g, p, Y, fmtNum(t));
     }
@@ -3388,13 +3433,13 @@ function drawMain(g){
     g.save();
     for(const f of TA.fib(hi, lo)){
       const Y = y(f.y);
-      if(Y < p.y || Y > p.y+p.h) continue;
+      if(!isNum(Y) || Y < p.y || Y > p.y+p.h) continue;   /* NaN compares false both ways */
       g.strokeStyle = C.ink3; g.globalAlpha = f.r===0||f.r===1 ? .55 : .3; g.lineWidth = 1;
       g.beginPath(); g.moveTo(p.x, Math.round(Y)+.5); g.lineTo(p.x+p.w, Math.round(Y)+.5); g.stroke();
       g.globalAlpha = 1; g.fillStyle = C.ink3;
       g.font = `${LAY.narrow?9:10}px ${cssVar('--font')||'system-ui'}`;
       g.textAlign='left'; g.textBaseline='middle';
-      const fy = claimSlot(Y - 7, 13);          /* shares the slot map with POC */
+      const fy = claimSlot(Y - 7, 13, p.y + 1, p.y + p.h - 1);   /* shares the slot map with POC */
       if(fy !== null) g.fillText(`${(f.r*100).toFixed(1)}%`, p.x+4, fy);
     }
     g.restore();
@@ -3503,7 +3548,7 @@ function drawMain(g){
       g.fillStyle = C.ink2;
       g.font = `600 ${LAY.narrow?9:10}px ${cssVar('--font')||'system-ui'}`;
       g.textAlign = 'left'; g.textBaseline = 'middle';
-      const py = claimSlot(Yp - 8, 13);
+      const py = claimSlot(Yp - 8, 13, p.y + 1, p.y + p.h - 1);
       if(py !== null) g.fillText('POC ' + fmtNum(vp.poc), p.x + 3, py);
     }
   } else state._vp = null;
@@ -3560,11 +3605,20 @@ function drawMain(g){
   /* last close marker */
   const lc = d.c[nb-1];
   if(isNum(lc) && state.i1 >= nb-1){
-    const Y = y(lc);
-    g.save();
-    g.strokeStyle = C.ink2; g.globalAlpha = .45; g.setLineDash([2,3]); g.lineWidth = 1;
-    g.beginPath(); g.moveTo(p.x, Math.round(Y)+.5); g.lineTo(p.x+p.w, Math.round(Y)+.5); g.stroke();
-    g.restore();
+    const Yraw = y(lc);
+    /* A two-finger vertical spread sets yZoom, and at 2× the price tag landed
+       inside the volume panel; at 8× it was drawn below the canvas entirely
+       and the current price simply disappeared. Keep the tag at the edge so
+       the number survives, and only draw the guide line when it is in range. */
+    const Y = clamp(Yraw, p.y + 8, p.y + p.h - 8);
+    if(Yraw >= p.y && Yraw <= p.y + p.h){
+      g.save();
+      g.strokeStyle = C.ink2; g.globalAlpha = .45; g.setLineDash([2,3]); g.lineWidth = 1;
+      /* the LINE marks where the close actually is, so it uses the raw Y;
+         only the tag is pulled inside the frame */
+      g.beginPath(); g.moveTo(p.x, Math.round(Yraw)+.5); g.lineTo(p.x+p.w, Math.round(Yraw)+.5); g.stroke();
+      g.restore();
+    }
     g.fillStyle = C.ink1;
     g.fillRect(p.x+p.w+2, Y-8, LAY.padR-6, 16);
     g.fillStyle = C.surface;
@@ -3932,8 +3986,18 @@ function drawEvents(g){
   }
   /* the scheduled earnings date, when it falls inside the visible bars */
   if(wantEarn){
-    const i = pos.get(earnings.next.d);
-    if(i !== undefined){
+    let i = pos.get(earnings.next.d);
+    if(i === undefined){
+      /* The announcement is in the FUTURE — that is the whole point of the
+         warning — so there is no bar carrying that key and the line was never
+         drawn. nextEarning() only ever returns today or later, so the normal
+         case drew nothing at all while the card said 「あと5日」.
+         Count market days forward and use the same forward slots the cloud
+         is drawn in. */
+      const n = marketDaysAhead(barKey(bars[bars.length - 1]), earnings.next.d);
+      if(n > 0) i = bars.length - 1 + n;
+    }
+    if(i !== undefined && i >= state.i0 && i <= state.i1){
       const x = Math.round(xAt(p, i)) + 0.5;
       g.save();
       g.strokeStyle = C.warn || C.ink2;
@@ -4033,7 +4097,7 @@ function showTip(i, X, Y){
   if(T.lorentz && d.lorentz && isNum(d.lorentz.pred[i]))
     extra.push(['予測', `${d.lorentz.pred[i] > 0 ? '+' : ''}${d.lorentz.pred[i]} / ${d.lorentz.used[i]}票`]);
   if(T.shortPanel && d.extShort && isNum(d.extShort.ratio[i])){
-    extra.push(['空売り残高', d.extShort.ratio[i].toFixed(2) + '%']);
+    extra.push([d.extShort.us ? '空売り比率' : '空売り残高', d.extShort.ratio[i].toFixed(2) + '%']);
     const r = d.extShort.rows[i];
     if(r && r.holders && r.holders.length)
       extra.push(['　うち最大', `${esc(r.holders[0].holder || '', 14)} ${(+r.holders[0].ratio || 0).toFixed(2)}%`]);
@@ -4157,6 +4221,8 @@ function renderLegend(){
   }
   if(T.fib) L.push(`<span class="li"><i class="k" style="background:var(--ink-3)"></i>フィボナッチ</span>`);
   if(T.don) L.push(`<span class="li"><i class="k" style="background:var(--band)"></i>ドンチャン(${P.donchian})</span>`);
+  if(T.mtf && state.ind && !state.ind.mtf)
+    L.push(`<span class="li" style="color:var(--ink-3)">上位足: この足種では出せません</span>`);
   if(T.mtf && state.ind && state.ind.mtf) L.push(state.ind.mtf.thin
     ? `<span class="li" style="color:var(--ink-3)">上位足: データが足りません</span>`
     : `<span class="li"><i class="k" style="background:var(--ma3)"></i>${esc(state.ind.mtf.label,4)}のMA${state.ind.mtf.slowN}(確定した足だけ)</span>`);
@@ -4182,7 +4248,8 @@ function renderLegend(){
     L.push(`<span class="li"><i class="k" style="background:var(--ma1)"></i>小口・中口(推定・累計)</span>`);
   }
   if(T.vprofile) L.push(`<span class="li"><i class="kb" style="background:var(--band);opacity:.5"></i>価格帯別出来高 ・ POC=最多価格帯</span>`);
-  if(T.shortPanel) L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>空売り残高(報告0.5%以上の合計)</span>`);
+  if(T.shortPanel) L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>`
+    + `${shortIsUs() ? '空売り比率(FINRA 報告出来高に対する%)' : '空売り残高(報告0.5%以上の合計)'}</span>`);
   if(T.marginPanel){
     L.push(`<span class="li"><i class="k" style="background:var(--up)"></i>信用買残</span>`);
     L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>信用売残</span>`);
@@ -4438,8 +4505,27 @@ function buildSignals(){
       good ? 'bull' : bad ? 'bear' : 'flat', good ? 2 : bad ? -2 : 0);
   }
 
+  /* 16b. FINRA share-of-volume. Judged against THIS stock's own median,
+     never against an absolute level — 45% is unremarkable for one name and
+     extreme for another, so a fixed threshold would be noise. */
+  if(d.extShort && d.extShort.us && isNum(d.extShort.ratio[n]) && Ext.usvol){
+    const up = Ext.usvol.points, lu = up[up.length-1];
+    const vals = up.map(x => x.ratio).filter(isNum).slice().sort((x, y) => x - y);
+    const med = vals.length ? vals[vals.length >> 1] : null;
+    const gap = isNum(med) ? lu.ratio - med : null;
+    add('空売り比率', `${lu.ratio.toFixed(2)}%`
+      + (isNum(med) ? `(この銘柄の中央値 ${med.toFixed(2)}% / ${gap >= 0 ? '+' : ''}${gap.toFixed(2)}pt)` : ''),
+      (vals.length < 10
+        ? `日数が少ないため平常値がまだ定まりません(${vals.length}日分)。もう少し取得すると比較できます。`
+        : gap > 6 ? '平常より空売りの割合が高い日です。ただしマーケットメイクの売りも含むため、これだけで弱気とは言えません。'
+        : gap < -6 ? '平常より空売りの割合が低い日です。'
+        : '平常の範囲です。')
+      + ' これは残高ではなく、その日の報告出来高に占める割合です。',
+      (!isNum(gap) || vals.length < 10) ? 'info' : gap > 6 ? 'bear' : gap < -6 ? 'bull' : 'flat',
+      (!isNum(gap) || vals.length < 10) ? 0 : gap > 6 ? -0.5 : gap < -6 ? 0.5 : 0);
+  }
   /* 16. short interest */
-  if(d.extShort && isNum(d.extShort.ratio[n])){
+  else if(d.extShort && !d.extShort.us && Ext.short && isNum(d.extShort.ratio[n])){
     const pts = Ext.short.points, l2 = pts[pts.length-1], p2 = pts.length > 1 ? pts[pts.length-2] : null;
     const dlt = p2 ? l2.ratio - p2.ratio : null;
     add('空売り残高', `報告合計 ${l2.ratio.toFixed(2)}%`
@@ -4574,7 +4660,12 @@ const Store = {
   mem: {},
   get(k, def){
     try {
-      const v = this.ok ? localStorage.getItem('ta.'+k) : this.mem[k];
+      /* `mem` is the overflow copy written when the quota is full. Reading
+         only localStorage meant a value that had just been "saved" came back
+         missing — or worse, the previous value came back, so favourites and
+         alerts silently rolled back on the next reload. */
+      let v = this.ok ? localStorage.getItem('ta.'+k) : null;
+      if(v == null && owns(this.mem, k)) v = this.mem[k];
       return v ? JSON.parse(v) : def;
     } catch(e){ return def; }
   },
@@ -4591,6 +4682,12 @@ const Store = {
         try { localStorage.setItem('ta.'+k, s); return true; } catch(e2){}
       }
       this.mem[k] = s;
+      /* and drop the stale copy, so `get` cannot prefer an older value that
+         is still sitting in localStorage */
+      try { localStorage.removeItem('ta.'+k); } catch(e3){}
+      if(!this.full && typeof notice === 'function')
+        try { notice('この端末の保存領域がいっぱいです。設定はこのタブの間だけ保持され、'
+                   + '再読み込みで失われます。「消す」で不要な蓄積データを減らしてください。', true); } catch(e4){}
       this.full = true;
       return false;
     }
@@ -4598,10 +4695,21 @@ const Store = {
   prune(){
     try{
       const keys = Object.keys(localStorage)
-        .filter(x => /^ta\.(short|margin)\./.test(x));
+        .filter(x => /^ta\.(short|margin|usvol)\./.test(x));
       if(!keys.length) return false;
-      keys.sort();
-      keys.slice(0, Math.max(1, Math.ceil(keys.length/2))).forEach(x => localStorage.removeItem(x));
+      /* Sorting the KEYS is alphabetical, so 「margin.*」 was always wiped out
+         entirely before a single 「short.*」 went — and those are the pre-
+         IndexedDB records that cannot be re-fetched. Order by when each was
+         last touched instead, oldest first. */
+      /* No extAt means it was never written through extSaveToDB, so there is
+         no IndexedDB copy — these are the pre-migration records that cannot be
+         re-fetched. Sort them LAST, not first. */
+      const at = k => +Store.get('extAt.' + k.slice(3), 0) || Number.MAX_SAFE_INTEGER;
+      keys.sort((a, b) => at(a) - at(b));
+      keys.slice(0, Math.max(1, Math.ceil(keys.length/2))).forEach(x => {
+        localStorage.removeItem(x);
+        try { localStorage.removeItem('ta.extAt.' + x.slice(3)); } catch(e2){}   /* no orphans */
+      });
       return true;
     }catch(e){ return false; }
   }
@@ -4771,7 +4879,7 @@ const Tabs = {
       /* the short-selling / margin caches are per stock: reload them for THIS
          tab instead of leaving the previous tab's numbers under the chart */
       const mine = t;
-      resetEarnings();
+      resetEarnings(); renderShina(null); resetPaste();
       Ext.loadCache().then(() => {
         if(this.list[this.active] !== mine) return;
         state.ind = alignExt(state.ind);
@@ -4779,12 +4887,19 @@ const Tabs = {
         redraw(); renderSignals();
       });
     } else {
-      /* an empty tab shows an empty chart, not the previous tab's */
-      Ext.short = Ext.margin = null;
+      /* An empty tab shows an empty chart, not the previous tab's — and that
+         means ALL of the per-stock state, not just two of the six fields.
+         Leaving usvol behind drew the previous stock's FINRA ratio across the
+         sample series, and the card offered to 「消す」 a record belonging to a
+         code that is no longer on screen. */
+      Ext.gen++;                                   /* orphan any in-flight loadCache */
+      Ext.short = Ext.margin = Ext.usvol = Ext.loan = null;
+      marginDropped = 0; legacyRescaled = false;
       state.raw = demoData(); state.ind = recompute();
       visibleDefault();
       redraw(); applyQuoteStrip(); renderSignals(); renderTable();
       renderNews(null); renderShorts(null); renderMarginStatus(null); renderExtStatus();
+      resetEarnings(); renderShina(null); resetPaste();
       updateExternalLinks();
       notice('このタブはまだ空です。銘柄コードを入れて「分析」を押してください(表示中はサンプルデータです)。');
     }
@@ -5179,24 +5294,30 @@ function renderCompareStats(){
    lands — and 9 seconds was simply not enough for a proxied RSS fetch. */
 function newsQueries(name, code){
   const bare = String(code || '').replace(/\.T$/, '');
-  const num = isJpCode(bare) ? bare : '';
-  const long = [name, num, '株価'].filter(Boolean).join(' ');
-  const short = name || num;
+  const jp = isJpCode(bare);
+  const num = jp ? bare : '';
+  /* 「株価」 only helps on a Japanese query. Bolted onto a US ticker it just
+     narrows Google News to the handful of Japanese-language articles about
+     that company — 'Apple Inc. 株価' was returning almost nothing. */
+  const long = jp ? [name, num, '株価'].filter(Boolean).join(' ')
+                  : [name || bare, 'stock'].filter(Boolean).join(' ');
+  const short = name || num || bare;
   return long === short ? [long] : [long, short];
 }
 
-async function fetchNews(name, code){
-  const qs = newsQueries(name, code);
-  let xml = null, lastErr = null;
-  for(let i = 0; i < qs.length; i++){
-    const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(qs[i])
-              + '&hl=ja&gl=JP&ceid=JP:ja';
-    try { xml = await relayFetch(url, {text: true, timeout: i ? 12000 : 18000}); break; }
-    catch(e){ lastErr = e; }
-  }
-  if(!xml) throw lastErr || new Error('取得できませんでした');
+/* Google News returns its own relevance order, which mixes a piece from last
+   March in among today's. Everything that comes back is parsed, sorted newest
+   first, and only then cut to a screenful — the old code cut to twelve FIRST,
+   so the twelve most "relevant" survived and the newest were often not among
+   them. `when:` narrows the search to recent items; it is tried before the
+   unrestricted query so a stock in the news today does not show last year's
+   story, and skipped if that turns up nothing so a quiet stock still has a
+   panel. */
+const NEWS_WINDOWS = ['when:7d', 'when:30d', ''];
+
+function parseNewsXml(xml){
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
-  const items = Array.from(doc.querySelectorAll('item')).slice(0, 12).map(it => {
+  return Array.from(doc.querySelectorAll('item')).map(it => {
     const g = t => { const e = it.querySelector(t); return e ? e.textContent : ''; };
     const title = g('title');
     const src = g('source') || (title.includes(' - ') ? title.split(' - ').pop() : '');
@@ -5209,8 +5330,41 @@ async function fetchNews(name, code){
       source: String(src).slice(0, 40)
     };
   }).filter(n => n.title);
-  if(!items.length) throw new Error('見出しが取得できませんでした');
-  return items;
+}
+
+function sortNewsNewestFirst(items){
+  /* undated entries go last rather than being treated as epoch-old, which
+     would bury them under everything */
+  return items.slice().sort((a, b) => {
+    const at = a.date ? a.date.getTime() : -Infinity;
+    const bt = b.date ? b.date.getTime() : -Infinity;
+    return bt - at;
+  });
+}
+
+async function fetchNews(name, code){
+  const qs = newsQueries(name, code);
+  let lastErr = null, best = null;
+  for(const win of NEWS_WINDOWS){
+    for(let i = 0; i < qs.length; i++){
+      const q = win ? qs[i] + ' ' + win : qs[i];
+      const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(q)
+                + '&hl=ja&gl=JP&ceid=JP:ja';
+      let xml = null;
+      try { xml = await relayFetch(url, {text: true, timeout: i ? 12000 : 18000}); }
+      catch(e){ lastErr = e; continue; }
+      const got = sortNewsNewestFirst(parseNewsXml(xml));
+      if(got.length){
+        got.win = win === 'when:7d' ? '直近7日' : win === 'when:30d' ? '直近30日' : '期間指定なし';
+        best = got; break;
+      }
+    }
+    if(best) break;
+  }
+  if(!best) throw lastErr || new Error('見出しが取得できませんでした');
+  const out = best.slice(0, 12);
+  out.win = best.win;
+  return out;
 }
 
 function renderNews(items){
@@ -5228,7 +5382,13 @@ function renderNews(items){
     return;
   }
   const now = Date.now();
-  box.innerHTML = items.map(n => {
+  /* which window these came from — otherwise a quiet stock's three-month-old
+     headline looks like the panel is broken */
+  const head = items.win
+    ? `<p class="qsrc" style="margin:0 0 8px">新しい順 ・ ${esc(items.win, 12)}`
+      + `${items.win === '直近7日' ? '' : '(直近7日に記事がなかったため広げています)'}</p>`
+    : '';
+  box.innerHTML = head + items.map(n => {
     const mins = n.date ? Math.round((now - n.date.getTime())/60000) : null;
     const ago = mins === null ? '' : mins < 60 ? `${mins}分前`
               : mins < 1440 ? `${Math.round(mins/60)}時間前` : `${Math.round(mins/1440)}日前`;
@@ -5461,6 +5621,9 @@ function parseShortWorkbook(XLSX, buf, code4){
 function renderShorts(status){
   const box = $('#shortBox');
   if(!box) return;
+  /* every path that repaints this card goes through here, so the title and
+     the market-specific footnote are kept in step from one place */
+  syncShortCardChrome();
   const bits = [];
 
   if(status && status.loading){
@@ -5469,14 +5632,53 @@ function renderShorts(status){
   }
   if(status && status.error)
     bits.push(`<p class="qsrc">取得できませんでした: ${esc(status.error, 200)}<br>`
-      + `下のリンクからJPXの一覧を開いて .xls を保存し、「ファイルを読み込む」で渡せます(複数選択できます)。</p>`);
+      /* the JPX fallback names a link that syncShortCardChrome has just
+         hidden on a US chart — offer the advice that applies here */
+      + (status.us
+         ? 'FINRAの公開は当日18時(米東部)以降で、休場日はファイルがありません。時間をおいて試してください。'
+         : '下のリンクからJPXの一覧を開いて .xls を保存し、「ファイルを読み込む」で渡せます(複数選択できます)。')
+      + `</p>`);
   if(status && status.ok)
     bits.push(`<p class="qsrc">${+status.added || 0} 日分を取り込みました`
       + `${status.failed ? `(${status.failed} 件は失敗)` : ''}。チャート下部のパネルに反映しています。</p>`);
 
+  /* ---- US: FINRA's share-of-volume. Deliberately worded so that not one
+     phrase from the JP balance panel leaks in. ---------------------------- */
+  if(!Ext.short && Ext.usvol && Ext.usvol.points.length){
+    const up = Ext.usvol.points;
+    const lastU = up[up.length-1], prevU = up.length > 1 ? up[up.length-2] : null;
+    const dU = `${lastU.d.slice(0,4)}/${lastU.d.slice(4,6)}/${lastU.d.slice(6,8)}`;
+    const dl = prevU ? lastU.ratio - prevU.ratio : null;
+    const vals = up.map(p => p.ratio).filter(isNum).slice().sort((x, y) => x - y);
+    const med = vals.length ? vals[vals.length >> 1] : null;
+    bits.push(`<div class="shead">${dU} ・ 空売り比率 ${lastU.ratio.toFixed(2)}%`
+      + (dl === null ? '' : ` ・ 前日比 <span aria-hidden="true">${dl > 0 ? '▲' : dl < 0 ? '▼' : '＝'}</span> ${dl >= 0 ? '+' : ''}${dl.toFixed(2)}pt`)
+      + (isNum(med) ? ` ・ 取得期間の中央値 ${med.toFixed(2)}%` : '')
+      + `</div>`);
+    bits.push(`<p class="qsrc" style="margin:6px 0 0">`
+      + `空売り ${Math.round(lastU.short).toLocaleString('ja-JP')} 株 / `
+      + `報告出来高 ${Math.round(lastU.total).toLocaleString('ja-JP')} 株`
+      + (isNum(lastU.exempt) ? ` (うち適用除外 ${Math.round(lastU.exempt).toLocaleString('ja-JP')} 株)` : '')
+      + ` ・ ${esc(Ext.usvol.src, 60)} ・ ${up.length}日分</p>`);
+    bits.push(`<p class="qsrc" style="margin:8px 0 0;line-height:1.7">`
+      + `<b>これは「残高」ではありません。</b>その日にFINRAへ報告された出来高のうち、`
+      + `空売りの印が付いた割合です。マーケットメイカーが買い注文に応じるときも一旦は空売りになるため、`
+      + `流動性のある銘柄では平常時から<b>40〜50%程度</b>になります。`
+      + `<b>半分が弱気という意味ではありません。</b><br>`
+      + `使い方としては、絶対値ではなく<b>この銘柄自身の平常値との差</b>を見てください`
+      + `(上の中央値が目安です)。日本株の空売り残高(JPXの0.5%以上報告)とは別の統計なので、`
+      + `数字を直接くらべることはできません。<br>`
+      + `FINRAの公開は当日18時(米東部)以降です。祝日はファイルがありません。</p>`);
+    box.innerHTML = bits.join('');
+    return;
+  }
+
   const pts = Ext.short ? Ext.short.points : null;
   if(!pts || !pts.length){
-    if(!bits.length) bits.push('<p class="qsrc">JPXの日次報告(残高割合0.5%以上)を集めて、推移をチャートに表示します。</p>');
+    if(!bits.length) bits.push(isJpCode(Ext.codeKey()) || !Ext.codeKey()
+      ? '<p class="qsrc">JPXの日次報告(残高割合0.5%以上)を集めて、推移をチャートに表示します。</p>'
+      : '<p class="qsrc">米国株では、FINRAの日次ファイルから<b>空売り比率</b>(その日の報告出来高に占める空売りの割合)を集めます。'
+        + '日本株の空売り残高とは別の統計です。</p>');
     box.innerHTML = bits.join('');
     return;
   }
@@ -5598,9 +5800,14 @@ function updateExternalLinks(){
   set('#lnkNkGyaku', `https://www.nikkei.com/nkd/company/history/gyakuhibu/?scode=${code}&ba=1`, jp);
   set('#lnkNkYutai', `https://www.nikkei.com/nkd/company/yutai/?scode=${code}&ba=1`, jp);
   $('#extNote').textContent = jp
-    ? '東証の銘柄別信用残は週次かつPDFのみです。日次で見たい場合は日証金の貸借取引残高(速報 18:30以降 / 確報 翌営業日11時ごろ)が最速ですが、'
+    ? '東証の銘柄別信用残は週次かつPDFのみで、機械的には取れません。'
+    + '上の「日経の信用残」などのページを開いて週次の表をなぞってコピーし、'
+    + '下の「表を貼り付ける」に貼ると、そのまま取り込めます(日付・信用買残・信用売残の列があれば自動で判別します)。'
+    + '日次で見たい場合は日証金の貸借取引残高(速報 18:30以降 / 確報 翌営業日11時ごろ)が最速ですが、'
     + '貸借銘柄のうち日証金を通した分だけなので、市場全体の信用残の一部である点にご注意ください。'
-    : '空売り残高報告・信用取引残高は日本株のみの制度です。';
+    : '空売り残高報告・信用取引残高・逆日歩は日本の制度です。米国株では、FINRAの日次「空売り比率」'
+    + '(その日の報告出来高に占める空売りの割合)を上の空売りカードから取得できます。銘柄別の信用残に相当する'
+    + '無料データは米国にはありません。';
 }
 /* ============================================================
    10. Supply-and-demand data on the chart
@@ -5626,6 +5833,7 @@ const Ext = {
     const mine = ++this.gen;
     this.short = this.margin = null;
     this.loan = null;
+    this.usvol = null;
     marginDropped = 0;
     /* per-stock, like marginDropped beside it. Left standing, one stock with
        an old cache made every stock opened afterwards claim its percentages
@@ -5647,6 +5855,13 @@ const Ext = {
        both migrations and wrote the result back stamped v:2 */
     const ns = normalizeShortRecord(cached.short);
     if(ns) this.short = ns;
+    /* FINRA daily ratio. Rebuilt field by field like everything else that
+       comes off disk — the store is not a trust boundary. */
+    const uv = cached.usvol;
+    if(uv && Array.isArray(uv.points)){
+      const pts = normalizeUsVolPoints(uv.points).slice(-400);
+      if(pts.length) this.usvol = {points: pts, src: cleanText(uv.src, 60)};
+    }
     const m = cached.margin;
     if(m && Array.isArray(m.points)){
       const pts = m.points.filter(p => p && okDate(p.d)).slice(-400).map(p => ({
@@ -5673,12 +5888,22 @@ const Ext = {
            when nothing was dropped but the stored record had no `kind` of its
            own (anything that came in through a sync, before the wire carried
            it). Otherwise the label is re-guessed on every single read. */
-        if(cleaned.dropped || m.kind !== kind) this.saveMargin(k);
+        if(cleaned.dropped || m.kind !== kind) await this.saveMargin(k);
       }
     }
   },
-  saveShort(code){ const k = code || this.codeKey(); if(k && this.short)  extSaveToDB('short',  k, this.short); },
-  saveMargin(code){ const k = code || this.codeKey(); if(k && this.margin) extSaveToDB('margin', k, this.margin); },
+  /* both go through the per-key queue, so a save started here cannot land in
+     the middle of a sync's read-modify-write on the same record */
+  /* both go through the per-key queue, so a save started here cannot land in
+     the middle of a sync's read-modify-write on the same record. They return
+     the promise so a caller that needs the write to have LANDED — the repair
+     write below, above all — can wait for it. */
+  saveShort(code){ const k = code || this.codeKey();
+    return (k && this.short)
+      ? withKey('short.'  + k, () => extSaveToDB('short',  k, this.short)) : Promise.resolve(); },
+  saveMargin(code){ const k = code || this.codeKey();
+    return (k && this.margin)
+      ? withKey('margin.' + k, () => extSaveToDB('margin', k, this.margin)) : Promise.resolve(); },
 
   /* what is stored is the REPORTS; the displayed series is folded from
      them every time, so adding an older month fixes the whole curve
@@ -5734,9 +5959,18 @@ const Ext = {
 
   clear(which){
     const k = this.codeKey();
-    if(which === 'short'){ this.short = null; DB.del('short.' + k); Store.set('short.' + k, null); }
+    if(which === 'short'){
+      /* the button is one button, so it clears whichever of the two this
+         stock actually has */
+      this.short = null; DB.del('short.' + k); Store.set('short.' + k, null);
+      this.usvol = null; DB.del('usvol.' + k); Store.set('usvol.' + k, null);
+    }
     else { this.margin = null; DB.del('margin.' + k); Store.set('margin.' + k, null); }
     renderExtStatus();
+    /* the card body too. Only the 「保有データ … 消す」 line was being redrawn,
+       so the table of holders and the latest figure stayed on screen after the
+       record was gone — with no way to tell whether the delete had worked. */
+    renderShorts(null); renderMarginStatus(null);
     state.ind = alignExt(state.ind);
     redraw(); renderSignals();
   }
@@ -5843,10 +6077,15 @@ function alignExt(ind){
     }
     return out;
   };
-  ind.extShort = Ext.short ? {
-    ratio: build(Ext.short.points, p => p.ratio),
-    qty:   build(Ext.short.points, p => p.qty),
-    rows:  build(Ext.short.points, p => p)
+  /* One panel, two statistics. JP filings win where both somehow exist;
+     everything downstream reads `us` to decide what to CALL the number,
+     because a balance and a share-of-volume must not be described alike. */
+  const shortSrc = Ext.short || Ext.usvol || null;
+  ind.extShort = shortSrc ? {
+    us:    !Ext.short && !!Ext.usvol,
+    ratio: build(shortSrc.points, p => p.ratio),
+    qty:   build(shortSrc.points, p => (isNum(p.qty) ? p.qty : null)),
+    rows:  build(shortSrc.points, p => p)
   } : null;
   ind.extMargin = Ext.margin ? {
     buy:   build(Ext.margin.points, p => p.buy),
@@ -6047,6 +6286,206 @@ async function findShortFiles(months){
 }
 let onArchiveStep = null;
 
+/* ============================================================
+   米国株の空売り比率 (FINRA Reg SHO 日次ファイル)
+
+   This is NOT the American equivalent of JPX's 空売り残高, and the panel says
+   so. JPX publishes a BALANCE — how much is currently sold short, as a share
+   of the stock in issue. FINRA publishes a FLOW: of the volume reported to
+   its facilities that day, how much carried a short flag. A market maker
+   filling a buy order sells short to do it and buys the position back
+   minutes later, and that shows up here in full, so a healthy liquid stock
+   sits around 40–50% forever without anything bearish happening. Reading it
+   as "half the market is betting against this" is simply wrong, and it is
+   the single most common way this dataset is misused.
+
+   What it IS good for is its own history: this stock, versus where this
+   stock usually sits. That is what gets drawn.
+   ============================================================ */
+const FINRA_DAILY = d => `https://cdn.finra.org/equity/regsho/daily/CNMSshvol${d}.txt`;
+
+/* Only US-listed EQUITIES appear in these files. "not a Japanese code" is not
+   the same question: ^GSPC, JPY=X, BTC-USD and GC=F all sailed through that
+   test and spent up to 250 downloads of ~1MB each proving they are not in a
+   file that has never listed them. */
+/* the app's own placeholders for "no real listing" — both are letter-only and
+   would otherwise read as perfectly good tickers */
+const LOCAL_CODES = ['DEMO', 'CSV'];
+const isUsEquity = c => {
+  const t = String(c || '').toUpperCase();
+  if(LOCAL_CODES.includes(t)) return false;
+  if(!t || /[.=^]/.test(t) && !/^[A-Z]{1,4}\.[A-Z]$/.test(t)) return false;
+  if(/-USD$/.test(t)) return false;                       /* crypto pairs */
+  return /^[A-Z]{1,5}(?:[.\-][A-Z]{1,2})?$/.test(t);
+};
+
+/* Yahoo writes class shares as BRK-B; other venues write BRK.B or BRKB, and
+   we cannot verify FINRA's spelling from here. Trying all three costs one
+   string compare per row and removes a silent whole-feature failure. */
+function symCandidates(code){
+  const t = String(code || '').toUpperCase();
+  const out = new Set([t]);
+  if(t.includes('-')) { out.add(t.replace(/-/g, '.')); out.add(t.replace(/-/g, '')); }
+  if(t.includes('.')) { out.add(t.replace(/\./g, '-')); out.add(t.replace(/\./g, '')); }
+  return [...out].filter(Boolean);
+}
+
+/* Pipe-delimited, header first, and a trailer line giving the record count.
+   Volumes are DECIMAL — fractional-share trading means 176188.159078 is a
+   normal value, so these must not be read as integers. */
+function parseFinraShortVol(text, sym){
+  const want = new Set(symCandidates(sym));
+  if(!want.size) return null;
+  const lines = String(text || '').split(/\r?\n/);
+  let cols = null;
+  for(const raw of lines){
+    const line = raw.trim();
+    if(!line) continue;
+    const c = line.split('|');
+    if(!cols){
+      /* Find the header by what it CONTAINS, not by where the fields sit.
+         Keying off "the first column is Date" would turn any reordering
+         upstream into a silent "this stock was not in the file", which is
+         indistinguishable from a real miss. */
+      const names = c.map(h => h.replace(/\s+/g,'').toLowerCase());
+      if(names.includes('symbol') && names.includes('date')
+         && names.includes('shortvolume') && names.includes('totalvolume')){
+        cols = {};
+        names.forEach((h, i) => { cols[h] = i; });
+        continue;
+      }
+      continue;                          /* anything before the header */
+    }
+    if(c.length < 4) continue;           /* the trailer record */
+    const s = String(c[cols.symbol] ?? '').trim().toUpperCase();
+    if(!want.has(s)) continue;
+    const d = String(c[cols.date] ?? '').trim();
+    if(!/^\d{8}$/.test(d)) continue;
+    const num = k => { const v = parseFloat(String(c[cols[k]] ?? '').trim()); return isFinite(v) ? v : null; };
+    const short = num('shortvolume'), total = num('totalvolume');
+    const exempt = num('shortexemptvolume');
+    /* keep looking. A zero-volume line for this symbol earlier in the file
+       used to abort the whole search and report the day as "not listed" */
+    if(!isNum(short) || !isNum(total) || !(total > 0)) continue;
+    if(short < 0 || short > total) continue;              /* not a proportion */
+    return {d, short, exempt: isNum(exempt) && exempt >= 0 ? exempt : null, total,
+            ratio: clamp(+(short / total * 100).toFixed(2), 0, 100)};
+  }
+  return null;
+}
+
+/* Trading days, newest first, skipping weekends. Holidays are not known here
+   and simply 404 — which is why a miss is counted, not thrown. */
+function recentUsSessions(n){
+  const out = [];
+  /* Anchored to New York, not to the reader's calendar. The file appears at
+     18:00 ET, so before that the day does not exist yet — and 「今日の前日」
+     computed in Tokyo is the CURRENT US session between midnight and 07:00
+     JST, which was a guaranteed 404 every single time. */
+  let et;
+  try { et = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/New_York'})); }
+  catch(e){ et = new Date(); }
+  const d = new Date(et);
+  if(et.getHours() < 18) d.setDate(d.getDate() - 1);
+  let guard = 0;
+  while(out.length < n && guard++ < 800){
+    const wd = d.getDay();
+    if(wd !== 0 && wd !== 6) out.push(dkey(d));
+    d.setDate(d.getDate() - 1);
+  }
+  return out;
+}
+
+/* The store is not a trust boundary, so the same validation runs on the way
+   in and on the way out. Reading the raw record straight back let a null
+   ratio return from disk and take renderShorts down on `.toFixed`, which left
+   the card frozen on 「取得しています…」 for good — the catch handler died on
+   the same line. */
+function normalizeUsVolPoints(pts){
+  return (Array.isArray(pts) ? pts : [])
+    .filter(p => p && /^\d{8}$/.test(String(p.d)))
+    .map(p => ({d: String(p.d),
+                short:  isNum(p.short)  ? p.short  : null,
+                exempt: isNum(p.exempt) ? p.exempt : null,
+                total:  isNum(p.total)  ? p.total  : null,
+                ratio:  isNum(p.ratio)  ? clamp(p.ratio, 0, 100) : null}))
+    .filter(p => isNum(p.ratio));
+}
+
+let usVolBusy = false;
+
+async function loadUsShortVol(maxDays){
+  const code = Ext.codeKey();
+  if(!isUsEquity(code)){
+    renderShorts({error: 'FINRAの空売り比率は米国上場株のみです(指数・為替・商品・暗号資産にはありません)。', us: true});
+    return false;
+  }
+  if(usVolBusy) return false;
+  usVolBusy = true;
+  renderShorts({loading: true, msg: 'FINRAの日次ファイルを取得しています…'});
+  try{
+    const base = await withKey('usvol.' + code, () => extLoadFromDB(code));
+    const have = new Map(normalizeUsVolPoints(base.usvol && base.usvol.points).map(p => [p.d, p]));
+    const todo = recentUsSessions(maxDays).filter(d => !have.has(d));
+    if(!todo.length){
+      renderShorts({error: '新しく取得できる日付がありませんでした(すでに取得済みです)。', us: true});
+      return true;
+    }
+    let done = 0, failed = 0, added = 0;
+    const queue = todo.slice();
+    const worker = async () => {
+      while(queue.length){
+        const d = queue.shift();
+        try{
+          /* one file is every US security for that day, so it is large and
+             the symbol is picked out on the way past rather than parsed whole */
+          const txt = await relayFetch(FINRA_DAILY(d), {text: true, timeout: 20000});
+          const pt = parseFinraShortVol(txt, code);
+          if(pt){ have.set(pt.d, pt); added++; }
+        }catch(e){ failed++; }          /* holidays are 404s, not errors */
+        done++;
+        /* the user may have moved on; do not paint progress for AAPL over
+           the card that is now showing 7203 */
+        if(Ext.codeKey() === code) renderShorts({loading: true, us: true,
+          msg: `FINRAの日次ファイルを取得しています… ${done}/${todo.length}${failed ? `(取得なし ${failed})` : ''}`});
+      }
+    };
+    await Promise.all([worker(), worker()]);
+    if(!added && !have.size) throw new Error('どの日のファイルからもこの銘柄の行が見つかりませんでした');
+    const points = normalizeUsVolPoints([...have.values()])
+      .sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+    if(!points.length) throw new Error('この銘柄の行が見つかりませんでした');
+    const rec = {points, src: 'FINRA Reg SHO 日次空売り比率'};
+    /* Re-read INSIDE the lock and union. Taking the lock only for the read and
+       again for the write leaves it open for the whole crawl — minutes, for
+       「1年分」 — and a sync landing in that window had its day merged in and
+       then overwritten by this stale snapshot. */
+    await withKey('usvol.' + code, async () => {
+      let cur = null;
+      try { cur = await DB.get('usvol.' + code); } catch(e){}
+      const map = new Map(normalizeUsVolPoints(cur && cur.points).map(q => [q.d, q]));
+      for(const q of points) map.set(q.d, q);
+      rec.points = normalizeUsVolPoints([...map.values()])
+        .sort((x, y) => x.d.localeCompare(y.d)).slice(-400);
+      await extSaveToDB('usvol', code, rec);
+    });
+    if(Ext.codeKey() !== code){
+      /* not an error — the data arrived and was stored. Saying 「取得できません
+         でした」 here told the user the opposite of what happened. */
+      return true;
+    }
+    Ext.usvol = rec;
+    afterExtUpdate();
+    renderShorts({ok: true, added, failed, us: true});
+    return true;
+  }catch(e){
+    renderShorts({error: e.message, us: true});
+    return false;
+  }finally{
+    usVolBusy = false;
+  }
+}
+
 /* Set while a crawl is in flight, so the automatic fetch stands aside rather
    than sending a second wave of requests at JPX for the same files. */
 let shortBusy = false;
@@ -6062,8 +6501,9 @@ async function loadShortSeries(maxDays, months){
   renderShorts({loading: true, msg: 'JPXのファイル一覧を確認しています…'});
   try{
     const XLSX = await loadXLSX();
-    onArchiveStep = (n, i, total) => renderShorts({loading: true,
-      msg: `JPXの月別ページを読んでいます… ${i}/${total}(${n}日分のリンク)`});
+    onArchiveStep = (n, i, total) => { if(Ext.codeKey() !== code) return;
+      renderShorts({loading: true,
+        msg: `JPXの月別ページを読んでいます… ${i}/${total}(${n}日分のリンク)`}); };
     let files;
     try { files = await findShortFiles(months || 1); }
     finally { onArchiveStep = null; }
@@ -6085,7 +6525,10 @@ async function loadShortSeries(maxDays, months){
           got.push(reportFromRows(parseShortWorkbook(XLSX, buf, code), f.d));
         }catch(e){ failed++; }
         done++;
-        renderShorts({loading: true,
+        /* the same guard the US crawler has: a long JPX crawl outlives the
+           stock it started on, and the progress line was landing under the
+           FINRA heading of whatever the user had moved to */
+        if(Ext.codeKey() === code) renderShorts({loading: true,
           msg: `日次ファイルを取得しています… ${done}/${todo.length}${failed ? `(失敗 ${failed})` : ''}`});
       }
     };
@@ -6094,7 +6537,7 @@ async function loadShortSeries(maxDays, months){
     /* Merge into what is on DISK for this code, so a long crawl cannot
        overwrite the accumulated history with only the days it just
        fetched — and so the work still lands if the user has moved on. */
-    const base = await extLoadFromDB(code);
+    const base = await withKey('short.' + code, () => extLoadFromDB(code));
     /* through the same migration the cache loader uses. Reading the raw rows
        off the disk skipped BOTH of them: a pre-carry-forward record has no
        `reports` at all, so `keep` started empty and the accumulated history
@@ -6106,12 +6549,22 @@ async function loadShortSeries(maxDays, months){
     for(const r of got) keep.set(r.d, r);
     const all = [...keep.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
     const rec = {v: 2, reports: all, points: foldShortReports(all), src: 'JPX 空売り残高報告'};
-    await extSaveToDB('short', code, rec);
-    if(Ext.codeKey() !== code){
-      renderShorts({error: '表示中の銘柄が変わったため画面には反映していません'
-        + `(${got.length}日分は保存済みで、次にこの銘柄を開いたときに出ます)。`});
-      return true;                  /* never file 9984's rows under 7203 */
-    }
+    /* re-read inside the lock, for the same reason as the FINRA crawler:
+       the lock taken for the read was released before the network wait */
+    await withKey('short.' + code, async () => {
+      let cur = null;
+      try { cur = await DB.get('short.' + code); } catch(e){}
+      const curN = normalizeShortRecord(cur);
+      const map = new Map(((curN && curN.reports) || []).map(r => [r.d, r]));
+      for(const r of all) map.set(r.d, r);
+      const merged = [...map.values()].sort((x, y) => x.d.localeCompare(y.d)).slice(-400);
+      rec.reports = merged; rec.points = foldShortReports(merged);
+      await extSaveToDB('short', code, rec);
+    });
+    /* moved on: the data is saved, so this is a success. Reporting it as
+       「取得できませんでした」 under someone else's card said the opposite of
+       what happened, and pointed at a button that is hidden there. */
+    if(Ext.codeKey() !== code) return true;   /* never file 9984's rows under 7203 */
     Ext.short = rec;
     afterExtUpdate();
     renderShorts({ok: true, added: got.length, failed});
@@ -6127,6 +6580,12 @@ async function loadShortSeries(maxDays, months){
 /* multiple files dropped by hand — the reliable path, and it works offline */
 async function loadShortFiles(files){
   const code = Ext.codeKey();
+  /* this reader understands JPX's sheet and nothing else; the button is
+     hidden on a US chart, but a drop or a keyboard route can still land here */
+  if(!isJpCode(code)){
+    renderShorts({error: 'この読み込みはJPXの空売り残高ファイル(.xls)専用です。米国株には使えません。', us: true});
+    return;
+  }
   renderShorts({loading: true, msg: `${files.length} ファイルを解析しています…`});
   try{
     const XLSX = await loadXLSX();
@@ -6331,6 +6790,8 @@ async function loadShina(){
 function renderShina(st){
   const box = $('#shinaBox');
   if(!box) return;
+  /* a result that arrived after the user moved on is not this stock's */
+  if(st && st.code && st.code !== Ext.codeKey()) st = null;
   if(!st){ box.innerHTML = '<p class="qsrc">「逆日歩を取得」で日本証券金融の当日の品貸料率を調べます。</p>'; return; }
   if(st.loading){ box.innerHTML = '<p class="qsrc">日証金の品貸料率を取得しています…</p>'; return; }
   if(st.error){ box.innerHTML = `<p class="qsrc">取得できませんでした: ${esc(st.error, 120)}</p>`; return; }
@@ -6431,6 +6892,14 @@ async function loadJSF(){
 
 async function loadMarginFile(file){
   const code0 = Ext.codeKey();
+  /* Without this the key came out as margin.CSV / margin.DEMO / margin.AAPL:
+     two unrelated stocks' balances ended up in one series, and collectSupplyAll
+     uploaded 「CSV」 and 「DEMO」 as if they were listings. */
+  if(!isJpCode(code0)){
+    renderMarginStatus({error: '信用取引残高は日本株(東証コード)のみです。'
+      + '先に銘柄コードで表示してください(CSVで開いたチャートやサンプルには紐づけられません)。'});
+    return;
+  }
   renderMarginStatus({loading: true});
   try{
     if(file.size > MAX_BYTES) throw new Error('ファイルが大きすぎます(24MBまで)');
@@ -6475,8 +6944,44 @@ async function loadMarginFile(file){
 }
 
 /* ---- shared post-update path ---------------------------------------- */
+/* The card is one card for two markets, so its title and its footnote have
+   to follow whichever stock is on screen — a US chart under the heading
+   「空売り残高(機関投資家の報告)」 would be describing something that is not
+   there. Called from afterExtUpdate and whenever the symbol changes. */
+/* Whether the short panel is showing FINRA's share-of-volume rather than a
+   JPX balance. Decided in one place: the loaded data if there is any, the
+   market otherwise. Three call sites used to answer this two different ways,
+   so before the first fetch the card said 「空売り比率」 while the chart's own
+   panel heading and legend said 「空売り残高」 — on a screen whose whole point
+   is that those are different statistics. */
+function shortIsUs(){
+  const e = state.ind && state.ind.extShort;
+  const code = Ext.codeKey();
+  /* isUsEquity, not !isJpCode — DEMO and CSV are neither, and they were
+     being labelled 「FINRA 報告出来高に対する%」 on a Japanese daily CSV. */
+  return e ? !!e.us : (!!code && isUsEquity(code));
+}
+
+function syncShortCardChrome(){
+  const code = Ext.codeKey();
+  const e = state.ind && state.ind.extShort;
+  /* What is actually LOADED decides the wording; the market only decides it
+     while the card is still empty. Keying purely off the code put a JPX
+     balance table, imported by hand, under the heading 「空売り比率(FINRA)」. */
+  const us = shortIsUs();
+  const h = $('#shortH2'), note = $('#shortNoteJp');
+  if(h) h.textContent = us ? '空売り比率(FINRA 日次)' : '空売り残高(機関投資家の報告)';
+  if(note) note.classList.toggle('hide', us);
+  /* the .xls importer is JPX's format and nothing else's */
+  const fb = $('#shortFileBtn');
+  if(fb) fb.classList.toggle('hide', !!code && !isJpCode(code));
+  const b260 = $('#short260');
+  if(b260) b260.textContent = us ? '1年分を取得(約250ファイル)' : '1年分を取得';
+}
+
 function afterExtUpdate(){
-  if(Ext.short && !state.toggles.shortPanel){
+  syncShortCardChrome();
+  if((Ext.short || Ext.usvol) && !state.toggles.shortPanel){
     state.toggles.shortPanel = true;
     const b = document.querySelector('.chip[data-t="shortPanel"]');
     if(b) b.setAttribute('aria-pressed','true');
@@ -6502,8 +7007,9 @@ function renderExtStatus(){
     const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
     return `${fm(f)} 〜 ${fm(l)} の ${ok.length} 日分`;
   };
-  if(s) s.innerHTML = Ext.short
-    ? `保有データ: ${esc(cover(Ext.short.points), 60)}(${esc(Ext.short.src, 60)}) `
+  const held = Ext.short || Ext.usvol || null;
+  if(s) s.innerHTML = held
+    ? `保有データ: ${esc(cover(held.points), 60)}(${esc(held.src, 60)}) `
       + `<button class="chip" id="shortClear" style="border-style:dashed;min-height:28px;padding:2px 9px">消す</button>`
     : '';
   if(m) m.innerHTML = Ext.margin
@@ -6625,7 +7131,7 @@ function drawShortPanel(g){
   if(started){ g.lineTo(lastX, p.y + p.h); g.closePath(); g.fill(); }
   g.restore();
   line(g, p, e.ratio, y, C.down, 2);
-  endLabel(g, p, e.ratio, y, C.down, '空売り残高');
+  endLabel(g, p, e.ratio, y, C.down, e.us ? '空売り比率' : '空売り残高');
   panelFrame(g, p);
   state._shortY = y;
 }
@@ -6748,11 +7254,17 @@ function snapshotWorkspace(){
     activeTab: Tabs.active,
     theme: document.documentElement.getAttribute('data-theme') || 'auto',
     layout: ['auto','one','two','full'].includes(layoutMode) ? layoutMode : 'auto',
-    tabs: Tabs.list.slice(0, Tabs.MAX).map(t => ({
+    tabs: Tabs.list.slice(0, Tabs.MAX).map(t => {
+      /* packBars keeps only the newest MAX_SAVE_BARS. The indices have to move
+         with them or the restored chart opens somewhere else entirely — a view
+         of 2002 came back showing 2008, because 2,000 bars had been dropped
+         off the front and i0/i1 still counted from the old start. */
+      const cut = Math.max(0, ((t.raw && t.raw.bars ? t.raw.bars.length : 0) - MAX_SAVE_BARS));
+      return {
       label: cleanText(t.label, 20),
       symbol: cleanText(t.symbol, 24),
       interval: t.interval, range: t.range,
-      i0: t.i0 | 0, i1: t.i1 | 0,
+      i0: Math.max(0, (t.i0 | 0) - cut), i1: Math.max(0, (t.i1 | 0) - cut),
       toggles: Object.assign({}, t.toggles),
       compare: (t.compare || []).slice(0, 4).map(a => ({
         sym: cleanSymbol(a.sym), label: cleanText(a.label, 24),
@@ -6766,7 +7278,7 @@ function snapshotWorkspace(){
         tz: /^[A-Za-z_]+\/[A-Za-z_+\-0-9]+$/.test(t.raw.tz || '') ? t.raw.tz : null
       } : null,
       bars: t.raw && t.raw.bars && t.raw.bars.length ? packBars(t.raw.bars) : null
-    }))
+    };})
   };
 }
 
@@ -6783,6 +7295,10 @@ async function saveWorkspaceNow(){
   try{
     const ws = snapshotWorkspace();
     const done = await DB.set(WS_KEY, ws);
+    /* DB.set swallows its own failures and returns null. Advancing wsAt anyway
+       showed 「保存済み」 over nothing, and published that timestamp to the
+       other device as "this screen is from just now". */
+    if(done === null || done === undefined){ setSaveState('off'); return null; }
     wsSavedAt = ws.savedAt;
     Store.set('wsAt', wsSavedAt);
     setSaveState(DB.ok ? 'saved' : 'off');
@@ -6890,9 +7406,12 @@ async function restoreWorkspace(){
 
 /* ---- Ext caches move to IndexedDB, with a one-time lift from localStorage */
 async function extLoadFromDB(code){
-  const out = {short: null, margin: null};
+  const out = {short: null, margin: null, usvol: null};
   if(!code) return out;
-  for(const kind of ['short','margin']){
+  /* `usvol` is a separate key on purpose. It is a different statistic with a
+     different shape, and keeping it out of `short.*` means the JP migrations
+     and the sync path can never try to fold it into filings it does not have. */
+  for(const kind of ['short','margin','usvol']){
     let v = null;
     try { v = await DB.get(kind + '.' + code); } catch(e){}
     if(!v){
@@ -6907,6 +7426,9 @@ async function extLoadFromDB(code){
 async function extSaveToDB(kind, code, val){
   if(!code) return;
   try { await DB.set(kind + '.' + code, val); } catch(e){}
+  /* the timestamp Store.prune() orders by, so the oldest cache is the one
+     that goes when the quota runs out */
+  try { Store.set('extAt.' + kind + '.' + code, Date.now()); } catch(e){}
 }
 /* ============================================================
    13. Moving settings between devices
@@ -6929,7 +7451,10 @@ function buildBundle(opts){
     layout: ['auto','one','two','full'].includes(layoutMode) ? layoutMode : 'auto',
     favs: Book.favs.map(f => ({code: f.code, name: f.name, at: f.at || 0})),
     favdel: Object.assign({}, Book.tomb),
-    hist: Book.hist.map(h => ({code: h.code, name: h.name, at: h.at || 0})),
+    /* price and currency travel too: Drive sync carries them, so an import
+       from a file was blanking values the device already had on screen */
+    hist: Book.hist.map(h => ({code: h.code, name: h.name, at: h.at || 0,
+                               price: isNum(h.price) ? h.price : null, cur: h.cur || null})),
     /* the SETUP of each tab travels, not the price data: bars are re-fetched
        and would make the file needlessly large */
     tabs: Tabs.list.map(t => ({
@@ -6946,13 +7471,17 @@ function buildBundle(opts){
 
 /* the accumulated JPX / margin history, keyed by stock — optional because it
    is by far the biggest part */
+/* Object.create(null) throughout: these bags are keyed by whatever is in the
+   database, and `out['__proto__'] = …` on a normal object writes the page's
+   prototype instead of a property. */
 function collectSupply(){
-  const out = {};
+  const out = Object.create(null);
   const here = Ext.codeKey();
-  if(here && (Ext.short || Ext.margin)){
-    out[here] = {};
+  if(here && (Ext.short || Ext.margin || Ext.usvol)){
+    out[here] = Object.create(null);
     if(Ext.short)  out[here].short  = Ext.short;
     if(Ext.margin) out[here].margin = Ext.margin;
+    if(Ext.usvol)  out[here].usvol  = Ext.usvol;
   }
   return out;
 }
@@ -6962,12 +7491,20 @@ async function collectSupplyAll(){
   try{
     const keys = (await DB.keys()) || [];
     for(const k of keys){
-      const m = /^(short|margin)\.(.+)$/.exec(String(k));
+      /* usvol travels too. Leaving it out meant a US stock's FINRA history —
+         up to 250 downloads' worth — was silently absent from every backup
+         and every sync, while the checkbox beside it said 「空売り・信用の
+         蓄積データも含める」. */
+      const m = /^(short|margin|usvol)\.(.+)$/.exec(String(k));
       if(!m) continue;
+      const code = cleanSymbol(m[2]);
+      if(!code) continue;                      /* '__proto__' and friends */
       const v = await DB.get(k);
-      if(!v || !v.points || !v.points.length) continue;
-      out[m[2]] = out[m[2]] || {};
-      out[m[2]][m[1]] = v;
+      if(!v) continue;
+      if(m[1] === 'short'){ if(!v.reports && !v.points) continue; }
+      else if(!v.points || !v.points.length) continue;
+      out[code] = out[code] || Object.create(null);
+      out[code][m[1]] = v;
     }
   }catch(e){}
   return out;
@@ -6997,7 +7534,12 @@ function sanitizeBundle(raw){
       compare: (Array.isArray(t && t.compare) ? t.compare : []).map(cleanSymbol).filter(Boolean).slice(0, 4)
     })),
     activeTab: isNum(raw.activeTab) ? raw.activeTab : 0,
-    supply: (raw.supply && typeof raw.supply === 'object') ? raw.supply : null
+    /* This function calls itself the trust boundary, but `supply` used to be
+       handed straight through by reference. A hand-edited file could then put
+       any key into IndexedDB via applyBundle — including __proto__, which
+       collectSupplyAll later assigned INTO, poisoning Object.prototype for the
+       whole page. cleanSupply rebuilds every field and rejects reserved keys. */
+    supply: (() => { const c = cleanSupply(raw.supply); return Object.keys(c).length ? c : null; })()
   };
 }
 
@@ -7029,10 +7571,16 @@ async function bundleToCode(bundle){
   return 'TA0.' + b64encode(json);
 }
 
+/* Settings are meant to be pasted from a message, which means the text can
+   come from anyone. 80KB of gzip expands to 60MB here — enough to kill the
+   tab, and with it the unsaved session, before anything is validated. */
+const CODE_MAX = 4 * 1024 * 1024;
+
 async function codeToBundle(code){
   const s = String(code || '').trim();
   const m = /^TA([01])\.([A-Za-z0-9\-_=\s]+)$/.exec(s);
   if(!m) throw new Error('コードの形式が違います(TA1. で始まる文字列を貼り付けてください)');
+  if(s.length > CODE_MAX * 2) throw new Error('コードが長すぎます');
   const bytes = b64decode(m[2]);
   let json;
   if(m[1] === '1'){
@@ -7040,8 +7588,11 @@ async function codeToBundle(code){
     const ds = new DecompressionStream('gzip');
     const w = ds.writable.getWriter();
     w.write(bytes); w.close();
-    json = await new Response(ds.readable).text();
+    const buf = await new Response(ds.readable).arrayBuffer();
+    if(buf.byteLength > CODE_MAX) throw new Error('展開後のデータが大きすぎます');
+    json = new TextDecoder().decode(buf);
   } else {
+    if(bytes.byteLength > CODE_MAX) throw new Error('データが大きすぎます');
     json = new TextDecoder().decode(bytes);
   }
   return JSON.parse(json);
@@ -7065,7 +7616,10 @@ async function applyBundle(raw, mode){
       /* for history the later visit wins; a star keeps whatever this device
          already recorded, so importing never renames or re-dates one */
       if(!cur) seen.set(x.code, x);
-      else if(newest && (x.at || 0) > (cur.at || 0)) seen.set(x.code, x);
+      /* the newer visit wins, but it must not blank a price the older entry
+         carried and the newer one simply did not record */
+      else if(newest && (x.at || 0) > (cur.at || 0)) seen.set(x.code, Object.assign({}, cur, x,
+        {price: isNum(x.price) ? x.price : cur.price, cur: x.cur || cur.cur}));
     }
     /* NO cap here — capping the insertion order threw away everything the
        file brought before it was ever ranked, so importing a phone's 30
@@ -7112,6 +7666,7 @@ async function applyBundle(raw, mode){
 
   let added = 0;
   if(b.supply){
+    const bag = Object.create(null);
     for(const code in b.supply){
       const v = b.supply[code];
       if(v && v.short){
@@ -7135,8 +7690,24 @@ async function applyBundle(raw, mode){
           added++;
         }
       }
-      if(v && v.margin) { await DB.set('margin.' + code, v.margin); added++; }
+      /* 「合併」 goes through the same date-union, validation and kind-conflict
+         check as the sync path — a raw DB.set here REPLACED 40 weeks of 信用残
+         with the single point in a year-old export. 「置き換え」 still means
+         replace, though: that is the restore-from-backup path, and unioning
+         there quietly kept data the user asked to discard. */
+      if(v && v.margin){
+        if(merge) bag[code] = Object.assign(bag[code] || {}, {margin: v.margin});
+        else { await DB.set('margin.' + code, v.margin); added++; }
+      }
+      if(v && v.usvol){
+        if(merge) bag[code] = Object.assign(bag[code] || {}, {usvol: v.usvol});
+        else { await DB.set('usvol.' + code, v.usvol); added++; }
+      }
     }
+    /* one call for the whole file: mergeSupplyIn reloads the cache and
+       repaints the chart at the end, and doing that per stock made a
+       200-stock import take 5.2 seconds instead of 0.36 */
+    if(Object.keys(bag).length) added += await mergeSupplyIn(bag);
     await Ext.loadCache();
     state.ind = alignExt(state.ind);
     renderExtStatus(); renderShorts(null); renderMarginStatus(null);
@@ -7269,6 +7840,21 @@ const GSI_SRC = 'https://accounts.google.com/gsi/client';
    from. Overridable below for anyone using their own project. */
 const CLIENT_DEFAULT = '312868081144-1c6gjkal8rgllhi8iqgblbgjarc058jc.apps.googleusercontent.com';
 const TOMB_MS = 180 * 24 * 3600 * 1000;   /* tombstones expire so they cannot pile up forever */
+
+/* Newest first, then cut — and drop the expired ones.
+   Alert ids are Date.now()*1000, far outside array-index range, so the keys
+   came back in insertion order: OLDEST first. Slicing 200 off that threw away
+   the most recent deletions, which are exactly the ones the other device has
+   not heard about yet, so a just-deleted alert came straight back. */
+function sanitizeAlertTomb(o){
+  const out = Object.create(null), now = Date.now(), pairs = [];
+  if(o && typeof o === 'object')
+    for(const k of Object.keys(o))
+      if(/^\d{1,20}$/.test(k) && isNum(o[k]) && now - o[k] <= TOMB_MS) pairs.push([k, o[k]]);
+  pairs.sort((a, b) => b[1] - a[1]);
+  for(const [k, at] of pairs.slice(0, 200)) out[k] = at;
+  return out;
+}
 const SYNC_MAX = 9 * 1024 * 1024;
 
 let gsiPromise = null, tokenClient = null;
@@ -7336,7 +7922,7 @@ function syncDoc(){
     alerts[String(a.id)] = {c: a.code, k: a.kind, v: a.v, on: a.on ? 1 : 0,
                             at: a.at || 0};
   }
-  for(const id of Object.keys(Alerts.tomb).slice(0, 200)){
+  for(const id of Object.keys(sanitizeAlertTomb(Alerts.tomb))){
     const at = Alerts.tomb[id];
     if(!isNum(at) || now - at > TOMB_MS) continue;
     if(!alerts[id] || alerts[id].at < at) alerts[id] = {at, d: 1};
@@ -7645,23 +8231,40 @@ function cleanReports(list){
 function cleanSupply(sup){
   const out = Object.create(null);
   if(!sup || typeof sup !== 'object') return out;
-  for(const raw of Object.keys(sup).slice(0, 80)){
+  /* 80 was far too tight. JSON puts integer-like keys first in ascending
+     order, so the ones cut were always the high codes and every US ticker —
+     and because the receiving device writes what it read back to the file,
+     they were deleted from the shared copy as well. SYNC_MAX is the real
+     size guard; this one only needs to stop a runaway. */
+  for(const raw of Object.keys(sup).slice(0, 400)){
     const code = cleanSymbol(raw);
     if(!code) continue;
-    for(const kind of ['short','margin']){
+    for(const kind of ['short','margin','usvol']){
       const inc = sup[raw] && sup[raw][kind];
       if(!inc) continue;
+      if(kind === 'usvol'){
+        const points = normalizeUsVolPoints(inc.points).slice(-400);
+        if(!points.length) continue;
+        out[code] = out[code] || Object.create(null);
+        out[code].usvol = {points, src: cleanText(inc.src, 60)};
+        continue;
+      }
       if(kind === 'short'){
         const reports = cleanReports(inc.reports);
         if(!reports.length) continue;
-        out[code] = out[code] || {};
-        out[code].short = {v: 2, reports, src: cleanText(inc.src, 60)};
+        out[code] = out[code] || Object.create(null);
+        /* Carry the version we were GIVEN. Stamping 2 on a record whose
+           ratios are still fractions tells the far end the repair has already
+           happened, so rescaleLegacyRatios never runs and every value folds
+           to 0% — below the 0.5% disclosure floor, so the whole history reads
+           as "position closed". There is no way back from that. */
+        out[code].short = {v: (+inc.v === 2 ? 2 : 1), reports, src: cleanText(inc.src, 60)};
         continue;
       }
       if(!Array.isArray(inc.points)) continue;
       const points = inc.points.slice(-400).map(p => cleanPoint(kind, p)).filter(Boolean);
       if(!points.length) continue;
-      out[code] = out[code] || {};
+      out[code] = out[code] || Object.create(null);
       /* carry the statistic's identity, not just its numbers */
       out[code][kind] = {points, src: cleanText(inc.src, 60),
         kind: inc.kind === 'loan' || inc.kind === 'credit' ? inc.kind : null};
@@ -7672,6 +8275,21 @@ function cleanSupply(sup){
 
 /* Union by date. Nothing is ever removed by a merge, so two devices that
    each fetched different days end up with both. */
+/* One writer at a time per database key.
+
+   The crawler reads a record, waits on the network, then writes it back. A
+   sync that landed in that window had its day merged in and then overwritten —
+   and because doSync rebuilds the uploaded document from the database
+   afterwards, the day disappeared from the shared file too, so it never came
+   back. Same shape for a CSV import racing a sync. */
+const dbChain = new Map();
+function withKey(key, fn){
+  const prev = dbChain.get(key) || Promise.resolve();
+  const next = prev.catch(() => {}).then(fn);
+  dbChain.set(key, next.catch(() => {}));
+  return next;
+}
+
 async function mergeSupplyIn(raw0){
   const sup = cleanSupply(raw0);
   let n = 0, touched = false;
@@ -7679,6 +8297,7 @@ async function mergeSupplyIn(raw0){
     /* short: merge the filings by date, then refold */
     const sh = sup[code].short;
     if(sh){
+      await withKey('short.' + code, async () => {
       let cur = null;
       try { cur = await DB.get('short.' + code); } catch(e){}
       /* through the migration, like every other reader. Taking cur.reports
@@ -7689,7 +8308,10 @@ async function mergeSupplyIn(raw0){
       const have = (curN && curN.reports) || [];
       const map = new Map(have.map(r => [r.d, r]));
       let added = 0;
-      for(const r of sh.reports) if(!map.has(r.d)){ map.set(r.d, r); added++; }
+      /* the arriving record goes through it as well: it may have been written
+         by a build that stored the raw fractional cell values */
+      const shN = normalizeShortRecord({v: sh.v, src: sh.src, reports: sh.reports});
+      for(const r of ((shN && shN.reports) || [])) if(!map.has(r.d)){ map.set(r.d, r); added++; }
       if(added){
         const reports = [...map.values()]
           .sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
@@ -7700,10 +8322,30 @@ async function mergeSupplyIn(raw0){
           n += added; touched = true;
         }catch(e){}
       }
+      });
     }
+    /* usvol: a plain date union — one statistic, no kind to reconcile */
+    const uv = sup[code].usvol;
+    if(uv) await withKey('usvol.' + code, async () => {
+      let cur = null;
+      try { cur = await DB.get('usvol.' + code); } catch(e){}
+      const map = new Map(normalizeUsVolPoints(cur && cur.points).map(p => [p.d, p]));
+      let added = 0;
+      for(const q of uv.points) if(!map.has(q.d)){ map.set(q.d, q); added++; }
+      if(added){
+        const points = normalizeUsVolPoints([...map.values()])
+          .sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+        try{
+          await DB.set('usvol.' + code, {points,
+            src: cleanText(uv.src, 60) || (cur && cur.src) || ''});
+          n += added; touched = true;
+        }catch(e){}
+      }
+    });
     for(const kind of ['margin']){
       const inc = sup[code][kind];
       if(!inc) continue;
+      await withKey(kind + '.' + code, async () => {
       let cur = null;
       try { cur = await DB.get(kind + '.' + code); } catch(e){}
       const curKind = cur && (cur.kind === 'loan' || cur.kind === 'credit') ? cur.kind : null;
@@ -7711,14 +8353,14 @@ async function mergeSupplyIn(raw0){
       /* 信用残 and 貸借残 are different statistics an order of magnitude apart.
          If the two sides hold different ones, keep ours — merging them puts
          both on one axis, which is what dropForeignPoints exists to undo. */
-      if(curKind && incKind && curKind !== incKind) continue;
+      if(curKind && incKind && curKind !== incKind) return;
       const recKind = curKind || incKind;
       const map = new Map((cur && Array.isArray(cur.points) ? cur.points : []).map(p => [p.d, p]));
       let added = 0;
       for(const p of inc.points){
         if(!map.has(p.d)){ map.set(p.d, Object.assign({}, p, {k: p.k || recKind || null})); added++; }
       }
-      if(!added) continue;
+      if(!added) return;
       const points = [...map.values()]
         .sort((a, b) => String(a.d).localeCompare(String(b.d))).slice(-400);
       try {
@@ -7730,8 +8372,9 @@ async function mergeSupplyIn(raw0){
         if(recKind) rec.kind = recKind;
         await DB.set(kind + '.' + code, rec);
       }
-      catch(e){ continue; }
+      catch(e){ return; }
       n += added; touched = true;
+      });
     }
   }
   /* the panels under the chart are showing the old cache until it is reread */
@@ -7944,7 +8587,15 @@ async function doSync(opts){
        is cleaned and handed straight back. */
     const theirs = (remote && remote.supply) ? cleanSupply(remote.supply) : null;
     if(withSupply){
-      out.supply = Object.assign({}, theirs || {}, await collectSupplyAll());
+      /* Merge per STATISTIC, not per stock. Object.assign replaced the whole
+         entry for a code, so if the other device held 貸借残 for 8267 and we
+         hold 信用残, ours overwrote theirs in the shared file and 300 days of
+         their history vanished from the only copy that survives a reinstall. */
+      const mine = await collectSupplyAll();
+      out.supply = Object.create(null);
+      for(const c of Object.keys(theirs || {})) out.supply[c] = Object.assign(Object.create(null), theirs[c]);
+      for(const c of Object.keys(mine))
+        out.supply[c] = Object.assign(out.supply[c] || Object.create(null), mine[c]);
     } else if(theirs){
       out.supply = theirs;
     }
@@ -8391,7 +9042,9 @@ function reportFacts(){
     const up = d.mtf.trend[n];
     put(`上位足(${d.mtf.label})`, up > 0 ? '上昇' : up < 0 ? '下降' : '方向感なし');
   }
-  if(d.extShort && isNum(d.extShort.ratio[n])) put('空売り残高(合計%)', rptNum(d.extShort.ratio[n], 2));
+  if(d.extShort && isNum(d.extShort.ratio[n]))
+    put(d.extShort.us ? '空売り比率(FINRA 報告出来高比%)' : '空売り残高(合計%)',
+        rptNum(d.extShort.ratio[n], 2));
   if(d.extMargin){
     if(isNum(d.extMargin.buy[n]))  put('信用買残', String(Math.round(d.extMargin.buy[n])));
     if(isNum(d.extMargin.sell[n])) put('信用売残', String(Math.round(d.extMargin.sell[n])));
@@ -8796,16 +9449,12 @@ const Alerts = {
   },
   /* deleted alerts, so a deletion here is not undone by the other device
      still having the alert. Same shape as the favourites' tombstones. */
-  tomb: (() => {
-    const raw = Store.get('alertdel', {});
-    const out = Object.create(null);
-    if(raw && typeof raw === 'object')
-      for(const k of Object.keys(raw).slice(0, 200))
-        if(/^\d{1,20}$/.test(k) && isNum(raw[k])) out[k] = raw[k];
-    return out;
-  })(),
+  tomb: sanitizeAlertTomb(Store.get('alertdel', {})),
   save(){
     Store.set('alerts', this.list);
+    /* trimmed on the way out as well, so the cap is always applied to the
+       newest 200 rather than to whatever happened to be inserted first */
+    this.tomb = sanitizeAlertTomb(this.tomb);
     Store.set('alertdel', this.tomb);
     renderAlerts();
     /* alerts are an account-level intention, not a device setting */
@@ -9201,7 +9850,9 @@ const ALLOW = [
   'news.google.com',
   'www.jpx.co.jp',
   'jpx.co.jp',
-  'www.taisyaku.jp'
+  'www.taisyaku.jp',
+  /* 米国株の空売り比率(FINRA Reg SHO 日次ファイル) */
+  'cdn.finra.org'
 ];
 
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -9469,6 +10120,7 @@ async function loadEarnings(){
     const list = map.get(code) || [];
     earnings = {code, list, next: nextEarning(list)};
     renderEarnings(earnings);
+    extendForEarnings();
     redraw();
   }catch(e){
     /* a failure on one stock must not delete the marker another tab is
@@ -9478,11 +10130,86 @@ async function loadEarnings(){
   }
 }
 
+/* A pasted table is written against whatever stock is on screen when 「取り込む」
+   is pressed, so it cannot outlive the stock it was pasted for — Toyota's
+   margin balances were landing in Sony's cache, and syncing from there. */
+function resetPaste(){
+  pasteParsed = null;
+  const box = $('#pasteBox'); if(box) box.value = '';
+  try { renderPastePreview(null); } catch(e){}
+  const go = $('#pasteGo'); if(go) go.disabled = true;
+}
+
+/* How many empty slots to keep on the right. The cloud needs 26; a scheduled
+   announcement needs enough to be visible at all, or the line is placed past
+   the edge of the chart and the reader never sees it. */
+/* The schedule arrives ~800ms after the chart is fitted, so the forward slots
+   it needs did not exist when resolveFit() chose the window — and the marker
+   was computed correctly but sat one screen to the right of the visible edge.
+   Widen only when the reader is already at the right-hand end, so this never
+   yanks the view out from under someone who has scrolled back. */
+/* Market days from one YYYYMMDD to another, weekends excluded. futureSlots()
+   was counting calendar days from TODAY and scaling by 5/7 while drawEvents
+   counted actual weekdays from the LAST BAR; the two disagreed by a slot in
+   about a third of cases, and the marker fell just past the visible edge. */
+function marketDaysAhead(fromKey, targetKey){
+  if(!/^\d{8}$/.test(String(fromKey)) || !/^\d{8}$/.test(String(targetKey))) return 0;
+  const t = new Date(+fromKey.slice(0,4), +fromKey.slice(4,6) - 1, +fromKey.slice(6,8));
+  let n = 0;
+  while(n < 400){
+    t.setDate(t.getDate() + 1);
+    if(t.getDay() === 0 || t.getDay() === 6) continue;
+    n++;
+    if(dkey(t) >= String(targetKey)) return n;
+  }
+  return 0;
+}
+
+function extendForEarnings(){
+  if(!state.raw || !state.raw.bars) return;
+  const nb = state.raw.bars.length;
+  const want = nb - 1 + futureSlots();
+  if(state.i1 >= nb - 1 && state.i1 < want) state.i1 = want;
+}
+
+function futureSlots(){
+  let cloud = state.toggles.ichimoku ? P.ichimoku[3] : 0;
+  /* The cloud reaches 26 bars ahead. On a long series that is a sliver; on a
+     three-month FX chart it is nearly half the width, and the candles end up
+     squashed into the left with an empty right-hand side.
+
+     Counted in real BARS, not in slots: slots already include the forward
+     region, so measuring those would make this function depend on its own
+     previous answer and drift by a slot or two each redraw. */
+  const nb = state.raw && state.raw.bars ? state.raw.bars.length : 0;
+  const realShown = Math.max(1, Math.min(nb - 1, state.i1) - state.i0 + 1);
+  cloud = Math.min(cloud, Math.max(4, Math.floor(realShown / 2)));
+  let earn = 0;
+  const bars = state.raw && state.raw.bars;
+  if(bars && bars.length && typeof earnings !== 'undefined' && earnings && earnings.next
+     && Ext.codeKey() === earnings.code){
+    earn = clamp(marketDaysAhead(barKey(bars[bars.length-1]), earnings.next.d), 0, 40);
+  }
+  return Math.max(cloud, earn);
+}
+
 /* Called whenever the chart changes stock. The card is per-stock state and
    was being left behind: Apple's chart kept showing Toyota's earnings date. */
 function resetEarnings(){
   const code = Ext.codeKey();
   if(earnings && earnings.code === code){ renderEarnings(earnings); return; }
+  /* The schedule is one table for the whole market and it is already in hand
+     for another twelve hours. Dropping to null meant the 決算 warning — the
+     one item deliberately placed at the top of the verdict list — vanished
+     silently on a tab switch and did not come back until the user pressed
+     分析 again. */
+  if(kessanCache && kessanCache.map && Date.now() - kessanCache.at < KESSAN_TTL && isJpCode(code)){
+    const list = kessanCache.map.get(code) || [];
+    earnings = {code, list, next: nextEarning(list)};
+    renderEarnings(earnings);
+    extendForEarnings();
+    return;
+  }
   earnings = null;
   renderEarnings(null);
 }
@@ -10055,6 +10782,58 @@ async function runSelfTests(){
     state.raw = keep.raw; state.ind = keep.ind; Ext.short = keep.s;
     return eq(got, '1,2,3');
   });
+  test('FINRAの行を拾える(CRLF・BOM・小数株・トレーラ)', () => {
+    const t = '\ufeffDate|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market\r\n'
+            + '20260812|AAPL|176188.159078|1234.5|400000.5|C\r\n2\r\n';
+    const v = parseFinraShortVol(t, 'AAPL');
+    return v ? eq(v.ratio, 44.05) : '行を読めませんでした';
+  });
+  test('使えない行の後ろに正しい行があれば拾う', () => {
+    const H = 'Date|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market\n';
+    const v = parseFinraShortVol(H + '20260812|AAPL|0|0|0|C\n20260812|AAPL|100|0|200|C\n', 'AAPL');
+    return v ? eq(v.ratio, 50) : '2行目を読みませんでした';
+  });
+  test('FINRAの比率が0〜100を外れない', () => {
+    const H = 'Date|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market\n';
+    const v = parseFinraShortVol(H + '20260812|AAPL|500|0|200|C\n', 'AAPL');
+    return !v || (v.ratio >= 0 && v.ratio <= 100) ? true : '出た値: ' + v.ratio;
+  });
+  test('FINRAは米国株だけを対象にする', () => {
+    const bad = ['^GSPC','JPY=X','BTC-USD','GC=F','7203'].filter(isUsEquity);
+    const good = ['AAPL','MSFT','BRK-B','F'].filter(c => !isUsEquity(c));
+    return bad.length ? '株でないものを通した: ' + bad.join(',')
+         : good.length ? '株を弾いた: ' + good.join(',') : true;
+  });
+  test('取得予定日に土日と未来は入らない', () => {
+    const ds = recentUsSessions(20);
+    const today = dkey(new Date());
+    const wk = ds.filter(d => { const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+      return t.getDay() === 0 || t.getDay() === 6; });
+    const fut = ds.filter(d => d > today);
+    return wk.length ? '土日が入った: ' + wk.join(',')
+         : fut.length ? '未来日が入った: ' + fut.join(',')
+         : ds.length === 20 || ('日数が足りません: ' + ds.length);
+  });
+  test('壊れた保存データで空売り比率が落ちない', () => {
+    const bad = [{d:'20260812', ratio:50, short:1, total:2},
+                 {d:'GARBAGE', ratio:5000}, {d:'20260813', ratio:null}, null, 'x'];
+    const out = normalizeUsVolPoints(bad);
+    return out.length === 1 && out[0].ratio === 50 ? true
+      : '通ってしまった: ' + JSON.stringify(out);
+  });
+  test('米国の比率は「残高」と呼ばれない', () => {
+    const keep = {s: Ext.short, u: Ext.usvol, raw: state.raw};
+    /* 16:00Z = 12:00 EDT, so the bar's OWN market day is the 1st. At 00:00Z
+       New York is still on the 30th and the point would not have applied. */
+    const bars = [{t: new Date(Date.UTC(2024,6,1,16,0)), o:1,h:1,l:1,c:1,v:1}];
+    stampBars(bars, 'America/New_York');
+    state.raw = {bars, code:'AAPL', name:'x', currency:'USD', source:'t'};
+    Ext.short = null;
+    Ext.usvol = {points: [{d:'20240701', short:1, exempt:0, total:2, ratio:50}], src:'t'};
+    const ind = alignExt({});
+    state.raw = keep.raw; Ext.short = keep.s; Ext.usvol = keep.u;
+    return ind.extShort && ind.extShort.us === true && ind.extShort.ratio[0] === 50;
+  });
   test('比較データも各市場の営業日で突き合わせる', () => {
     const jp = [{t: new Date(Date.UTC(2024,6,2,0,0)), o:1,h:1,l:1,c:1,v:1}];
     const us = [{t: new Date(Date.UTC(2024,6,2,13,30)), o:1,h:1,l:1,c:1,v:1}];
@@ -10484,7 +11263,11 @@ async function runSelfTests(){
     'https://news.google.com/rss/search?q=x',
     'https://www.jpx.co.jp/markets/public/short-selling/index.html',
     'https://www.taisyaku.jp/app/stock?code=7203',
-    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    /* SheetJS is loaded as <script src>, which is script-src's business, not
+       connect-src's — listing the CDNs there only widened where a compromised
+       script could post the Drive token to. FINRA is a real fetch and was
+       missing from this list entirely. */
+    'https://cdn.finra.org/equity/regsho/daily/CNMSshvol20250815.txt',
     'https://www.googleapis.com/drive/v3/files',
     'https://www.googleapis.com/upload/drive/v3/files/x',
     'wss://streamer.finance.yahoo.com/?version=2'
@@ -10612,7 +11395,7 @@ function resolveFit(){
   if(!state._fit || !LAY) return;
   state._fit = false;
   const nb = state.raw.bars.length;
-  const future = state.toggles.ichimoku ? P.ichimoku[3] : 0;
+  const future = futureSlots();
   const fits = Math.floor(LAY.panels[0].w / 3.0);
   const n = clamp(Math.min(nb, fits), 40, nb);
   state.i1 = nb - 1 + future;
@@ -10620,8 +11403,12 @@ function resolveFit(){
 }
 function clampView(){
   const nb = state.raw.bars.length;
-  const future = state.toggles.ichimoku ? P.ichimoku[3] : 0;
+  const future = futureSlots();
   const maxI = nb - 1 + future;
+  /* A reversed window means nothing anywhere, and clamp() only ever fixed the
+     width — leaving i0 > i1, which made the Fibonacci scan find no bars and
+     hand NaN to the canvas. The self-test only checked that nothing threw. */
+  if(state.i1 < state.i0){ const t = state.i0; state.i0 = state.i1; state.i1 = t; }
   let n = clamp(state.i1 - state.i0 + 1, 20, maxI + 1);
   if(state.i1 > maxI){ state.i1 = maxI; state.i0 = state.i1 - n + 1; }
   if(state.i0 < 0){ state.i0 = 0; state.i1 = Math.min(maxI, n - 1); }
@@ -11093,7 +11880,7 @@ cv.addEventListener('touchmove', e => {
     const wantY = Math.abs(Math.log(ry)) > 0.04;
 
     if(wantY && Math.abs(Math.log(ry)) >= Math.abs(Math.log(rx))){
-      state.yZoom = clamp(pinch.yz * ry, 0.25, 8);
+      state.yZoom = clamp(pinch.yz * ry, 0.5, 4);
     }
     if(wantX || !wantY){
       const nn = clamp(Math.round(pinch.n * pinch.d / d), 20, state.raw.bars.length + 60);
@@ -11228,8 +12015,13 @@ $$('.chip[data-t]').forEach(btn => {
        and the drawing simply gets lighter as more of them pile on. */
     if(k === 'ichimoku' && state.i1 >= state.raw.bars.length - 1) visibleDefault();
 
-    if(k === 'osgfc' || k === 'lorentz' || k === 'sizeflow'){
-      /* both are computed on demand, so the series has to be run again */
+    /* `mtf` itself only folds bars, but recompute() rebuilds EVERY study — so
+       with the kNN switched on this branch was 2.1 seconds of frozen main
+       thread with no busy indicator, from a chip whose comment claimed it was
+       cheap. Route it the same way whenever a heavy study is live. */
+    const heavyLive = state.toggles.lorentz || state.toggles.osgfc || state.toggles.sizeflow;
+    if(k === 'osgfc' || k === 'lorentz' || k === 'sizeflow' || (k === 'mtf' && heavyLive)){
+      /* these are computed on demand, so the series has to be run again */
       setBusy(true);
       setTimeout(() => {
         /* setBusy(true) disables 分析 and freezes the chart. If the recompute
@@ -11266,7 +12058,14 @@ $$('.chip[data-t]').forEach(btn => {
        立てただけでは state.ind.mtf が undefined のまま — 線も凡例も判定行も
        出ないのに、リロードすると出る、という状態になっていた。畳むだけで安い
        ので、重い2つと違って setBusy を挟まずその場で計算し直す。 */
-    if(k === 'mtf') state.ind = recompute();
+    if(k === 'mtf'){
+      state.ind = recompute();          /* cheap: no heavy study is live here */
+      /* 1mo has nothing above it. Silence looked identical to a broken chip;
+         the `thin` case already explains itself, so this should too. */
+      if(on && !state.ind.mtf)
+        notice(`${esc(IV_LABEL[state.interval] || 'この足種', 8)}の上に畳める足がないため、上位足は出せません。`
+             + `週足以下でお使いください。`);
+    }
     /* the verdict list is toggle-dependent too — スーパートレンド, VWAP,
        一目・三役, 資金フロー and 価格帯別出来高 all appear only when their
        chip is on, and the score is weighted by them. redraw() alone left the
@@ -11497,8 +12296,27 @@ async function refreshQuietly(){
     const data = await loadSymbol(sym, state.range, state.interval);
     if(!opValid(op) || !state.raw || state.raw.code !== sym) return;
     const keep = {i0: state.i0, i1: state.i1, grew: data.bars.length - state.raw.bars.length};
+    const heavy = state.ind;
+    /* One new bar does not justify rebuilding the kNN: 510ms on a 5,000-bar
+       series here, over two seconds on a mid-range phone — every 30 seconds,
+       synchronously, with no busy indicator. The stream path already carries
+       the heavy studies forward.
+
+       But ONLY when the arrays still line up. A carried study is indexed by
+       bar position: if a bar was appended its last value is missing (the
+       verdict row simply disappears), and if the window rolled forward every
+       value is off by the number of bars that fell off the front — which on a
+       5-minute chart is every session. Same first bar and same length, or pay
+       for the full recompute. */
+    const alignsWith = state.raw && state.raw.bars.length === data.bars.length
+      && state.raw.bars.length > 0
+      && barKey(state.raw.bars[0]) === barKey(data.bars[0]);
     state.raw = data;
-    state.ind = recompute(data.bars);
+    const light = Object.assign({}, state.toggles, {lorentz:false, osgfc:false, sizeflow:false});
+    state.ind = recompute(data.bars, alignsWith ? light : state.toggles);
+    if(alignsWith)
+      for(const k of ['lorentz','osgfc','sizeflow'])
+        if(state.toggles[k] && heavy && heavy[k]) state.ind[k] = heavy[k];
     state.i0 = keep.i0 + Math.max(0, keep.grew);
     state.i1 = keep.i1 + Math.max(0, keep.grew);
     redraw(); applyQuoteStrip(); renderSignals(); renderTable();
@@ -11518,6 +12336,16 @@ async function refreshQuietly(){
 /* the chart's own state, in the shape the alert checker expects */
 function quoteRowFromState(){
   if(!state.raw || !state.ind) return {code: '', error: 'なし'};
+  /* Every alert is worded for the daily chart — 「MA5がMA25を上抜け」, RSI(14)
+     on daily bars — and the watchlist always evaluates on daily. `d.ma` here
+     is the DISPLAYED timeframe's preset, so on 5-minute bars this fired
+     MA9×MA21 under the MA5×MA25 label. Worse, the two evaluators share the
+     `hit` latch: one set it, the other cleared it, and the alert re-announced
+     itself on every auto-update forever. Leave the judging to the watchlist
+     whenever the chart is not on daily. */
+  if(state.interval !== '1d')
+    return {code: state.raw.code, name: state.raw.name, currency: state.raw.currency,
+            error: '日足以外を表示中のため、この画面からは判定しません'};
   const n = state.raw.bars.length - 1;
   const d = state.ind;
   const prev = n > 0 ? d.c[n-1] : d.c[n];
@@ -11820,6 +12648,25 @@ function renderFreshness(){
   el.textContent = bits.join(' ・ ');
   el.classList.toggle('hide', !bits.length);
 
+  /* (b) Say it where the price is, not only in the small print underneath.
+     The same 20 minutes means nothing on a weekly chart and everything on a
+     5-minute one, so the badge gets louder as the timeframe gets shorter. */
+  const badge = $('#qLive');
+  if(badge){
+    const mins = lag !== null ? Math.round(lag / 60000) : null;
+    const intraday = isIntradayIv(state.interval);
+    const show = openThen && isNum(mins) && mins >= 2;
+    badge.classList.toggle('hide', !show);
+    if(show){
+      const lv = intraday && mins >= 10 ? 'hot' : intraday ? 'warn' : 'norm';
+      badge.dataset.lv = lv;
+      badge.textContent = lv === 'hot'
+        ? `${mins}分遅れ・直近${mins}分は未反映`
+        : `${mins}分遅れ・リアルタイムではありません`;
+      badge.title = '取引所の規定による配信遅延です。自動更新やストリームでも縮みません。';
+    }
+  }
+
   const note = $('#qDelay');
   if(note){
     /* only worth saying while the market is open: after the close the "delay"
@@ -11860,6 +12707,10 @@ function apply(data){
     state.interval = got;
     setPreset(got); buildRanges(); showPreset(); syncControls();
   }
+  /* the poll counter answers "how many times have I fetched THIS stock and
+     seen nothing move" — carrying it across a symbol change made the answer
+     meaningless */
+  if(!state.raw || state.raw.code !== data.code){ pollCount = 0; pollChanged = 0; }
   state.raw = data;
   state.ind = recompute(data.bars);
   state.hover = -1;
@@ -11870,7 +12721,10 @@ function apply(data){
   renderTable();
   renderCompareStats();
   updateExternalLinks();
-  resetEarnings();
+  /* 逆日歩 is a Japanese lending charge and the pasted table belongs to the
+     stock it was pasted on; neither had any reset path at all, so both
+     followed the user onto the next stock — including onto US charts. */
+  resetEarnings(); renderShina(null); resetPaste();
   Ext.loadCache().then(() => {
     if(!state.raw || Ext.codeKey() !== key) return;   /* moved on while reading */
     state.ind = alignExt(state.ind);
@@ -11882,7 +12736,12 @@ function apply(data){
   saveWorkspaceSoon();
   Book.visit(data.code, data.name, data.bars.length ? data.bars[data.bars.length-1].c : null, data.currency);
   const tab = Tabs.list[Tabs.active];
-  if(tab) tab.pristine = false;      /* this tab now owns a series of its own */
+  /* ...but the sample series is not one. init() paints the demo before the
+     user has asked for anything, and clearing the flag here is what filed
+     those invented prices as 「前回の続き」 — which then opened every session
+     on a stock that does not exist, with no refresh, because its source is
+     not a data provider. */
+  if(tab && data.code !== 'DEMO') tab.pristine = false;
   Tabs.snapshot();
   Tabs.render();
   renderBook();
@@ -12041,13 +12900,25 @@ $('#newsBtn').addEventListener('click', async () => {
     if(opValid(op)) renderNews({error: e.message});
   }finally{ $('#newsBtn').disabled = false; }
 });
-$('#short10').addEventListener('click', () => loadShortSeries(10, 1));
-$('#short30').addEventListener('click', () => loadShortSeries(30, 2));
-$('#short120').addEventListener('click', () => loadShortSeries(130, 7));
+/* The same four buttons serve both markets — which source they hit follows
+   the stock on screen, so there is never a JP button sitting dead on a US
+   chart or the other way round. */
+const shortGrab = (jpDays, jpMonths, usDays) => () =>
+  isJpCode(Ext.codeKey()) ? loadShortSeries(jpDays, jpMonths) : loadUsShortVol(usDays);
+/* which market's crawl the buttons mean, for the confirm text below */
+const shortMarket = () => isJpCode(Ext.codeKey()) ? 'jp' : isUsEquity(Ext.codeKey()) ? 'us' : 'none';
+$('#short10').addEventListener('click', shortGrab(10, 1, 10));
+$('#short30').addEventListener('click', shortGrab(30, 2, 30));
+$('#short120').addEventListener('click', shortGrab(130, 7, 130));
 $('#short260').addEventListener('click', () => {
-  if(!confirm('JPXの月別ページ13枚を読み、日次ファイルを最大250件取得します。\n'
-    + '数分かかり、その間このタブは開いたままにしてください。続けますか?')) return;
-  loadShortSeries(250, 13);
+  const jp = isJpCode(Ext.codeKey());
+  if(shortMarket() === 'none'){ loadUsShortVol(250); return; }   /* reports the reason */
+  if(!confirm(jp
+      ? 'JPXの月別ページ13枚を読み、日次ファイルを最大250件取得します。\n'
+        + '数分かかり、その間このタブは開いたままにしてください。続けますか?'
+      : 'FINRAの日次ファイルを最大250件取得します。1件が全米国銘柄ぶんで大きいため、\n'
+        + '数分かかり通信量もそれなりです。その間このタブは開いたままにしてください。続けますか?')) return;
+  jp ? loadShortSeries(250, 13) : loadUsShortVol(250);
 });
 $('#earnBtn').addEventListener('click', () => loadEarnings());
 $('#shinaBtn').addEventListener('click', () => loadShina());
@@ -12251,10 +13122,16 @@ function renderNavPos(){
   const bars = state.raw.bars;
   const fm = i => bars[i] ? fmtDate(bars[i], true) : '';
   el.textContent = nb ? `${fm(a)} 〜 ${fm(b)}(${b - a + 1}本 / 全${nb}本)` : '';
+  /* The price axis is zoomable by a two-finger vertical spread, which is very
+     easy to trigger by accident while scrolling a long page on a phone. There
+     was no indication it had happened and no way back short of pressing 分析,
+     so a chart could sit for days with its candles in a squashed band. */
+  const yb = $('#navYReset');
+  if(yb) yb.classList.toggle('hide', Math.abs((state.yZoom || 1) - 1) < 1e-6);
   const atStart = state.i0 <= 0;
   /* clampView caps i1 at nb-1+future, so "nb-1+40" was never true and ▶ was
      never disabled — it just stopped doing anything, which reads as broken. */
-  const future = state.toggles.ichimoku ? P.ichimoku[3] : 0;
+  const future = futureSlots();
   const atEnd = state.i1 >= nb - 1 + future;
   if($('#navPrev')) $('#navPrev').disabled = atStart;
   if($('#navNext')) $('#navNext').disabled = atEnd;
@@ -12268,6 +13145,10 @@ $('#navEnd').addEventListener('click', () => {
   state.i1 = state.raw.bars.length - 1;
   state.i0 = state.i1 - n + 1;
   clampView(); renderBase(); paint(); renderNavPos(); saveWorkspaceSoon();
+});
+$('#navYReset').addEventListener('click', () => {
+  state.yZoom = 1;
+  redraw(); renderNavPos(); saveWorkspaceSoon();
 });
 $('#navAll').addEventListener('click', () => {
   if(!state.raw) return;
@@ -12538,8 +13419,14 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
     location.protocol === 'file:' ? '(公開してから確認してください)' : location.origin;
   if(ownRelay()) relayStatus('自分の中継サーバーを使っています: ' + esc(ownRelay(), 60));
   if(!FS_OK) $('#syncRow').classList.add('hide');
+  /* pristine, for the same reason restored tabs are: init() has already
+     painted the demo series, so without this the first save files the sample
+     data under this tab and every later start-up opens 「前回の続き」 on a
+     stock that does not exist — with no refresh, because its source is not a
+     data provider. */
   Tabs.list = [{id: 0, label: '7203', symbol: '7203', interval: '1d', range: '1y',
-                i0: 0, i1: 0, toggles: Object.assign({}, state.toggles), compare: []}];
+                i0: 0, i1: 0, pristine: true,
+                toggles: Object.assign({}, state.toggles), compare: []}];
   Tabs.render();
   Compare.renderChips();
   renderNews(null);
