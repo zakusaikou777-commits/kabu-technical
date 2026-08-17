@@ -3254,7 +3254,15 @@ function layout(){
      データがあるときだけ出します。赤字でPERが引けない銘柄はPBRに切り替え、
      どちらも引けなければ出しません。 */
   const vk = state.toggles.valuation ? valuationKind() : null;
-  if(vk) subs.push({key:'valuation', title: vk === 'pbr' ? 'PBRの推移(倍)' : 'PERの推移(倍)'});
+  if(vk){
+    /* 決算が1期しか入っていないと、この線は「株価 ÷ 定数」でしかありません。
+       当時の会社予想ではなく<b>いまのEPS</b>で割った値なので、そう書きます。
+       半年前の株価が倍あった銘柄では、この線は当時のPERとは一致しません。 */
+    const one = !state.ind.fund || state.ind.fund.count < 2;
+    subs.push({key:'valuation',
+      title: (vk === 'pbr' ? 'PBRの推移(倍' : 'PERの推移(倍')
+           + (one ? '・いまの決算の数値で換算)' : ')')});
+  }
 
   /* Each panel can be stretched or squashed on its own. The scale is a
      multiplier the user sets by dragging the divider under a panel, kept
@@ -7560,6 +7568,11 @@ function fundLatest(){
   if(!f || !bars || !bars.length) return null;
   const i = bars.length - 1;
   return {i, price: isNum(bars[i].c) ? bars[i].c : null,
+          /* この値がどの足のものか。チャートを過去にさかのぼって見ている
+             ときに、カードとチャートの数字が違って見えます — 実際に
+             「PERがおかしい」と言われました。半年前は株価が倍近くあった、
+             というだけの話なので、カードは<b>いつ時点か</b>を出します。 */
+          barDate: barKey(bars[i]),
           per: f.per[i], pbr: f.pbr[i], dy: f.dy[i], roe: f.roe[i],
           eps: f.eps[i], bps: f.bps[i], dps: f.dps[i], eqr: f.eqr[i],
           backfilled: fundIsBackfilled(f, i),
@@ -7605,13 +7618,19 @@ function renderFundCard(){
     return;
   }
   const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
-  stat.innerHTML = `保有データ: ${x.count}件`
+  /* 下の6つが「いつの株価で計算した値か」。チャートを過去にさかのぼって
+     いると、チャートのPERとカードのPERが違って見えます。半年前の株価が
+     倍あった、というだけなのですが、書いていないと分かりません。 */
+  const cur = state.raw.currency;
+  const unit = cur === 'JPY' ? '円' : (cur === 'USD' ? 'ドル' : '');
+  /* fmtNum が通貨記号まで付けるので、ここで「円」を足すと ¥1,374円 になります */
+  const priceTxt = isNum(x.price) ? fmtNum(x.price, cur) : '—';
+  stat.innerHTML = `<b>${esc(fm(x.barDate), 12)}</b> の株価 ${esc(priceTxt, 24)} で計算した値です`
+    + `<br>決算の数値: ${x.count}件`
     + (x.last ? ` ・ 最新 ${esc(fm(x.last.d), 12)}` : '')
     + ` (${esc(x.src || '手入力', 60)})`
     + (x.backfilled ? ' ・ <b>いまの足より新しい日付です</b>' : '');
 
-  const cur = state.raw.currency;
-  const unit = cur === 'JPY' ? '円' : (cur === 'USD' ? 'ドル' : '');
   /* 目安ではなく「そのまま信じると危ないところ」だけ書きます。
      15倍や1倍を基準として出してしまうと、このカードがまさに
      ヘルプで注意している読み方を勧めることになります。 */
