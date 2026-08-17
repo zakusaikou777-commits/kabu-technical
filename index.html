@@ -499,7 +499,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
 
 <header>
   <div class="wrap hrow">
-    <h1>テクニカル分析<span class="sub">Technical Analysis</span></h1>
+    <h1>テクニカル分析<span class="sub" id="verTag" title="この版の番号と作成日">Technical Analysis</span></h1>
     <div class="spacer"></div>
     <div class="symwrap">
       <input type="text" id="sym" value="7203" placeholder="トヨタ / 7203 / ドル円 / AAPL"
@@ -1165,6 +1165,9 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   </div>
 
   <footer>
+    <p style="margin:0 0 8px"><b id="verLine">版</b> ・
+      いま開いているファイルの版です。差し替えたのに変わらないときは、
+      ブラウザの再読み込み(スマホはタブを閉じて開き直し)をしてください。</p>
     <b>ご注意:</b> 本ツールはテクニカル指標を機械的に計算・可視化するものであり、投資助言ではありません。
     シグナル判定は一般的な教科書的ルールを単純に当てはめた結果で、将来の値動きを示すものではありません。
     データは無料の公開ソースを利用しており、<b>遅延</b>・欠損・調整漏れの可能性があります。
@@ -1213,6 +1216,15 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
 
 <script>
 "use strict";
+/* ============================================================
+   0. この版
+   直したものを同じ番号で何度も渡してしまい、どれが最新か
+   ファイル名でしか分からない状態になっていました。番号と日付を
+   画面に出しておけば、開いているファイルを見れば分かります。
+   ============================================================ */
+const APP_VER = 'v40';
+const APP_DATE = '2026-08-17';
+
 /* ============================================================
    1. Small helpers
    ============================================================ */
@@ -6431,6 +6443,30 @@ function marginHasData(p){
    it. */
 const FOREIGN_FACTOR = 4;
 
+/* 札は合っているのに、桁がまるで違う点。
+
+   信用残は週次、貸借残は日次で日付がぶつからないので、混ざっていても
+   「同じ日に2つある」形では見つかりません。札(k)が両方とも credit に
+   なってしまった記録では、桁の違いだけが手がかりになります。
+   640万株の系列に68万株が1本混ざると、そこで線が<b>底まで落ちて</b>、
+   そのまま最新値として引き継がれます。画面では「信用残が0になった」
+   ように見えます(実際には0ではなく、別の統計の値です)。
+
+   落とすのは全体の1/3までにします。それ以上外れているなら、外れ値では
+   なく系列そのものが変わった(分割・併合)と考えるほうが自然だからです。 */
+function dropOutliers(points){
+  const vals = points.map(p => p.buy).filter(v => isNum(v) && v > 0).sort((a, b) => a - b);
+  if(vals.length < 5) return {points, dropped: 0};
+  const med = vals[vals.length >> 1];
+  if(!(med > 0)) return {points, dropped: 0};
+  const ok = p => !isNum(p.buy) || p.buy <= 0
+    || (p.buy >= med / FOREIGN_FACTOR && p.buy <= med * FOREIGN_FACTOR);
+  const keep = points.filter(ok);
+  const lost = points.length - keep.length;
+  if(!lost || lost > points.length / 3) return {points, dropped: 0};
+  return {points: keep, dropped: lost};
+}
+
 function dropForeignPoints(points, kind){
   const tagged = points.filter(p => p.k);
   /* if the points say what they are, that is the answer */
@@ -6440,7 +6476,10 @@ function dropForeignPoints(points, kind){
        wrong, not the data. `kind` may be a guess made from the source file's
        name; a guess must never be grounds for deleting an entire history. */
     if(!keep.length) return {points, dropped: 0, flip: true};
-    return {points: keep, dropped: points.length - keep.length};
+    /* 札が全部そろっていても、桁で見ておかしいものは外します */
+    const trimmed = dropOutliers(keep);
+    return {points: trimmed.points,
+            dropped: points.length - keep.length + trimmed.dropped};
   }
   const vals = points.map(p => p.buy).filter(v => isNum(v) && v > 0).sort((a, b) => a - b);
   if(vals.length < 5) return {points, dropped: 0};
@@ -8581,7 +8620,22 @@ function drawShortPanel(g){
   let mx = 0;
   for(let i=Math.max(0,state.i0);i<=Math.min(state.i1, state.raw.bars.length-1);i++)
     if(isNum(e.ratio[i]) && e.ratio[i] > mx) mx = e.ratio[i];
-  const top = mx * 1.15 || 1;
+  /* 信用残と同じで、この期間にデータが無いなら目盛りだけ出しても
+     「ずっと0%だった」に読めるだけです。無いことを書きます。 */
+  if(!(mx > 0)){
+    panelFrame(g, p);
+    g.fillStyle = C.ink3;
+    g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    const name = e.us ? '空売り比率' : '空売り残高';
+    const has = e.ratio.some(v => isNum(v) && v > 0);
+    g.fillText(has ? `この期間には${name}のデータがありません(あるのは直近だけです)`
+                   : `この期間に報告された${name}はありません`,
+               p.x + 6, p.y + p.h / 2);
+    state._shortY = null;
+    return;
+  }
+  const top = mx * 1.15;
   const y = makeY(p, 0, top, 14, 0);
   resetSlots();
   const tk = ticks(0, top, 3);
@@ -8619,13 +8673,29 @@ function drawMarginPanel(g){
   for(let i=Math.max(0,state.i0);i<=Math.min(state.i1, state.raw.bars.length-1);i++){
     for(const a of [e.buy, e.sell]) if(isNum(a[i]) && a[i] > mx) mx = a[i];
   }
-  const y = makeY(p, 0, mx * 1.12 || 1, 14, 0);
+  const ln = Ext.margin && Ext.margin.kind === 'loan';
+  /* 表示している期間にデータが1本も無いとき。目盛りの最大が0のままなので
+     「0株」とだけ書かれた空のパネルになり、<b>残高がゼロ</b>に読めます。
+     期間を広げて、信用残のある範囲より前まで見たときに必ずこうなります。
+     数字ではなく、無いことを書きます。 */
+  if(!(mx > 0)){
+    panelFrame(g, p);
+    g.fillStyle = C.ink3;
+    g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    const has = Ext.margin && Ext.margin.points && Ext.margin.points.length;
+    g.fillText(has ? 'この期間には' + (ln ? '貸借残' : '信用残') + 'のデータがありません(あるのは直近だけです)'
+                   : (ln ? '貸借残' : '信用残') + 'のデータがまだありません',
+               p.x + 6, p.y + p.h / 2);
+    state._marginY = null;
+    return;
+  }
+  const y = makeY(p, 0, mx * 1.12, 14, 0);
   resetSlots();
   gridline(g, p, y(mx)); yLabel(g, p, y(mx), fmtVol(mx) + '株');
   /* both series are share counts, so one axis is honest here */
   line(g, p, e.buy,  y, C.up, 2);
   line(g, p, e.sell, y, C.down, 2);
-  const ln = Ext.margin && Ext.margin.kind === 'loan';
   endLabel(g, p, e.buy,  y, C.up,   ln ? '融資残' : '信用買残');
   endLabel(g, p, e.sell, y, C.down, ln ? '貸株残' : '信用売残');
   panelFrame(g, p);
@@ -10624,6 +10694,7 @@ function reportFacts(){
   put('銘柄', `${state.raw.name}(${state.raw.code})`);
   put('通貨', cur || '—');
   put('データ元', state.raw.source);
+  put('ツールの版', APP_VER + ' (' + APP_DATE + ')');
   put('足種', IV_LABEL[state.interval] || state.interval);
   put('期間', (RANGE_LABEL[state.range] || state.range) + ' / ' + b.length + '本');
   put('最終足', fmtStamp(b[n]));
@@ -13108,6 +13179,61 @@ async function runSelfTests(){
     }catch(e){ return 'localStorage を使えません'; }
   });
   test('外した点が保存で戻ってこない(信用残と貸借残)', () => healSticks);
+  test('版の番号が画面に出ている', () => {
+    /* 同じ番号で何度も差し替えてしまい、どれが最新か分からなくなりました。
+       開いているファイル自身に書いてあれば、見れば分かります。 */
+    if(!/^v\d+$/.test(APP_VER)) return '版の形式が違います: ' + APP_VER;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(APP_DATE)) return '日付の形式が違います: ' + APP_DATE;
+    const tag = $('#verTag'), line = $('#verLine');
+    if(!tag || tag.textContent.indexOf(APP_VER) < 0) return '見出しに出ていません';
+    if(!line || line.textContent.indexOf(APP_VER) < 0) return '注意書きに出ていません';
+    return /ツールの版/.test(reportText()) ? true : '書き出したテキストに入っていません';
+  });
+  test('信用残: 札が合っていても桁の違う点は外す', () => {
+    /* 信用残は週次・貸借残は日次で日付がぶつからないので、混ざっていても
+       「同じ日に2つある」形では見つかりません。640万株の系列に68万株が
+       1本混ざると、そこで線が底まで落ちて、そのまま最新値になります。 */
+    const mk = (n, buy) => Array.from({length:n}, (_, w) => ({
+      d: '2026' + String(1 + Math.floor(w/4)).padStart(2,'0') + String(1 + (w%4)*7).padStart(2,'0'),
+      buy, sell: 1000000, ratio: 6.4, k: 'credit'}));
+    const mixed = mk(20, 6400000).concat([{d:'20260814', buy:680000, sell:90000, ratio:7.5, k:'credit'}]);
+    const r = dropForeignPoints(mixed, 'credit');
+    if(r.points.some(x => x.buy === 680000)) return '桁違いの点が残りました';
+    if(r.points.length !== 20) return r.points.length + '点になりました';
+    /* ふつうの系列からは1本も外しません */
+    const plain = mk(20, 6400000).map((x, w) => ({...x, buy: 6400000 + w*120000}));
+    if(dropForeignPoints(plain, 'credit').points.length !== 20) return 'ふつうの系列を削りました';
+    /* 半分が桁違いなら、外れ値ではなく系列が変わった(分割など)とみなします */
+    const shifted = mk(10, 6400000).concat(
+      Array.from({length:10}, (_, w) => ({d:'202606' + String(1+w*2).padStart(2,'0'),
+        buy: 640000, sell: 100000, ratio: 6.4, k: 'credit'})));
+    return eq(dropForeignPoints(shifted, 'credit').points.length, 20, '分割で削りました');
+  });
+  test('信用残: データの無い期間に「0株」と書かない', () => {
+    /* 期間を広げて信用残のある範囲より前まで見ると、目盛りの最大が0のまま
+       「0株」とだけ書かれた空のパネルになり、残高ゼロに読めていました。 */
+    const keep = {raw: state.raw, m: Ext.margin, c: Ext.code,
+                  i0: state.i0, i1: state.i1, t: state.toggles.marginPanel};
+    const bars = Array.from({length:120}, (_, i) => ({t: new Date(2026,0,1+i),
+      o:1400, h:1400, l:1400, c:1400, v:1}));
+    stampBars(bars, 'Asia/Tokyo');
+    state.raw = {bars, name:'x', code:'8267.T', tz:'Asia/Tokyo', currency:'JPY',
+                 source:'x', events:[]};
+    Ext.margin = {points: [{d: barKey(bars[110]), buy:6400000, sell:1000000, ratio:6.4, k:'credit'}],
+                  src:'t', kind:'credit'};
+    Ext.code = '8267';
+    state.toggles.marginPanel = true;
+    state.ind = recompute();
+    state.i0 = 0; state.i1 = 60;                  /* データが始まるより前だけ */
+    const texts = [];
+    const ot = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function(t){ texts.push(String(t)); return ot.apply(this,arguments); };
+    try { redraw(); } finally { CanvasRenderingContext2D.prototype.fillText = ot; }
+    state.raw = keep.raw; Ext.margin = keep.m; Ext.code = keep.c;
+    state.i0 = keep.i0; state.i1 = keep.i1; state.toggles.marginPanel = keep.t;
+    if(texts.some(t => t === '0株')) return '「0株」と書いています';
+    return texts.some(t => /データがありません/.test(t)) ? true : '説明が出ていません';
+  });
   test('信用残: 買残も売残も0の行を観測値にしない', () => {
     /* 0 は「残高ゼロ」ではなく「その日の数字が無い」。1本混ざるだけで、
        積み上がっていた線が真下に落ちて、そのまま最新値になります。
@@ -13439,7 +13565,7 @@ function renderSelfTests(list){
   $('#selfSummary').innerHTML =
     `<span class="sigicon" style="background:${fail ? 'var(--critical)' : 'var(--good)'};width:26px;height:26px;font-size:14px" aria-hidden="true">${fail ? '!' : '✓'}</span>`
     + `<div><div class="vbig">${fail ? `${fail} 件が失敗` : 'すべて合格'}</div>`
-    + `<div class="vsub">${pass}/${list.length} 件が合格。この端末・このブラウザで実際に関数を動かした結果です。</div></div>`;
+    + `<div class="vsub">${pass}/${list.length} 件が合格。この端末・このブラウザで実際に関数を動かした結果です(${esc(APP_VER,8)} ${esc(APP_DATE,12)})。</div></div>`;
   $('#selfBody').innerHTML = groups.map(g => {
     const bad = g.items.filter(i => !i.ok).length;
     return `<div class="shead">${esc(g.name)} — ${g.items.length - bad}/${g.items.length}</div>`
@@ -15518,6 +15644,11 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
 
 /* ---- init ----------------------------------------------------------- */
 (function init(){
+  /* 版の表示。見出しの横と、いちばん下の注意書きの頭に出します。 */
+  const vt = $('#verTag');
+  if(vt) vt.textContent = APP_VER + ' ・ ' + APP_DATE;
+  const vl = $('#verLine');
+  if(vl) vl.textContent = 'このファイルは ' + APP_VER + '(' + APP_DATE + ')';
   setPreset(state.interval);
   buildRanges();
   showPreset();
