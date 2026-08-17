@@ -11,7 +11,7 @@
      *.workers.dev is there so a relay you deploy yourself can be reached
      without editing this line; a relay on your own domain needs that domain
      added here by hand (the app says so when you save one). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://cdn.finra.org https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src 'self' data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://cdn.finra.org https://data.sec.gov https://www.sec.gov https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src 'self' data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <!-- strict-origin rather than no-referrer: Google's sign-in needs to see which
      origin is asking, but the ticker you are looking at lives in the path and
      query, and those are never sent. -->
@@ -450,14 +450,14 @@ td:first-child,th:first-child{text-align:left}
   cursor:pointer;padding:0}
 .phbtn:disabled{opacity:.35;cursor:default}
 .phbtn:active{background:var(--wash)}
-#pasteBox{width:100%;box-sizing:border-box;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+#pasteBox, #fundPaste{width:100%;box-sizing:border-box;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
   padding:10px 11px;border-radius:11px;border:1px solid var(--hairline);
   background:var(--surface-1);color:var(--ink-1);resize:vertical;min-height:110px}
 /* --accent was never defined anywhere, so this resolved to nothing, the
    whole declaration became invalid, and `outline` fell back to none —
    overriding the browser's own ring and leaving keyboard users with no
    visible focus on this box at all. */
-#pasteBox:focus{outline:2px solid var(--ink-1);outline-offset:1px}
+#pasteBox:focus, #fundPaste:focus{outline:2px solid var(--ink-1);outline-offset:1px}
 /* 遅延バッジ。分足ほど効いてくるので、足種で強さを変える */
 #qLive{display:inline-flex;align-items:center;gap:5px;margin-top:5px;
   padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;
@@ -469,6 +469,20 @@ td:first-child,th:first-child{text-align:left}
 .pprev{border:1px solid var(--hairline);border-radius:11px;padding:9px 11px;background:var(--wash);
   font-size:12.5px;line-height:1.75;color:var(--ink-2)}
 .pprev b{color:var(--ink-1)}
+/* ---------- 株価指標(PER/PBR/ROE)カード ---------- */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:0 0 10px}
+.fcell{border:1px solid var(--hairline);border-radius:11px;padding:8px 10px;background:var(--surface-1)}
+.fcell .fk{font-size:11px;color:var(--ink-3);display:block;line-height:1.4}
+.fcell .fv{font-size:17px;font-variant-numeric:tabular-nums;color:var(--ink-1);font-weight:650}
+.fcell .fu{font-size:11px;color:var(--ink-3);font-weight:400;margin-left:1px}
+.fcell .fn{font-size:11px;color:var(--ink-3);display:block;margin-top:3px;line-height:1.5}
+.fcell.warn{border-color:var(--warn)}
+.fcell.warn .fn{color:var(--warn)}
+.frow{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end;margin:0 0 9px}
+.fin{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--ink-3)}
+.fin input[type=text]{width:120px}
+.fq{border-left:3px solid var(--hairline);padding:2px 0 2px 11px;margin:0 0 11px}
+.fq b{color:var(--ink-1)}
 footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border-top:1px solid var(--hairline);margin-top:10px}
 .busy{opacity:.45;transition:opacity .15s}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -606,6 +620,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="flow" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>資金フロー</button>
     <button class="chip" data-t="sizeflow" aria-pressed="false"><i class="sw" style="background:var(--ma3)"></i>大口/小口(推定)</button>
     <button class="chip" data-t="vprofile" aria-pressed="false"><i class="sw" style="background:var(--band)"></i>価格帯別出来高</button>
+    <button class="chip" data-t="valuation" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>PER / PBRの推移</button>
     <button class="chip" data-t="events" aria-pressed="true"><i class="sw" style="background:var(--ink-2)"></i>分割・配当</button>
     <button id="csvBtn" class="chip" aria-pressed="false" style="border-style:dashed">CSVを読み込む</button>
     <input type="file" id="csvFile" accept=".csv,.txt,text/csv" class="sr" aria-hidden="true" tabindex="-1">
@@ -792,6 +807,151 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <p id="extNote"></p>
   </div>
 
+  <div class="card" id="fundCard">
+    <h2>株価指標(PER・PBR・ROE)</h2>
+    <p class="qsrc" style="margin:0 0 10px">株価はこのツールが持っているので、
+      <b>決算の数値を4つ</b>入れておけば、あとは株価が動くたびに自動で計算し直します。
+      入れ替えるのは決算のたび、年に4回だけです。
+      <b>米国株はSEC(米国証券取引委員会)から自動で取れます</b>。</p>
+
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip hide" id="fundSec">SECから自動取得</button>
+      <button class="chip" id="fundPanelBtn" style="border-style:dashed">チャートにPERの推移を出す</button>
+      <button class="chip hide" id="fundClear" style="border-style:dashed">保有データを消す</button>
+    </div>
+    <p class="qsrc" id="fundStat" style="margin:0 0 10px"></p>
+    <div id="fundBox"></div>
+
+    <details class="dhelp" id="fundInWrap">
+      <summary><b>数値を手で入れる</b>(4つだけ・30秒)</summary>
+      <p class="qsrc" style="margin:8px 0 9px">
+        Yahoo!ファイナンスや株探の銘柄ページに並んでいる数字です。
+        <b>分かるものだけで構いません</b>。空欄は前に入れた値がそのまま残ります。
+        日付は<b>その決算が発表された日</b>にしてください(そこから先の足に効きます)。</p>
+      <div class="frow">
+        <label class="fin">日付(発表日)
+          <input type="text" id="fundD" inputmode="numeric" spellcheck="false" placeholder="2026/08/07"></label>
+        <label class="fin">EPS 1株当たり純利益
+          <input type="text" id="fundEps" inputmode="decimal" spellcheck="false" placeholder="210.5"></label>
+        <label class="fin">BPS 1株当たり純資産
+          <input type="text" id="fundBps" inputmode="decimal" spellcheck="false" placeholder="3102.4"></label>
+        <label class="fin">1株配当(年間)
+          <input type="text" id="fundDps" inputmode="decimal" spellcheck="false" placeholder="60"></label>
+        <label class="fin">自己資本比率(%)
+          <input type="text" id="fundEqr" inputmode="decimal" spellcheck="false" placeholder="42.3"></label>
+      </div>
+      <div class="filters" style="margin:0 0 4px">
+        <button class="chip" id="fundSave">この日付で保存</button>
+        <button class="chip" id="fundFill" style="border-style:dashed">いまの値を入れる</button>
+      </div>
+      <p class="qsrc" style="margin:8px 0 0;line-height:1.7">
+        PERとPBRしか分からないときは、下の「貼り付け」を使ってください。
+        いまの株価から EPS と BPS を逆算して入れます。</p>
+    </details>
+
+    <details class="dhelp" id="fundPasteWrap">
+      <summary><b>株価サイトからコピーして貼り付ける</b></summary>
+      <p class="qsrc" style="margin:8px 0 9px">Yahoo!ファイナンス・株探・みんかぶなどの
+        <b>指標が並んでいるところをドラッグして選択 → コピー</b>し、ここに貼り付けてください。
+        PER・PBR・ROE・EPS・BPS・配当利回り・1株配当・自己資本比率を拾います。
+        <b>EPSやBPSが載っていなくても</b>、PER・PBRといまの株価から逆算します。</p>
+      <p class="qsrc" style="margin:0 0 9px;line-height:1.7">
+        <b>「見出し 値」が1行ずつ縦に並んでいる部分</b>がいちばん確実です。
+        見出しと数字が上下2行に分かれた横並びの表も読めますが、
+        取り込む前に必ず<b>「ページから読んだ値」</b>が実際の画面と合っているか見てください。
+        違っていたら、取り込まずに閉じて手入力にしてください。</p>
+      <textarea id="fundPaste" rows="6" spellcheck="false"
+        placeholder="ここに貼り付け（例）&#10;PER（会社予想）	（連）15.32倍&#10;PBR（実績）	（連）1.04倍&#10;ROE（実績）	7.05%&#10;1株配当（会社予想）	60.00"></textarea>
+      <div class="filters" style="margin:8px 0">
+        <button class="chip" id="fundPasteGo">取り込む</button>
+        <button class="chip" id="fundPasteClear" style="border-style:dashed">消す</button>
+      </div>
+      <div id="fundPasteOut"></div>
+    </details>
+
+    <details class="dhelp" id="fundHelp">
+      <summary><b>指標の見かた</b> — PER・PBR・ROE・EPS・配当利回り・自己資本比率</summary>
+
+      <p class="qsrc" style="margin:10px 0 9px">6つはバラバラの指標ではなく、
+        <b>4つの問い</b>に答えるために並んでいます。</p>
+      <div class="fq"><b>① 割安か</b> … PER(利益から見て) ・ PBR(資産から見て)<br>
+        <b>② 稼げているか</b> … ROE(効率) ・ EPS(1株の利益とその伸び)<br>
+        <b>③ 還元しているか</b> … 配当利回り<br>
+        <b>④ 潰れないか</b> … 自己資本比率</div>
+
+      <div class="tscroll" style="padding:0;margin:0 0 12px"><table class="wtab"><thead><tr>
+        <th class="wl">指標</th><th class="wl">計算式</th><th class="wl">何がわかるか</th><th class="wl">よく言われる目安</th>
+      </tr></thead><tbody>
+        <tr><td class="wl"><b>PER</b><br>株価収益率</td><td class="wl">株価 ÷ EPS</td>
+            <td class="wl">利益に対して株価が高いか安いか</td><td class="wl">15倍前後</td></tr>
+        <tr><td class="wl"><b>PBR</b><br>株価純資産倍率</td><td class="wl">株価 ÷ BPS</td>
+            <td class="wl">純資産に対して株価が高いか安いか</td><td class="wl">1倍</td></tr>
+        <tr><td class="wl"><b>ROE</b><br>自己資本利益率</td><td class="wl">純利益 ÷ 自己資本<br>(＝ EPS ÷ BPS)</td>
+            <td class="wl">株主のお金をどれだけ効率よく増やしたか</td><td class="wl">8〜10%以上</td></tr>
+        <tr><td class="wl"><b>EPS</b><br>1株当たり純利益</td><td class="wl">純利益 ÷ 発行済株式数</td>
+            <td class="wl">1株がいくら稼いでいるか。成長の土台</td><td class="wl">水準より<b>向き</b></td></tr>
+        <tr><td class="wl"><b>配当利回り</b></td><td class="wl">1株配当 ÷ 株価 × 100</td>
+            <td class="wl">株価に対して年何%の配当がもらえるか</td><td class="wl">3%以上で高配当</td></tr>
+        <tr><td class="wl"><b>自己資本比率</b></td><td class="wl">自己資本 ÷ 総資産 × 100</td>
+            <td class="wl">借金への依存度。財務の安全性</td><td class="wl">製造業なら40%以上</td></tr>
+      </tbody></table></div>
+
+      <p class="qsrc" style="margin:0 0 8px"><b>PER・PBR・ROE は掛け算で繋がっています。</b></p>
+      <div class="fq"><b>PBR ＝ PER × ROE</b>
+        <span class="qsrc">(ROEは小数。PER15倍 × ROE10% ＝ PBR1.5倍)</span></div>
+      <p class="qsrc" style="margin:0 0 12px;line-height:1.8">
+        この式が意味するのは、<b>PBRが1倍を割っている会社は、たいていROEが低い</b>ということです。
+        「資産に対して安い」のではなく、「その資産で十分に稼げていないと市場が見ている」状態です。
+        純資産100億円の会社が毎年1億円しか稼げないなら、その資産は預金以下の働きしかしていません。
+        市場がPBR0.6倍を付けるのは<b>間違いではなく評価</b>です。
+        1倍割れが妙味になるのは、<b>低ROEが一時的で、改善する理由があるとき</b>だけ。
+        「なぜ安いのか」を説明できないうちは、安さではなく<b>安いなりの理由</b>だと考えたほうが安全です。</p>
+
+      <p class="qsrc" style="margin:0 0 8px"><b>目安の数字は、そのまま信じないでください。</b>
+        上の表の「目安」は慣習であって、ルールではありません。</p>
+      <table class="wtab" style="margin-bottom:12px"><tbody>
+        <tr><td class="wl"><b>PER 15倍</b></td><td class="wl">市場平均に近いというだけで、基準ではありません。
+          市況で平均そのものが動きます。ITやグロース株は将来の利益で買われるので高く、
+          成熟した製造業や商社は低く出ます。比べるなら市場平均ではなく
+          <b>同業他社と、その会社自身の過去のPER</b>と。</td></tr>
+        <tr><td class="wl"><b>PBR 1倍</b></td><td class="wl">上のとおり。1倍割れは「割安」ではなく
+          「低ROE」のサインであることが多いです。</td></tr>
+        <tr><td class="wl"><b>配当利回り 3%</b></td><td class="wl">利回りは 配当÷株価 なので、
+          <b>株価が下がっただけでも上がります</b>。急に跳ねた銘柄は増配ではなく株価下落が理由のことが多く、
+          そのあと減配が来ると利回りも株価も同時に失われます。
+          <b>配当そのものが増えているか</b>を必ず一緒に見てください。</td></tr>
+        <tr><td class="wl"><b>自己資本比率 40%</b></td><td class="wl">製造業を前提にした数字です。
+          <b>銀行は数%が正常</b>(預金は負債なので)、不動産・電力・ガスなど設備に借入を使う業種も低く出ます。
+          逆にソフトウェア企業は70%を超えることも珍しくありません。
+          <b>同業種の中で比べないと意味がない</b>指標の代表格です。</td></tr>
+      </tbody></table>
+
+      <p class="qsrc" style="margin:0 0 8px"><b>実際に見る順番。</b></p>
+      <ol class="qsrc" style="margin:0 0 12px;padding-left:1.4em;line-height:1.9">
+        <li><b>EPSの推移。</b>右肩上がりでなければ、PERの割安さはあてになりません。
+          分母が縮んでいるだけかもしれないからです。</li>
+        <li><b>ROE。</b>稼ぐ力がなければ、PBRが低いのは当然の結果です。</li>
+        <li><b>PER・PBRを同業他社と比べる。</b>市場平均ではなく同業と。
+          あわせて<b>その会社自身の過去のレンジ</b>と(チャートの「PER/PBRの推移」がこれです)。</li>
+        <li><b>自己資本比率で足元を確認。</b>同業種の水準に対して極端に低くないか。</li>
+        <li><b>配当利回りは最後。</b>ここまでで問題がない会社の利回りだけが、意味のある利回りです。</li>
+      </ol>
+
+      <p class="qsrc" style="margin:0 0 10px;line-height:1.8"><b>単体で判断しないこと。</b>
+        どの指標も1つでは結論になりません。PERが低い理由、PBRが低い理由、利回りが高い理由が
+        説明できて初めて指標が使えます。指標は答えではなく、<b>「なぜ?」を出すための入口</b>です。</p>
+
+      <table class="wtab"><tbody>
+        <tr><td class="wl">EPS</td><td class="wl">Earnings Per Share ・ 1株当たり純利益。PERの分母</td></tr>
+        <tr><td class="wl">BPS</td><td class="wl">Book-value Per Share ・ 1株当たり純資産。PBRの分母</td></tr>
+        <tr><td class="wl">PER</td><td class="wl">Price Earnings Ratio ・ 株価収益率</td></tr>
+        <tr><td class="wl">PBR</td><td class="wl">Price Book-value Ratio ・ 株価純資産倍率</td></tr>
+        <tr><td class="wl">ROE</td><td class="wl">Return On Equity ・ 自己資本利益率</td></tr>
+        <tr><td class="wl">ROA</td><td class="wl">Return On Assets ・ 総資産利益率。借入も含めた効率</td></tr>
+      </tbody></table>
+    </details>
+  </div>
+
   <div class="card">
     <h2>この銘柄のページ</h2>
     <p class="qsrc" style="margin:0 0 10px">このツールが読んでいない情報は、公式のページで直接どうぞ。</p>
@@ -809,7 +969,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <p class="qsrc" style="margin:0 0 10px"><b>同期するもの</b>:
       お気に入り ・ 閲覧履歴 ・ タブ構成 ・ 指標のオンオフ ・ テーマ ・
       <b>アラート</b> ・ <b>中継サーバーのURL</b> ・ 自動取得のオンオフ ・ シグナル説明の開閉。
-      空売り・信用の蓄積データは下のチェックを入れたときだけ。<br>
+      空売り・信用・<b>決算の数値</b>の蓄積データは下のチェックを入れたときだけ。<br>
       <b>同期しないもの</b>: 株価データ本体(取得し直せるため) ・ 画面の段組み ・
       <b>パネルの高さ</b>。最後の2つは、スマホと大きな画面で同じにすると
       かえって使いにくくなるため、端末ごとの設定にしています。</p>
@@ -871,7 +1031,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <button class="chip" id="shSyncLoad">そのファイルから取り込む</button>
     </div>
     <div style="margin:2px 0 8px">
-      <label class="opt"><input type="checkbox" id="shSupply">空売り・信用の蓄積データも含める</label>
+      <label class="opt"><input type="checkbox" id="shSupply">空売り・信用・決算の数値も含める</label>
       <label class="opt">取り込み方
         <select class="mini" id="shMode">
           <option value="merge">合併(お気に入りを足す)</option>
@@ -1022,6 +1182,16 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     成績評価ではなく、パラメータ調整の目安としてご覧ください。<br>
     <b>空売り残高について:</b> 金融商品取引法にもとづく報告制度で、<b>残高割合0.5%以上</b>のものだけが公表されます。
     報告が無いことは空売りが無いことを意味しません。銘柄別の信用取引残高はJPXがPDFのみで公開しているため、本ツールでは自動抽出せずリンクのみを提供しています。<br>
+    <b>株価指標(PER・PBR・ROE)について:</b> 本ツールは決算の数値そのものを配信していません。
+    PER・PBR・ROE・配当利回りは、<b>お使いの方が入れた EPS・BPS・1株配当・自己資本比率</b>と、
+    このツールが持っている株価から機械的に割り算した結果です。入れた数値が古ければ、指標も古いままになります。
+    米国株のみ SEC EDGAR の XBRL から自動で組み立てますが、これは<b>提出書類をそのまま計算した値</b>であり、
+    証券会社が表示する調整後の数字(継続事業のみの利益、非支配株主持分の扱いなど)とは一致しないことがあります。
+    同じ決算期に複数の提出があるときは<b>最初の提出</b>を採ります(あとから訂正された数字は、その時点では公表されていないため)。
+    株式分割があった銘柄では、株価は分割後に合わせて過去まで調整されて配信されるので、
+    決算書の1株当たりの数字も<b>チャートが持っている分割イベントに合わせて割り直して</b>います。
+    分割イベントが取れない読み込み方(CSV・Stooq)では、この直しは行いません。
+    決算より前の期間は、いちばん古い決算の数値をそのまま当てはめた<b>参考値</b>です(チャートでは破線、数値には「参考」と表示します)。<br>
     <b>通信について:</b> ブラウザから株価サイトへ直接アクセスできないため、無料の公開中継サーバー(CORSプロキシ)を経由します。
     <b>その運営者には、あなたのIPアドレスと「どの銘柄を見たか」が渡ります。</b>気になる場合は「CSVを読み込む」だけを使えば通信は一切発生しません。
     Excel解析ライブラリ(SheetJS)はCDNから読み込みますが、改ざん検知(SRI)を付けてあるため、内容が1バイトでも異なれば読み込みを拒否します。
@@ -2591,7 +2761,18 @@ function parseEvents(ev, tz){
     const d = stamp(e.date);
     const ratio = cleanText(e.splitRatio, 12)
       || (isNum(e.numerator) && isNum(e.denominator) ? e.numerator + ':' + e.denominator : '');
-    if(d) out.push({d, kind: 'split', text: '分割 ' + (ratio || '')});
+    /* 倍率そのものも持ちます。株価は分割後に合わせて過去にさかのぼって
+       調整されて配信されますが、決算書に載っている1株当たりの数字は
+       当時のままなので、両方を並べるには片方を揃える必要があります。
+       ここが無いと、10分割した銘柄のPERが10倍に見えます。 */
+    let f = null;
+    if(isNum(e.numerator) && isNum(e.denominator) && e.denominator > 0) f = e.numerator / e.denominator;
+    else {
+      const m = /^(\d+(?:\.\d+)?)\s*[:：\/]\s*(\d+(?:\.\d+)?)$/.exec(ratio);
+      if(m && +m[2] > 0) f = +m[1] / +m[2];
+    }
+    if(!(isNum(f) && f > 0 && f < 1000)) f = null;
+    if(d) out.push({d, kind: 'split', text: '分割 ' + (ratio || ''), f});
   }
   out.sort((a, b) => a.d.localeCompare(b.d));
   return out;
@@ -2980,7 +3161,7 @@ const state = {
   toggles: {ma:true, bb:true, ichimoku:false, vol:true, rsi:true, macd:true, stoch:false, adx:false,
             fib:false, st:false, vwap:false, don:false, mtf:false, osgfc:false, lorentz:false,
             shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false,
-            events:true},
+            valuation:false, events:true},
   range: '1y', interval: '1d'
 };
 
@@ -3069,6 +3250,11 @@ function layout(){
   if(state.toggles.marginPanel) subs.push({key:'marginPanel',
     title: (Ext.margin && Ext.margin.kind === 'loan')
       ? '貸借残(融資 / 貸株・日証金)' : '信用残(買残 / 売残)'});
+  /* 出来高と同じで、決算の数値を入れていない銘柄では空の箱になるだけなので
+     データがあるときだけ出します。赤字でPERが引けない銘柄はPBRに切り替え、
+     どちらも引けなければ出しません。 */
+  const vk = state.toggles.valuation ? valuationKind() : null;
+  if(vk) subs.push({key:'valuation', title: vk === 'pbr' ? 'PBRの推移(倍)' : 'PERの推移(倍)'});
 
   /* Each panel can be stretched or squashed on its own. The scale is a
      multiplier the user sets by dragging the divider under a panel, kept
@@ -3933,7 +4119,7 @@ function renderBase(){
   drawMain(bctx);
   drawEvents(bctx);
   drawVol(bctx); drawRSI(bctx); drawMACD(bctx); drawStoch(bctx); drawADX(bctx); drawLorentz(bctx);
-  drawShortPanel(bctx); drawMarginPanel(bctx);
+  drawShortPanel(bctx); drawMarginPanel(bctx); drawValuation(bctx);
   drawFlowPanel(bctx); drawSizeFlowPanel(bctx);
   drawGrips(bctx);
 }
@@ -4124,6 +4310,14 @@ function showTip(i, X, Y){
     if(isNum(d.extMargin.sell[i])) extra.push([ln ? '貸株残' : '信用売残', fmtVol(d.extMargin.sell[i]) + '株']);
     if(isNum(d.extMargin.ratio[i])) extra.push([ln ? '貸借倍率' : '信用倍率', d.extMargin.ratio[i].toFixed(2) + '倍']);
   }
+  /* PERとPBRは片方だけをチャートに描いているので、読み取りには両方出します。
+     決算より前の区間は当てはめた値なので、そこだけ「参考」と断ります。 */
+  if(T.valuation && d.fund){
+    const tag = fundIsBackfilled(d.fund, i) ? '(参考)' : '';
+    if(isNum(d.fund.per[i])) extra.push(['PER' + tag, d.fund.per[i].toFixed(1) + '倍']);
+    if(isNum(d.fund.pbr[i])) extra.push(['PBR' + tag, d.fund.pbr[i].toFixed(2) + '倍']);
+    if(isNum(d.fund.dy[i]))  extra.push(['配当利回り' + tag, d.fund.dy[i].toFixed(2) + '%']);
+  }
 
   if(Compare.active.length && state._cmpAll){
     const real = !!state._cmpReal;
@@ -4253,6 +4447,29 @@ function renderLegend(){
   if(T.marginPanel){
     L.push(`<span class="li"><i class="k" style="background:var(--up)"></i>信用買残</span>`);
     L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>信用売残</span>`);
+  }
+  if(T.valuation){
+    const vk = valuationKind();
+    if(!vk){
+      L.push(`<span class="li" style="color:var(--ink-3)">`
+        + `PER/PBRの推移: 下の「株価指標」で決算の数値を入れると出ます</span>`);
+    } else {
+      const f = state.ind && state.ind.fund;
+      const hasQ = !!(f && fundQuartiles(f, vk === 'pbr' ? f.pbr : f.per));
+      L.push(`<span class="li"><i class="k" style="background:var(--${vk === 'pbr' ? 'ma2' : 'ma1'})"></i>`
+        + `${vk.toUpperCase()}`
+        + (hasQ ? '(横線はこの銘柄自身の過去の四分位。市場平均ではありません)' : '')
+        + `</span>`);
+      if(f && f.allBackfill)
+        L.push(`<span class="li" style="color:var(--ink-3)">`
+          + `決算の日付がいまの足より先なので、全区間が当てはめた参考値です</span>`);
+      else if(f && isNum(f.firstReal) && f.firstReal > 0)
+        L.push(`<span class="li" style="color:var(--ink-3)">`
+          + `破線の区間は、いちばん古い決算の数値を当てはめた参考値です</span>`);
+      if(!hasQ)
+        L.push(`<span class="li" style="color:var(--ink-3)">`
+          + `決算を数期ぶん入れると、この銘柄自身の過去のPERレンジと比べられます</span>`);
+    }
   }
   $('#legend').innerHTML = L.join('');
 }
@@ -4669,6 +4886,13 @@ const Store = {
       return v ? JSON.parse(v) : def;
     } catch(e){ return def; }
   },
+  /* 「消す」は消す。set(k, null) は文字列の "null" を書くだけで、
+     鍵は残り、Store.prune() の並べ替えにも顔を出しつづけます。 */
+  del(k){
+    try { delete this.mem[k]; } catch(e){}
+    if(!this.ok) return true;
+    try { localStorage.removeItem('ta.'+k); return true; } catch(e){ return false; }
+  },
   set(k, v){
     let s;
     try { s = JSON.stringify(v); } catch(e){ return false; }
@@ -4695,7 +4919,7 @@ const Store = {
   prune(){
     try{
       const keys = Object.keys(localStorage)
-        .filter(x => /^ta\.(short|margin|usvol)\./.test(x));
+        .filter(x => /^ta\.(short|margin|usvol|fund)\./.test(x));
       if(!keys.length) return false;
       /* Sorting the KEYS is alphabetical, so 「margin.*」 was always wiped out
          entirely before a single 「short.*」 went — and those are the pre-
@@ -4869,7 +5093,23 @@ const Tabs = {
     setPreset(state.interval);
     syncControls();
     if(t.raw){
-      state.raw = t.raw; state.ind = t.ind;
+      /* 前の銘柄の記録を先に手放します。ここを飛ばすと、下の loadCache が
+         返ってくるまでのあいだ、前の銘柄の空売り・信用・決算が新しい足に
+         貼りついたまま描かれます。 */
+      Ext.forget();
+      state.raw = t.raw;
+      /* 指標は、無ければその場で作ります。
+
+         リロード直後の復元では、開いていたタブぶんしか指標を組み立てて
+         いません(全タブぶん作ると起動が遅くなるため)。ところがここは
+         t.ind をそのまま入れていたので、復元後にもう1つのタブを押すと
+         state.ind が undefined になり、drawMain が
+         「Cannot read properties of undefined (reading 'l')」で落ちます。
+         落ちたあとは下の loadCache にも到達しないので、前の銘柄の決算が
+         新しい銘柄の名前で表示されつづけ、そこで保存すると<b>別の銘柄の
+         記録として書き込まれて</b>いました。 */
+      state.ind = t.ind || recompute(t.raw.bars, t.toggles || state.toggles, t.interval);
+      t.ind = state.ind;
       state.i0 = t.i0; state.i1 = t.i1;
       state.yZoom = isNum(t.yZoom) ? t.yZoom : 1;
       setTickTz(t.raw.tz);
@@ -4880,10 +5120,11 @@ const Tabs = {
          tab instead of leaving the previous tab's numbers under the chart */
       const mine = t;
       resetEarnings(); renderShina(null); resetPaste();
+      renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
       Ext.loadCache().then(() => {
         if(this.list[this.active] !== mine) return;
         state.ind = alignExt(state.ind);
-        renderExtStatus(); renderShorts(null); renderMarginStatus(null);
+        renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
         redraw(); renderSignals();
       });
     } else {
@@ -4892,13 +5133,12 @@ const Tabs = {
          Leaving usvol behind drew the previous stock's FINRA ratio across the
          sample series, and the card offered to 「消す」 a record belonging to a
          code that is no longer on screen. */
-      Ext.gen++;                                   /* orphan any in-flight loadCache */
-      Ext.short = Ext.margin = Ext.usvol = Ext.loan = null;
-      marginDropped = 0; legacyRescaled = false;
+      Ext.forget();
       state.raw = demoData(); state.ind = recompute();
       visibleDefault();
       redraw(); applyQuoteStrip(); renderSignals(); renderTable();
       renderNews(null); renderShorts(null); renderMarginStatus(null); renderExtStatus();
+      renderFundCard();
       resetEarnings(); renderShina(null); resetPaste();
       updateExternalLinks();
       notice('このタブはまだ空です。銘柄コードを入れて「分析」を押してください(表示中はサンプルデータです)。');
@@ -5820,10 +6060,29 @@ function updateExternalLinks(){
 const Ext = {
   short:  null,    /* {points:[{d:'YYYYMMDD', ratio, qty, holders:[{holder,ratio,qty}]}], src} */
   margin: null,    /* {points:[{d:'YYYYMMDD', buy, sell, ratio}], src} */
+  usvol:  null,    /* {points:[{d:'YYYYMMDD', short, exempt, total, ratio}], src} */
+  fund:   null,    /* {points:[{d:'YYYYMMDD', eps, bps, dps, eqr}], src} */
+
+  /* いま持っている4つが「どの銘柄のものか」。
+
+     これまでは、画面の銘柄と手元の記録がずれる経路がいくつもありました
+     (読み込みの途中で切り替えた、タブの復元が途中で失敗した、など)。
+     ずれたまま描くと、A社の1株利益をB社の株価で割ったPERが、B社の名前で
+     出ます。数字として出てしまうぶん、線が1本余計に出るより悪いので、
+     ここに銘柄コードを持たせて、合わないときは「無い」ものとして扱います。 */
+  code: '',
 
   codeKey(){
     const c = state.raw && state.raw.code ? String(state.raw.code) : '';
     return c.replace(/\.T$/,'');
+  },
+  /* 手元の記録が、いま画面に出ている銘柄のものかどうか */
+  fresh(){ return this.code === this.codeKey(); },
+  forget(){
+    this.gen++;                                  /* 飛んでいる読み込みを捨てる */
+    this.short = this.margin = this.usvol = this.fund = this.loan = null;
+    this.code = '';
+    marginDropped = 0; legacyRescaled = false;
   },
 
   /* --- cache: repeated use accumulates a longer history ---------------- */
@@ -5834,6 +6093,8 @@ const Ext = {
     this.short = this.margin = null;
     this.loan = null;
     this.usvol = null;
+    this.fund = null;
+    this.code = '';
     marginDropped = 0;
     /* per-stock, like marginDropped beside it. Left standing, one stock with
        an old cache made every stock opened afterwards claim its percentages
@@ -5850,6 +6111,7 @@ const Ext = {
        balances on this chart also poisons the cache, because saveShort()
        keys off whatever codeKey() says at write time */
     if(mine !== this.gen || this.codeKey() !== k) return;
+    this.code = k;
     /* every reader of a stored record goes through normalizeShortRecord — the
        crawler used to merge the raw rows straight off the disk, which skipped
        both migrations and wrote the result back stamped v:2 */
@@ -5861,6 +6123,12 @@ const Ext = {
     if(uv && Array.isArray(uv.points)){
       const pts = normalizeUsVolPoints(uv.points).slice(-400);
       if(pts.length) this.usvol = {points: pts, src: cleanText(uv.src, 60)};
+    }
+    /* 決算の数値。同じく読むたびに作り直します。 */
+    const fv = cached.fund;
+    if(fv && Array.isArray(fv.points)){
+      const pts = normalizeFundPoints(fv.points).slice(-400);
+      if(pts.length) this.fund = {points: pts, src: cleanText(fv.src, 60)};
     }
     const m = cached.margin;
     if(m && Array.isArray(m.points)){
@@ -5892,29 +6160,134 @@ const Ext = {
       }
     }
   },
-  /* both go through the per-key queue, so a save started here cannot land in
-     the middle of a sync's read-modify-write on the same record */
-  /* both go through the per-key queue, so a save started here cannot land in
-     the middle of a sync's read-modify-write on the same record. They return
-     the promise so a caller that needs the write to have LANDED — the repair
-     write below, above all — can wait for it. */
-  saveShort(code){ const k = code || this.codeKey();
-    return (k && this.short)
-      ? withKey('short.'  + k, () => extSaveToDB('short',  k, this.short)) : Promise.resolve(); },
-  saveMargin(code){ const k = code || this.codeKey();
-    return (k && this.margin)
-      ? withKey('margin.' + k, () => extSaveToDB('margin', k, this.margin)) : Promise.resolve(); },
+  /* 保存は「鍵の中で、ディスクを読んでから混ぜて、書く」。
+
+     以前は、手元(メモリ)の記録に足した結果をそのまま丸ごと書いていました。
+     鍵で順番は守られるので同時に書くことはありませんが、<b>混ぜる相手が
+     ディスクではなくメモリ</b>だったので、待っているあいだに同期が書き足した
+     ぶんは、そのまま消えていました。しかも渡していたのは `this.short` という
+     参照ではなく<b>読み取り式</b>で、順番待ちのあいだに loadCache が走ると
+     null になり、`fund.7203` に null がそのまま書かれます。
+     蓄積した何年ぶんかが、操作の順番ひとつで消えていました。
+
+     渡す値はその場で確定させ、混ぜる相手はディスクにします。 */
+  saveRecord(kind, code, rec, merge){
+    const k = code || this.codeKey();
+    if(!k || !rec) return Promise.resolve();
+    const key = kind + '.' + k;
+    return withKey(key, async () => {
+      let cur = null;
+      try { cur = await DB.get(key); } catch(e){}
+      const out = (cur && merge) ? merge(cur, rec) : rec;
+      if(!out) return null;
+      await extSaveToDB(kind, k, out);
+      return out;
+    });
+  },
+  saveShort(code){
+    return this.saveRecord('short', code, this.short, (cur, rec) => {
+      const curN = normalizeShortRecord(cur);
+      const map = new Map(((curN && curN.reports) || []).map(r => [r.d, r]));
+      for(const r of (rec.reports || [])) map.set(r.d, r);
+      const reports = [...map.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+      return {v: 2, reports, points: foldShortReports(reports), src: rec.src};
+    });
+  },
+  saveMargin(code){
+    return this.saveRecord('margin', code, this.margin, (cur, rec) => {
+      /* 統計の種類が違うものは混ぜません(信用残と貸借残)。ディスク側が
+         別の種類なら、いま持っているほうをそのまま書きます —
+         どちらを残すかは mergeMargin がすでに決めています。 */
+      const curKind = cur.kind === 'loan' || cur.kind === 'credit' ? cur.kind : null;
+      if(curKind && rec.kind && curKind !== rec.kind) return rec;
+      const map = new Map((Array.isArray(cur.points) ? cur.points : []).map(p => [p.d, p]));
+      for(const p of (rec.points || [])) map.set(p.d, p);
+      let points = [...map.values()]
+        .sort((a, b) => String(a.d).localeCompare(String(b.d))).slice(-400);
+      /* ディスクと突き合わせると、<b>取り除いたはずの点が戻ってきます</b>。
+         信用残は週次・貸借残は日次で日付がぶつからないので、日付で足すだけ
+         では混ざったままです。loadCache が「桁の合わない N件を外しました」と
+         直した記録を書き戻すのがまさにこの経路で、直すそばから元に戻って
+         いました。しかも直っていない記録のほうが同期で他の端末に渡ります。
+         足したあと、もう一度ふるいにかけます。 */
+      if(rec.kind){
+        const cleaned = dropForeignPoints(points, rec.kind);
+        /* ふるいが「ラベルのほうが間違い」と言うときは、足すのをやめて
+           手元の記録をそのまま書きます。ここで種類を決め直すのは筋違いです。 */
+        if(cleaned.flip) return rec;
+        points = cleaned.points;
+      }
+      const out = {points, src: rec.src};
+      if(rec.kind) out.kind = rec.kind;
+      return out;
+    });
+  },
+  saveFund(code){
+    const k = code || this.codeKey();
+    return this.saveRecord('fund', k, this.fund, (cur, rec) => {
+      const map = new Map(normalizeFundPoints(cur.points).map(p => [p.d, {...p}]));
+      for(const q of (rec.points || [])){
+        const had = map.get(q.d);
+        if(!had){ map.set(q.d, {...q}); continue; }
+        /* 手元にある値のほうが新しいので、こちらを優先します */
+        for(const f of ['eps','bps','dps','eqr']) if(isNum(q[f])) had[f] = q[f];
+      }
+      const points = normalizeFundPoints([...map.values()])
+        .sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+      return {points, src: rec.src};
+    });
+    /* ここでディスクの結果を手元に書き戻したくなりますが、やってはいけません。
+       書き戻しは順番待ちが明けたあとに走るので、そのあいだに「消す」を
+       押されていると、消したはずの記録がメモリに戻ってきます。
+       手元とディスクが一時的に食い違うのは、次に読み直したときに直ります。 */
+  },
+
+  /* 決算の数値を1件足す。同じ日付なら「欠けている項目だけ」埋めます。
+     手入力・貼り付け・SECの3経路が同じ日付に別々の項目を持ってくるので、
+     あとから来たほうで丸ごと置き換えると、先に入れた値が消えます。
+     ただし同じ項目を上書きしたい場合(打ち間違いの訂正)もあるので、
+     over=true のときだけ上書きします。 */
+  mergeFund(points, src, code, over){
+    const k = code || this.codeKey();
+    const incoming = normalizeFundPoints(points);
+    if(!incoming.length) return 0;
+    /* 手元の記録が別の銘柄のものなら、混ぜずに捨てます */
+    const base = (this.code === k && this.fund && this.fund.points) ? this.fund.points : [];
+    const map = new Map(base.map(p => [p.d, {...p}]));
+    let n = 0;
+    for(const q of incoming){
+      const had = map.get(q.d);
+      if(!had){ map.set(q.d, {...q}); n++; continue; }
+      let filled = false;
+      for(const f of ['eps','bps','dps','eqr'])
+        if(isNum(q[f]) && (over || !isNum(had[f]))){
+          if(had[f] !== q[f]) filled = true;
+          had[f] = q[f];
+        }
+      if(filled) n++;
+    }
+    const all = normalizeFundPoints([...map.values()])
+      .sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+    this.fund = {points: all, src: cleanText(src, 60)};
+    this.code = k;
+    this.saveFund(k);
+    /* 上限で切られたぶんは「入った件数」ではありません */
+    return Math.min(n, all.length);
+  },
 
   /* what is stored is the REPORTS; the displayed series is folded from
      them every time, so adding an older month fixes the whole curve
      rather than only its tail */
   mergeReports(reports, src, code){
     src = cleanText(src, 60);
-    const map = new Map((this.short && this.short.reports ? this.short.reports : []).map(r => [r.d, r]));
+    const k = code || this.codeKey();
+    const base = (this.code === k && this.short && this.short.reports) ? this.short.reports : [];
+    const map = new Map(base.map(r => [r.d, r]));
     for(const r of reports) map.set(r.d, r);
     const all = [...map.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
     this.short = {v: 2, reports: all, points: foldShortReports(all), src};
-    this.saveShort(code);
+    this.code = k;
+    this.saveShort(k);
   },
   /* 信用残 and 貸借残 are two different statistics.
 
@@ -5931,7 +6304,9 @@ const Ext = {
   mergeMargin(points, src, code, kind){
     kind = kind === 'loan' ? 'loan' : 'credit';
     src = cleanText(src, 60);
-    const cur = this.margin;
+    const k = code || this.codeKey();
+    /* 手元の記録が別の銘柄のものなら、混ぜずに捨てます */
+    const cur = (this.code === k) ? this.margin : null;
     const curKind = cur ? (cur.kind || 'credit') : null;
     if(cur && curKind !== kind){
       /* the market-wide series wins; the JSF daily figure does not overwrite it */
@@ -5939,7 +6314,8 @@ const Ext = {
       this.margin = {points: points.map(p => ({...p, k: kind}))
                        .sort((a,b)=> a.d.localeCompare(b.d)).slice(-400), src, kind};
       marginDropped = 0;
-      this.saveMargin(code);
+      this.code = k;
+      this.saveMargin(k);
       return {replaced: curKind};
     }
     /* every point records which statistic it is, so a cache can never go
@@ -5950,7 +6326,8 @@ const Ext = {
     const cleaned = dropForeignPoints(all, kind);
     this.margin = {points: cleaned.points, src, kind};
     marginDropped = cleaned.dropped;
-    this.saveMargin(code);
+    this.code = k;
+    this.saveMargin(k);
     return {merged: true, dropped: cleaned.dropped};
   },
 
@@ -5959,19 +6336,37 @@ const Ext = {
 
   clear(which){
     const k = this.codeKey();
+    /* 消す操作も順番待ちに並べます。並べていなかったので、同期の
+       「読んで・混ぜて・書く」の途中で消すと、消したあとに書き戻されて
+       いました。localStorage 側も removeItem で消します —
+       Store.set(k, null) は文字列の "null" を書くだけで、鍵は残り、
+       ta.extAt.* の道連れも残ったままでした。 */
+    const drop = kind => {
+      const key = kind + '.' + k;
+      /* localStorage 側も順番待ちの中で消します。外で消すと、順番待ちに
+         残っていた保存が extAt を書き直して、記録の無い時刻だけが残ります。 */
+      withKey(key, async () => {
+        try { await DB.del(key); } catch(e){}
+        Store.del(key); Store.del('extAt.' + key);
+      });
+    };
     if(which === 'short'){
       /* the button is one button, so it clears whichever of the two this
          stock actually has */
-      this.short = null; DB.del('short.' + k); Store.set('short.' + k, null);
-      this.usvol = null; DB.del('usvol.' + k); Store.set('usvol.' + k, null);
+      this.short = null; drop('short');
+      this.usvol = null; drop('usvol');
     }
-    else { this.margin = null; DB.del('margin.' + k); Store.set('margin.' + k, null); }
+    else if(which === 'fund'){ this.fund = null; drop('fund'); }
+    else { this.margin = null; drop('margin'); }
     renderExtStatus();
     /* the card body too. Only the 「保有データ … 消す」 line was being redrawn,
        so the table of holders and the latest figure stayed on screen after the
        record was gone — with no way to tell whether the delete had worked. */
-    renderShorts(null); renderMarginStatus(null);
+    /* alignExt が先。renderFundCard は Ext ではなく state.ind.fund を読むので、
+       先に描くと消したはずの数字がカードに残ります(空売り・信用のカードで
+       一度直したのと同じ失敗)。 */
     state.ind = alignExt(state.ind);
+    renderShorts(null); renderMarginStatus(null); renderFundCard();
     redraw(); renderSignals();
   }
 };
@@ -6058,6 +6453,15 @@ function recompute(bars, toggles, interval){
 
 function alignExt(ind){
   if(!ind || !state.raw) return ind;
+  /* 手元の外部データが、いま画面に出ている銘柄のものでなければ、
+     何も貼りません。読み込みの途中で銘柄を替えた・タブの復元が途中で
+     こけた、といった経路で、前の銘柄の空売り・信用・決算が新しい足に
+     貼りついていました。線が1本余分なだけならまだしも、決算は
+     「A社の1株利益 ÷ B社の株価」というPERの<b>数字</b>になります。 */
+  if(!Ext.fresh()){
+    ind.extShort = null; ind.extMargin = null; ind.fund = null;
+    return ind;
+  }
   const bars = state.raw.bars;
   /* A report dated the 5th applies to every bar from the 5th onward, not
      only to a bar whose own key is exactly '…05'. Matching on equality
@@ -6093,7 +6497,127 @@ function alignExt(ind){
     ratio: build(Ext.margin.points, p => p.ratio),
     rows:  build(Ext.margin.points, p => p)
   } : null;
+  ind.fund = buildFundSeries(bars);
   return ind;
+}
+
+/* PER・PBR・配当利回り・ROE を1本ずつの足に割り当てる。
+   株価はツールが持っているので、掛かるのは割り算だけです。
+
+   決算の数値は「その日から先」に効きます(build と同じ)。ただし1件しか
+   入っていないとき、それより前の足は全部 null になり、推移がまったく
+   描けません。そこで最初の決算より前は「いちばん古い数値をそのまま当てた
+   もの」として埋め、どこからが実際の数値なのかを firstReal で返します。
+   描画側はそこより前を薄い破線にして、見た目で区別できるようにします。
+
+   終値は ind ではなく bars から直に読みます。alignExt は古い ind に
+   対しても呼ばれるので、ind.c の長さが bars と一致している保証がない
+   ためです(長さがずれると全部の足が1本ずつずれます)。 */
+function buildFundSeries(bars){
+  const pts = (Ext.fund && Array.isArray(Ext.fund.points)) ? Ext.fund.points : null;
+  if(!pts || !pts.length || !bars || !bars.length) return null;
+  const sorted = pts.slice().sort((a, b) => String(a.d).localeCompare(String(b.d)));
+  const n = bars.length;
+  const mk = () => new Array(n).fill(null);
+  const eps = mk(), bps = mk(), dps = mk(), eqr = mk();
+  const per = mk(), pbr = mk(), dy = mk(), roe = mk();
+  /* 引き継ぎは点まるごとではなく<b>項目ごと</b>。四半期に1回、分かるものだけ
+     入れる使い方を勧めている以上、「自己資本比率だけ更新した」点はふつうに
+     出てきます。点ごと差し替えると、その日から先のEPSとBPSが空になり、
+     PERの線がそこでぷつりと切れます。 */
+  const FLD = ['eps','bps','dps','eqr'];
+  const cur = {eps:null, bps:null, dps:null, eqr:null};
+  /* 最初の決算より前に当てはめる値。<b>いちばん古い日付の点にある項目だけ</b>
+     です。「その項目を持っているいちばん古い点」から拾うと、半年あとに
+     初めて入れたBPSが、それより前の全区間のPBRとして描かれ、しかも
+     最初の決算日から次の決算日までのあいだだけ消える、という妙な線に
+     なります(存在しなかった期間に線があり、あった期間に無い)。 */
+  const seed = {eps:null, bps:null, dps:null, eqr:null};
+  for(const p of sorted){
+    if(String(p.d) !== String(sorted[0].d)) break;
+    for(const f of FLD) if(isNum(p[f])) seed[f] = p[f];
+  }
+  let j = 0, started = false, firstReal = -1;
+  for(let i = 0; i < n; i++){
+    const key = barKey(bars[i]);
+    while(j < sorted.length && String(sorted[j].d) <= key){
+      for(const f of FLD) if(isNum(sorted[j][f])) cur[f] = sorted[j][f];
+      started = true; j++;
+    }
+    if(started && firstReal < 0) firstReal = i;
+    /* 最初の決算より前は、いちばん古い「その項目の」値を当てます */
+    const u = started ? cur : seed;
+    const c = bars[i] && isNum(bars[i].c) ? bars[i].c : null;
+    eps[i] = isNum(u.eps) ? u.eps : null;
+    bps[i] = isNum(u.bps) ? u.bps : null;
+    dps[i] = isNum(u.dps) ? u.dps : null;
+    eqr[i] = isNum(u.eqr) ? u.eqr : null;
+    /* 赤字(eps<=0)にPERは無い。無理に負の倍率を描くと、下に突き抜けた線が
+       「割安」に見えてしまうので、その区間は素直に空けます。
+       債務超過(bps<=0)のPBR・ROEも同じ理由で出しません。 */
+    if(isNum(c) && isNum(eps[i]) && eps[i] > 0) per[i] = c / eps[i];
+    if(isNum(c) && isNum(bps[i]) && bps[i] > 0) pbr[i] = c / bps[i];
+    if(isNum(c) && c > 0 && isNum(dps[i]))      dy[i]  = dps[i] / c * 100;
+    if(isNum(eps[i]) && isNum(bps[i]) && bps[i] > 0) roe[i] = eps[i] / bps[i] * 100;
+  }
+  return {eps, bps, dps, eqr, per, pbr, dy, roe, firstReal,
+          /* 全部が当てはめ。決算日が最後の足より先(未来の期を入れた、
+             古いCSVを開いている)ときに起きます。-1 のままだと
+             「firstReal >= 0 なら参考」という判定が全部ひっくり返り、
+             100%当てはめの線が実線・注記なしで出ていました。 */
+          allBackfill: firstReal < 0,
+          count: sorted.length, src: Ext.fund.src || '',
+          last: sorted[sorted.length - 1]};
+}
+
+/* この足は「当てはめただけ」か。判定を1か所にまとめます —
+   チャート・ツールチップ・凡例・カード・テキスト出力で条件が
+   ずれていて、同じ点が場所によって参考だったり実測だったりしました。 */
+function fundIsBackfilled(f, i){
+  if(!f) return false;
+  if(f.allBackfill) return true;
+  return !(isNum(f.firstReal) && f.firstReal >= 0 && i >= f.firstReal);
+}
+
+/* どちらを描けるか。赤字だとPERが無いのでPBRに切り替えます。
+   点が1つしかない区間は線になりようがないので2つ以上を条件にします。
+   表示範囲ではなく配列全体を数えます — layout() は resolveFit() より前に
+   走ることがあり、そのとき i0/i1 はまだ前の銘柄の値だからです。 */
+function valuationKind(){
+  const f = state.ind && state.ind.fund;
+  if(!f) return null;
+  const cnt = a => { let n = 0; for(let i = 0; i < a.length; i++) if(isNum(a[i])) n++; return n; };
+  if(cnt(f.per) >= 2) return 'per';
+  if(cnt(f.pbr) >= 2) return 'pbr';
+  return null;
+}
+
+/* 「この銘柄自身の過去のPERレンジ」として四分位を出してよいか。
+
+   決算が1期しか入っていないと、PERは「株価 ÷ 定数」なので四分位は
+   株価の四分位そのものです。件数だけを条件にしていたので、1期入れて
+   から打ち間違いを直しただけで2件になり、96%が当てはめ区間の系列に
+   「この銘柄の過去では高いほう」と出ていました。
+   実際の決算が効いている区間が<b>半分以上</b>あることも条件にし、
+   分位はその区間だけで計算します。 */
+function fundQuartiles(f, arr){
+  if(!f || !arr || f.count < 2 || f.allBackfill) return null;
+  const fr = isNum(f.firstReal) && f.firstReal >= 0 ? f.firstReal : arr.length;
+  if(arr.length - fr < arr.length / 2) return null;
+  return pctlOf(arr.slice(fr), [0.25, 0.5, 0.75]);
+}
+
+/* 分位点。「この銘柄自身の過去と比べる」ための線で、市場平均でも
+   同業平均でもありません。 */
+function pctlOf(arr, qs){
+  const v = [];
+  for(let i = 0; i < arr.length; i++) if(isNum(arr[i])) v.push(arr[i]);
+  if(v.length < 8) return null;
+  v.sort((a, b) => a - b);
+  return qs.map(q => {
+    const x = (v.length - 1) * q, lo = Math.floor(x), hi = Math.ceil(x);
+    return lo === hi ? v[lo] : v[lo] + (v[hi] - v[lo]) * (x - lo);
+  });
 }
 
 /* ============================================================
@@ -6412,6 +6936,39 @@ function normalizeUsVolPoints(pts){
     .filter(p => isNum(p.ratio));
 }
 
+/* ---- 決算の数値(ファンダメンタルズ) ---------------------------------
+   1銘柄につき「その数字が世に出た日」ごとに1点。株価はツールがすでに
+   持っているので、保存するのは決算側の4つだけで足ります。
+
+     eps 1株当たり純利益   → PER  = 株価 / eps
+     bps 1株当たり純資産   → PBR  = 株価 / bps
+     dps 1株当たり年間配当 → 利回り = dps / 株価 * 100
+     eqr 自己資本比率(%)   → そのまま
+
+   ROE は eps / bps。純利益/自己資本 を1株あたりに割ると分母の株数が
+   約分されて同じ式になるので、別に持つ必要がありません。
+
+   ここも「保存してあるものは信用しない」で、読むたびに作り直します。
+   単位は絶対値ではなく比率で効いてくるので、桁が壊れた点は捨てるより
+   ないのですが、桁の異常は人には見えないため上下限だけ設けています。 */
+function normalizeFundPoints(pts){
+  const fin = (v, lo, hi) => (isNum(v) && v >= lo && v <= hi) ? +v : null;
+  return (Array.isArray(pts) ? pts : [])
+    .filter(p => p && /^\d{8}$/.test(String(p.d)))
+    .map(p => ({d: String(p.d),
+                /* 赤字は当たり前にあるので eps は負を許します。
+                   自己資本(BPS)と自己資本比率も、自社株買いを続けた会社では
+                   実際にマイナスになります(マクドナルド・スターバックス・
+                   ホームデポなど)。0以上に限っていたので、それらの銘柄は
+                   PBRもROEも自己資本比率も、理由の表示もなく空でした。
+                   なおPBRとROEの計算自体は bps > 0 のときだけ行います。 */
+                eps: fin(p.eps, -1e7, 1e7),
+                bps: fin(p.bps, -1e8, 1e8),
+                dps: fin(p.dps, 0, 1e6),
+                eqr: fin(p.eqr, -100, 100)}))
+    .filter(p => isNum(p.eps) || isNum(p.bps) || isNum(p.dps) || isNum(p.eqr));
+}
+
 let usVolBusy = false;
 
 async function loadUsShortVol(maxDays){
@@ -6475,6 +7032,7 @@ async function loadUsShortVol(maxDays){
       return true;
     }
     Ext.usvol = rec;
+    Ext.code = code;                     /* 手元の記録はこの銘柄のもの、と印を付ける */
     afterExtUpdate();
     renderShorts({ok: true, added, failed, us: true});
     return true;
@@ -6566,6 +7124,7 @@ async function loadShortSeries(maxDays, months){
        what happened, and pointed at a button that is hidden there. */
     if(Ext.codeKey() !== code) return true;   /* never file 9984's rows under 7203 */
     Ext.short = rec;
+    Ext.code = code;
     afterExtUpdate();
     renderShorts({ok: true, added: got.length, failed});
     return true;
@@ -6979,6 +7538,869 @@ function syncShortCardChrome(){
   if(b260) b260.textContent = us ? '1年分を取得(約250ファイル)' : '1年分を取得';
 }
 
+/* ============================================================
+   株価指標(PER・PBR・ROE ほか)
+
+   計算そのものは割り算だけです。難しいのは「決算の数値をどこから
+   持ってくるか」で、日本株にはこれを無料で配信しているところが実質
+   ありません(J-Quantsは有料か12週遅れ、EDINETはXBRLの解析が要る)。
+   なので入り口を3つ用意しています:
+
+     ・手入力      4項目。四半期に1回で足ります
+     ・貼り付け    株価サイトの指標欄をコピーして流し込む
+     ・SEC EDGAR   米国株のみ。無料・APIキー不要で完全自動
+
+   どの経路も同じ fund レコードに落ちるので、あとは共通です。
+   ============================================================ */
+
+/* いま画面に出ている足の、いちばん新しい1本での値 */
+function fundLatest(){
+  const f = state.ind && state.ind.fund;
+  const bars = state.raw && state.raw.bars;
+  if(!f || !bars || !bars.length) return null;
+  const i = bars.length - 1;
+  return {i, price: isNum(bars[i].c) ? bars[i].c : null,
+          per: f.per[i], pbr: f.pbr[i], dy: f.dy[i], roe: f.roe[i],
+          eps: f.eps[i], bps: f.bps[i], dps: f.dps[i], eqr: f.eqr[i],
+          backfilled: fundIsBackfilled(f, i),
+          last: f.last || null, count: f.count, src: f.src};
+}
+
+function fundCell(key, unit, val, dp, note, warn){
+  const v = isNum(val) ? val.toFixed(dp) : '—';
+  return `<div class="fcell${warn ? ' warn' : ''}"><span class="fk">${key}</span>`
+       + `<span class="fv">${v}<span class="fu">${isNum(val) ? unit : ''}</span></span>`
+       + (note ? `<span class="fn">${note}</span>` : '') + `</div>`;
+}
+
+function renderFundCard(){
+  const box = $('#fundBox'), stat = $('#fundStat');
+  if(!box || !stat) return;
+  const code = Ext.codeKey();
+  const live = !!code && code !== 'DEMO' && code !== 'CSV';
+
+  /* SECは米国上場株だけ。指数・為替・暗号資産には決算がありません。 */
+  const secBtn = $('#fundSec');
+  if(secBtn) secBtn.classList.toggle('hide', !(live && isUsEquity(code)));
+  const clr = $('#fundClear');
+  if(clr) clr.classList.toggle('hide', !Ext.fund);
+  const pb = $('#fundPanelBtn');
+  if(pb){
+    const on = !!state.toggles.valuation;
+    pb.setAttribute('aria-pressed', String(on));
+    pb.textContent = on ? 'チャートのPERの推移を消す' : 'チャートにPERの推移を出す';
+  }
+
+  if(!live){
+    stat.textContent = '先に銘柄を読み込んでください。入れた数値は、いま開いている銘柄に紐づけて保存します。';
+    box.innerHTML = '';
+    return;
+  }
+  const x = fundLatest();
+  if(!x){
+    stat.innerHTML = '保有データ: まだありません。'
+      + (isUsEquity(code) ? '上の「SECから自動取得」か、' : '')
+      + '下の「数値を手で入れる」「貼り付ける」から入れてください。';
+    box.innerHTML = '';
+    return;
+  }
+  const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+  stat.innerHTML = `保有データ: ${x.count}件`
+    + (x.last ? ` ・ 最新 ${esc(fm(x.last.d), 12)}` : '')
+    + ` (${esc(x.src || '手入力', 60)})`
+    + (x.backfilled ? ' ・ <b>いまの足より新しい日付です</b>' : '');
+
+  const cur = state.raw.currency;
+  const unit = cur === 'JPY' ? '円' : (cur === 'USD' ? 'ドル' : '');
+  /* 目安ではなく「そのまま信じると危ないところ」だけ書きます。
+     15倍や1倍を基準として出してしまうと、このカードがまさに
+     ヘルプで注意している読み方を勧めることになります。 */
+  const f = state.ind.fund;
+  /* 決算が1期しかないとき、PERの分布は「株価 ÷ 定数」なので株価の分布と
+     同じものです。それを「この銘柄の過去のPER」と言うと、値動きの話を
+     割安さの話にすり替えることになるので、2期以上あるときだけ出します。 */
+  const q = fundQuartiles(f, f.per);
+  const perNote = q && isNum(x.per)
+    ? (x.per < q[0] ? `この銘柄の過去では低いほう(中央${q[1].toFixed(1)}倍)`
+     : x.per > q[2] ? `この銘柄の過去では高いほう(中央${q[1].toFixed(1)}倍)`
+     : `この銘柄の平常の範囲内(中央${q[1].toFixed(1)}倍)`)
+    : '同業他社と、この銘柄自身の過去と比べてください';
+
+  box.innerHTML = '<div class="fgrid">'
+    + fundCell('PER 株価収益率', '倍', x.per, 1, perNote)
+    + fundCell('PBR 株価純資産倍率', '倍', x.pbr, 2,
+        isNum(x.pbr) && x.pbr < 1
+          ? '1倍割れ。割安ではなく<b>ROEが低い</b>ことの裏返しである場合が多いので、理由を確かめてから'
+          : '資産に対する評価。ROEと合わせて見る指標です',
+        isNum(x.pbr) && x.pbr < 1)
+    + fundCell('ROE 自己資本利益率', '%', x.roe, 1,
+        isNum(x.roe) && x.roe < 8 ? '8%を下回っています。PBRが低いのは当然の結果かもしれません'
+                                  : 'EPS ÷ BPS。株主のお金を増やせている割合')
+    + fundCell('EPS 1株当たり純利益', unit, x.eps, 2,
+        '水準より<b>向き</b>。過去の値も入れると推移が見えます')
+    + fundCell('配当利回り', '%', x.dy, 2,
+        isNum(x.dy) && x.dy >= 5
+          ? '高いときは<b>株価下落が理由</b>のことが多いので、配当そのものの推移も確認を'
+          : (isNum(x.dps) ? `1株配当 ${x.dps.toFixed(2)}${unit}` : '1株配当が未入力です'))
+    + fundCell('自己資本比率', '%', x.eqr, 1,
+        '<b>業種で全然違います</b>。銀行は数%が正常、ソフトウェアは70%超も普通')
+    + '</div>';
+
+  /* ヘルプに書いた PBR = PER × ROE を、この銘柄の数字で見せます。
+     3つとも同じ EPS と BPS から作っているので、ここは必ず一致します —
+     「検算」ではなく、式が何を言っているかの実演です。ズレを検出したい
+     のは<b>貼り付けたページに書かれていた3つ</b>のほうで、それは
+     fundSanity が取り込みのときに見ています。 */
+  if(isNum(x.per) && isNum(x.roe) && isNum(x.pbr)){
+    box.innerHTML += `<p class="qsrc" style="margin:0 0 4px;line-height:1.8">`
+      + `<b>PBR ＝ PER × ROE</b>: `
+      + `${x.per.toFixed(2)}倍 × ${x.roe.toFixed(2)}% = <b>${x.pbr.toFixed(2)}倍</b>。`
+      + `PBRが低いことと、ROEが低いことは同じことを別の側から見たものです。`
+      + `</p>`;
+  }
+  if(x.backfilled){
+    box.innerHTML += `<p class="qsrc" style="margin:6px 0 4px;line-height:1.8">`
+      + `<b>この数字はまだ「参考」です。</b>入っている決算の日付が、`
+      + `いま表示している最後の足より先になっています。`
+      + `日付を直すか、足を最新にしてください。</p>`;
+  }
+}
+
+/* ---- 貼り付けの読み取り ------------------------------------------
+   信用残の表と違って、こちらは表ではなく「ラベルと数字の対」です。
+   Yahoo!ファイナンスも株探もみんかぶも、並べ方は違っても
+   「PER(会社予想) 15.32倍」のような形は共通なので、行ごとではなく
+   本文全体からラベルを探して、その直後の数字を取ります。 */
+/* 英字3文字は前後を切ります。そうしないと「Performance」の Per や
+   「SUPER」の PER にぶつかり、まったく関係ない数字を拾います。 */
+const FUND_LABELS = [
+  /* 「1株配当」より先に「配当利回り」を見ないと、「配当」だけで
+     引っかかって利回りを配当額として取り込みます。
+     unit は「その数字らしさ」の手がかり。ランキング表の順位や銘柄コードを
+     拾わないよう、単位の付いた数字を優先します(無ければ素の数字)。
+     lo/hi は現実にありうる範囲。外れた値は黙って捨てます。 */
+  {k:'dy',  re:/配当利回り/,                        unit:/[%％]/, lo:0,     hi:50},
+  {k:'dps', re:/(1|一)株(当たり|あたり)?(の)?配当(?!利回)|年間配当|配当金(?!.{0,3}(総|額))/,
+                                                    unit:/円/,    lo:0,     hi:1e6},
+  {k:'eqr', re:/自己資本比率/,                      unit:/[%％]/, lo:-100,  hi:100},
+  {k:'roe', re:/(?:^|[^A-Za-z])ROE(?![A-Za-z])|自己資本利益率/i, unit:/[%％]/, lo:-500, hi:500},
+  {k:'per', re:/(?:^|[^A-Za-z])PER(?![A-Za-z])|株価収益率/i,     unit:/倍/,  lo:0.05,  hi:1e4},
+  {k:'pbr', re:/(?:^|[^A-Za-z])PBR(?![A-Za-z])|株価純資産倍率/i, unit:/倍/,  lo:0.005, hi:1e3},
+  {k:'eps', re:/(?:^|[^A-Za-z])EPS(?![A-Za-z])|(1|一)株(当たり|あたり)?(の)?(当期)?(純)?利益/i,
+                                                    unit:/円/,    lo:-1e7,  hi:1e7},
+  {k:'bps', re:/(?:^|[^A-Za-z])BPS(?![A-Za-z])|(1|一)株(当たり|あたり)?(の)?(純)?資産/i,
+                                                    unit:/円/,    lo:-1e8,  hi:1e8}
+];
+
+/* ラベルのすぐ後ろにある数字。「(連)」「(会社予想)」「【実績】」のような
+   注釈は挟まっても構いませんが、次のラベルは越えません。
+
+   越えない、が効かなかったことがあります。ラベルの正規表現は
+   `(?:^|[^A-Za-z])` で始まるので、`PER→タブ→PBR` のような見出し行では
+   次のラベルがタブごと位置0で一致し、「0より後なら切る」の条件から
+   漏れて、そのまま次の行のデータまで読み進めていました。結果、
+   PBRの欄にPERの値が入ります。0でも切ります — 数字が取れなくなる
+   だけで、間違った数字が入るよりはるかにましです。
+
+   符号も落としていました。`△` `▲` `−` は数字の正規表現の外にあり、
+   pasteNum に渡る前に消えていたので、赤字のEPSが黒字として保存され、
+   「赤字ならPERを出さない」の判定ごと通り抜けていました。 */
+const FUND_NEG = /^[△▲\-−‐－]/;
+function fundGrab(text, spec, stop){
+  const m = spec.re.exec(text);
+  if(!m) return null;
+  let tail = text.slice(m.index + m[0].length, m.index + m[0].length + 90);
+  if(stop){
+    const s = stop.exec(tail);
+    if(s) tail = tail.slice(0, s.index);
+  }
+  tail = tail.replace(/[０-９．，－]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  /* 候補をぜんぶ拾って、単位の付いたものを優先します */
+  const re = /([△▲\-−‐]?)([\d,]+(?:\.\d+)?)([^\d\s]{0,2})/g;
+  const cand = [];
+  let g;
+  while((g = re.exec(tail)) !== null){
+    let v = pasteNum(g[2]);
+    if(!isNum(v)) continue;
+    if(FUND_NEG.test(g[1])) v = -v;
+    if(v < spec.lo || v > spec.hi) continue;
+    cand.push({v, unit: spec.unit ? spec.unit.test(g[3] || '') : false});
+    if(cand.length >= 8) break;
+  }
+  if(!cand.length) return null;
+  const hit = cand.find(c => c.unit);
+  return hit ? hit.v : cand[0].v;
+}
+
+/* 拾えた値どうしの辻褄。PER < PBR は ROE が100%を超えることを意味します。
+   たいていは表の読み違い(列と見出しがずれている)ですが、<b>本当に</b>
+   そうなる会社もあります — 自社株買いを続けて自己資本が小さい銘柄が
+   そうで、アップルもマスターカードもこの形です。ROEが一緒に載っていて
+   PBR ≒ PER × ROE が成り立っているなら、読み違いではなく事実なので
+   そのまま通します。裏取りができないときだけ捨てます。 */
+function fundSanity(vals){
+  const notes = [];
+  if(isNum(vals.per) && isNum(vals.pbr) && vals.per < vals.pbr){
+    const coherent = isNum(vals.roe) && vals.pbr > 0
+      && Math.abs(vals.per * vals.roe / 100 - vals.pbr) / vals.pbr < 0.5;
+    if(coherent){
+      notes.push(`PERよりPBRのほうが大きい値です(ROE ${vals.roe.toFixed(1)}%)。`
+               + `自己資本が小さい会社では実際に起こります。3つの数字は互いに整合しているので、そのまま取り込みます。`);
+    } else {
+      notes.push('PERよりPBRが大きく読めました。表の見出しと数字がずれている可能性が高いので、'
+               + 'PERとPBRは取り込みません(EPS・BPSが載っていればそちらを使います)。');
+      delete vals.per; delete vals.pbr;
+    }
+  }
+  if(isNum(vals.eps) && isNum(vals.bps) && isNum(vals.roe)){
+    const calc = vals.eps / vals.bps * 100;
+    if(Math.abs(calc - vals.roe) > Math.max(3, Math.abs(vals.roe) * 0.5))
+      notes.push(`読み取ったEPSとBPSから計算したROEは ${calc.toFixed(1)}% で、`
+               + `ページに書かれた ${vals.roe.toFixed(1)}% と離れています。`
+               + `予想と実績で期が違うだけのこともありますが、数字を一度ご確認ください。`);
+  }
+  return notes;
+}
+
+/* 見出しが1行に横並びで、数字が次の行にある形。
+
+     PER   PBR   利回り  信用倍率
+     15.3倍 1.04倍 2.26%  3.21倍
+
+   本文をなめる読み方では、PBRのうしろに次の「ラベル」が無いので
+   そのまま次の行まで読み進み、PBRの欄にPERの値が入っていました。
+   同じ列番号どうしを突き合わせれば確実なので、この形は先に処理します。
+   数字が上、見出しが下(右寄せのコピー)も同じ扱いです。 */
+/* 区切りの見分け方は信用残の表と同じ考え方です。カンマを無条件で
+   区切りにすると、桁区切りの 3,102.42 が「3」と「102.42」に割れて、
+   BPS が 3円として保存されます。タブがあればタブだけ、次に2つ以上の
+   空白、最後にカンマ(桁区切りに見えないときだけ)。 */
+function fundSplitCells(line){
+  const s = String(line);
+  /* 1行あたりの列数にも上限を。ページ全体を貼られると、1行が数百列に
+     なることがあり、そのぶん総当たりが効いてきます。 */
+  const cut = a => a.map(c => c.trim()).filter(c => c !== '').slice(0, 60);
+  if(s.indexOf('\t') >= 0) return cut(s.split('\t'));
+  if(/[・｜|]/.test(s))     return cut(s.split(/[・｜|]/));
+  if(/[ 　]{2,}/.test(s))   return cut(s.split(/[ 　]{2,}/));
+  if(s.indexOf(',') >= 0 && !/\d,\d{3}(\D|$)/.test(s)) return cut(s.split(','));
+  return cut([s]);
+}
+function fundLabelOf(cell){
+  for(const spec of FUND_LABELS) if(spec.re.test(cell)) return spec;
+  return null;
+}
+/* そのセルが「見出しだけ」か。「1株配当」のように見出し自体に数字が入る
+   ものがあるので、一致した見出しを取り除いた残りで判断します。 */
+function fundIsLabelCell(cell, spec){
+  const m = spec.re.exec(cell);
+  if(!m) return false;
+  const rest = (cell.slice(0, m.index) + cell.slice(m.index + m[0].length))
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  return !/\d/.test(rest);
+}
+/* セルの中の数字を1つ。単位の付いたものを優先し、範囲外は捨てます。 */
+function fundCellNum(cell, spec){
+  const s = String(cell).replace(/[０-９．，－]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  const re = /([△▲\-−‐]?)([\d,]+(?:\.\d+)?)([^\d\s]{0,2})/g;
+  let g, first = null;
+  while((g = re.exec(s)) !== null){
+    let n = pasteNum(g[2]);
+    if(!isNum(n)) continue;
+    if(FUND_NEG.test(g[1])) n = -n;
+    if(n < spec.lo || n > spec.hi) continue;
+    if(spec.unit && spec.unit.test(g[3] || '')) return n;
+    if(first === null) first = n;
+  }
+  return first;
+}
+/* 見出しの行と数字の行の組を、<b>ぜんぶ</b>拾って重ねます。最初に見つけた
+   1組で打ち切ると、2つに分かれた表(PER/PBR の表と ROE/自己資本比率 の表)の
+   後ろ半分が丸ごと落ちます。
+   見出しと数字のあいだに「(会社予想)(実績)」のような注釈の行が挟まる
+   ことがあるので、数字を含まない行は2行までまたぎます。 */
+function parseFundTable(lines){
+  const out = {};
+  /* 一度使った行は使い回しません。表が2つ続いている貼り付けでは、
+     2つ目の見出し行が1つ目の<b>数字の行</b>と組まされて、
+     ROEの欄にPERの値が入っていました(見出しは下、数字は上、という
+     右寄せコピーの形と区別がつかないため)。
+     ふつうの向き(見出しが上)を先に全部見て、余った行だけ逆向きで見ます。 */
+  const used = new Set();
+  const tryPair = (hi, bi) => {
+    if(used.has(hi) || used.has(bi)) return;
+    const head = fundSplitCells(lines[hi]), body = fundSplitCells(lines[bi]);
+    if(head.length < 2 || head.length !== body.length) return;
+    const specs = head.map(fundLabelOf);
+    if(specs.filter(Boolean).length < 2) return;
+    /* 見出し側に数字が混ざっていたら、それは見出し行ではありません */
+    if(head.some((c, k) => specs[k] ? !fundIsLabelCell(c, specs[k]) : /\d/.test(c))) return;
+    const got = {};
+    for(let k = 0; k < specs.length; k++){
+      if(!specs[k]) continue;
+      const n = fundCellNum(body[k], specs[k]);
+      if(n !== null) got[specs[k].k] = n;
+    }
+    if(Object.keys(got).length < 2) return;
+    for(const k in got) if(out[k] === undefined) out[k] = got[k];
+    used.add(hi); used.add(bi);
+  };
+  for(const back of [false, true]){
+    for(let i = 0; i < lines.length; i++){
+      for(let j = i + 1; j < Math.min(lines.length, i + 4); j++){
+        /* 途中の行は「数字を含まない注釈」だけまたげます */
+        if(j > i + 1 && /\d/.test(lines[j-1])) break;
+        tryPair(back ? j : i, back ? i : j);
+      }
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+/* 1行が「見出し ＋ 値」になっている形。Yahoo!ファイナンスの縦並びが
+   これで、右寄せでコピーすると「値 ＋ 見出し」と順序が逆になります。
+
+   値は<b>まず見出しの右</b>を探します。左から順に探していたので、
+   「株価  2,650  PER  15.3倍」のような行では株価の2,650をPERとして
+   読んでいました(米国Yahooの Bid / PER が横に並ぶ表も同じ)。
+   右に無いときだけ左を見ます。どちら側も、<b>次の見出しの手前まで</b>。 */
+function parseFundPairs(lines){
+  const out = {};
+  for(const line of lines){
+    const cells = fundSplitCells(line);
+    if(cells.length < 2) continue;
+    const specs = cells.map(c => { const s = fundLabelOf(c);
+      return (s && fundIsLabelCell(c, s)) ? s : null; });
+    for(let i = 0; i < cells.length; i++){
+      const spec = specs[i];
+      if(!spec || out[spec.k] !== undefined) continue;
+      let v = null;
+      for(let j = i + 1; j < cells.length && !specs[j] && v === null; j++) v = fundCellNum(cells[j], spec);
+      for(let j = i - 1; j >= 0 && !specs[j] && v === null; j--) v = fundCellNum(cells[j], spec);
+      if(v !== null) out[spec.k] = v;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/* 貼り付けの上限。ページを丸ごと選択して貼る人はふつうにいます。
+   銘柄ページ1枚は数万字なので、20万字と2000行あれば足ります。
+   上限が無いと、5MB の貼り付けで画面が1秒近く止まります。 */
+const FUND_PASTE_MAX = 200000, FUND_PASTE_LINES = 2000;
+
+function parseFundPaste(text){
+  const raw = String(text || '');
+  if(!raw.trim()) return {vals:{}, notes:['何も貼られていません。']};
+  const notes = [];
+  let t = raw;
+  if(t.length > FUND_PASTE_MAX){
+    t = t.slice(0, FUND_PASTE_MAX);
+    notes.push('貼り付けが長いので、先頭の20万字だけを見ています。'
+             + '指標が並んでいるところだけを選んで貼ると確実です。');
+  }
+  /* 全角スペースと桁区切りだけそろえて、あとは素のまま探します */
+  t = t.replace(/[　]/g, ' ');
+  let lines = t.split(/\r?\n/).map(l => l.trim()).filter(l => l !== '');
+  if(lines.length > FUND_PASTE_LINES) lines = lines.slice(0, FUND_PASTE_LINES);
+  const vals = {};
+  /* 形のはっきりしたものから順に。ただし最初に当たったところで<b>止めず</b>、
+     3つとも走らせて重ねます。先に当たったほうが優先です。
+     区切りが行ごとに違う貼り付け(1行目だけタブ、あとは空白)では、
+     形の読み取りが一部の行しか拾えず、そこで打ち切ると残りが消えました。 */
+  const take = got => { if(got) for(const k in got) if(vals[k] === undefined) vals[k] = got[k]; };
+  take(parseFundTable(lines));
+  take(parseFundPairs(lines));
+  /* 次のラベルまでで打ち切るための境界。自分自身は除きます。 */
+  for(const spec of FUND_LABELS){
+    if(vals[spec.k] !== undefined) continue;
+    const others = FUND_LABELS.filter(s => s.k !== spec.k)
+      .map(s => s.re.source).join('|');
+    const v = fundGrab(t, spec, new RegExp(others, 'i'));
+    if(v !== null) vals[spec.k] = v;
+  }
+  /* PERが「—」や「‐」の赤字銘柄では取れないのが正しい挙動です */
+  return {vals, notes: notes.concat(fundSanity(vals))};
+}
+
+/* 拾えた値から保存する4項目を決める。
+   EPS・BPSが載っていないサイトが多いので、PER・PBRと株価から逆算します。
+   逆算に使う株価は「貼り付けたページの株価」ではなくツールが持っている
+   終値なので、ページを開いた時刻とズレるぶんだけ誤差が出ます。その旨は
+   画面に出します。 */
+function fundFromPasted(vals, price){
+  const out = {}, how = [];
+  if(isNum(vals.eps)){ out.eps = vals.eps; how.push('EPSはそのまま'); }
+  else if(isNum(vals.per) && vals.per > 0 && isNum(price)){
+    out.eps = price / vals.per; how.push(`EPSはPER ${vals.per}倍と株価から逆算`);
+  }
+  if(isNum(vals.bps)){ out.bps = vals.bps; how.push('BPSはそのまま'); }
+  else if(isNum(vals.pbr) && vals.pbr > 0 && isNum(price)){
+    out.bps = price / vals.pbr; how.push(`BPSはPBR ${vals.pbr}倍と株価から逆算`);
+  }
+  /* ROEしか無い場合、片方が分かっていればもう片方を作れます */
+  if(isNum(vals.roe) && vals.roe !== 0){
+    if(!isNum(out.bps) && isNum(out.eps)){ out.bps = out.eps / (vals.roe / 100); how.push('BPSはROEから逆算'); }
+    else if(!isNum(out.eps) && isNum(out.bps)){ out.eps = out.bps * (vals.roe / 100); how.push('EPSはROEから逆算'); }
+  }
+  if(isNum(vals.dps)){ out.dps = vals.dps; how.push('1株配当はそのまま'); }
+  else if(isNum(vals.dy) && isNum(price)){
+    out.dps = price * vals.dy / 100; how.push(`1株配当は利回り ${vals.dy}%と株価から逆算`);
+  }
+  if(isNum(vals.eqr)) out.eqr = vals.eqr;
+  return {point: out, how};
+}
+
+let fundPasteParsed = null;
+
+function renderFundPastePreview(res, done){
+  const box = $('#fundPasteOut');
+  if(!box) return;
+  if(!res){ box.innerHTML = ''; return; }
+  if(done){
+    box.innerHTML = `<div class="pprev">取り込みました。上の数字とチャートに反映しています。</div>`;
+    return;
+  }
+  const p = res.point || {};
+  const got = ['eps','bps','dps','eqr'].filter(k => isNum(p[k]));
+  const notes = (res.notes && res.notes.length)
+    ? `<div class="pprev" style="border-color:var(--warn);margin-bottom:8px">`
+      + res.notes.map(t => esc(t, 220)).join('<br>') + `</div>` : '';
+  if(!got.length){
+    box.innerHTML = notes + `<div class="pprev">読み取れる数字がありませんでした。`
+      + `<br>PER・PBR・ROE・EPS・BPS・配当利回り・1株配当・自己資本比率のどれかを含む部分を、`
+      + `見出しごと貼り付けてください。`
+      + `<br>表を横に貼るとうまく読めないことがあります。`
+      + `<b>見出しと数字が1行ずつ並んでいる部分</b>を選んでコピーすると確実です。</div>`;
+    return;
+  }
+  const cur = state.raw && state.raw.currency === 'USD' ? 'ドル' : '円';
+  const row = (k, label, v, u) => isNum(v)
+    ? `<tr><td class="wl">${label}</td><td class="wnum">${v.toFixed(2)}${u}</td></tr>` : '';
+  const fmD = d => /^\d{8}$/.test(String(d)) ? `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}` : '';
+  /* 何をどう読んだかを、保存する値と<b>並べて</b>出します。
+     ラベルと数字がずれた表を貼ったときに気づけるのはここだけなので、
+     読み取った生の値も隠さずに見せます。 */
+  const rawV = res.vals || {};
+  const rawTxt = [['per','PER','倍'],['pbr','PBR','倍'],['roe','ROE','%'],
+                  ['dy','配当利回り','%'],['eps','EPS',''],['bps','BPS',''],
+                  ['dps','1株配当',''],['eqr','自己資本比率','%']]
+    .filter(([k]) => isNum(rawV[k]))
+    .map(([k, l, u]) => `${l} ${rawV[k]}${u}`).join(' ・ ');
+  box.innerHTML = notes + `<div class="pprev">次の値を保存します。`
+    + `<b>${esc(fmD(res.d), 12)}</b>(いま表示している最後の足)の値として記録し、`
+    + `そこから先の足に効きます。`
+    + (rawTxt ? `<br><b>ページから読んだ値</b>: ${esc(rawTxt, 220)}`
+              + `<br>ここが実際のページと違っていたら、取り込まずに閉じてください。` : '')
+    + (res.how && res.how.length ? `<br>${esc(res.how.join(' / '), 200)}` : '')
+    + (res.derived ? `<br><b>逆算に使った株価はこのツールの終値です。</b>`
+        + `貼り付け元のページと時点がずれていると、その分だけ数字もずれます。` : '')
+    + `</div>`
+    + `<div class="tscroll" style="padding:0;margin-top:8px"><table class="wtab"><tbody>`
+    + row('eps','EPS 1株当たり純利益', p.eps, cur)
+    + row('bps','BPS 1株当たり純資産', p.bps, cur)
+    + row('dps','1株配当(年間)', p.dps, cur)
+    + row('eqr','自己資本比率', p.eqr, '%')
+    + `</tbody></table></div>`;
+}
+
+/* 貼り付けた値は「いまの決算」なので、いちばん新しい足の日付で記録します。
+   今日の日付にすると、週末や祝日・古いCSVでは最後の足より先になってしまい、
+   どの足にも効かない点ができます(全区間が「参考」になる)。 */
+function fundDefaultDate(){
+  const bars = state.raw && state.raw.bars;
+  if(bars && bars.length) return barKey(bars[bars.length-1]);
+  return dkey(new Date());
+}
+
+function fundPastePreview(){
+  const el = $('#fundPaste');
+  if(!el) return;
+  const txt = el.value;
+  if(!txt.trim()){ fundPasteParsed = null; renderFundPastePreview(null); return; }
+  const parsed = parseFundPaste(txt);
+  const bars = state.raw && state.raw.bars;
+  const price = (bars && bars.length && isNum(bars[bars.length-1].c)) ? bars[bars.length-1].c : null;
+  const r = fundFromPasted(parsed.vals, price);
+  fundPasteParsed = {
+    point: r.point, how: r.how, vals: parsed.vals, notes: parsed.notes,
+    derived: !isNum(parsed.vals.eps) || !isNum(parsed.vals.bps),
+    d: fundDefaultDate()
+  };
+  renderFundPastePreview(fundPasteParsed, false);
+  const btn = $('#fundPasteGo');
+  if(btn) btn.disabled = !['eps','bps','dps','eqr'].some(k => isNum(r.point[k]));
+}
+
+function fundGuard(){
+  const code = Ext.codeKey();
+  if(!code || code === 'DEMO' || code === 'CSV'){
+    notice('先に銘柄を読み込んでください。入れた数値は、いま開いている銘柄に紐づけて保存します。', true);
+    return null;
+  }
+  return code;
+}
+
+/* 書けたら true。mergeFund が返すのは「変わった項目の数」なので、
+   同じ値をもう一度保存すると 0 が返ります。それを失敗として扱うと、
+   「いまの値を入れる → 保存」(訂正のための手順)が黙って終わり、
+   何も起きなかったように見えていました。 */
+function fundApply(point, d, src){
+  const code = fundGuard();
+  if(!code) return false;
+  /* 保存できる形かどうかを先に見ます。範囲外の値(自己資本比率に423など)は
+     normalizeFundPoints が落とすので、mergeFund は 0 を返し、記録は
+     いっさい作られないのに「保存しました」だけが出ていました。 */
+  if(!normalizeFundPoints([Object.assign({d}, point)]).length){
+    notice('その数値は範囲外なので保存できません。'
+         + '自己資本比率と配当利回りは0〜100%、1株配当は0以上、EPS・BPSは桁をご確認ください。', true);
+    return false;
+  }
+  Ext.mergeFund([Object.assign({d}, point)], src, code, true);
+  if(!state.toggles.valuation){
+    state.toggles.valuation = true;
+    const b = document.querySelector('.chip[data-t="valuation"]');
+    if(b) b.setAttribute('aria-pressed', 'true');
+  }
+  state.ind = alignExt(state.ind);
+  renderFundCard();
+  redraw(); renderSignals();
+  return true;
+}
+
+function fundPasteImport(){
+  if(!fundPasteParsed){ fundPastePreview(); return; }
+  const p = fundPasteParsed;
+  if(!['eps','bps','dps','eqr'].some(k => isNum(p.point[k]))) return;
+  if(fundApply(p.point, p.d, '貼り付け(株価サイト)')) renderFundPastePreview(p, true);
+}
+
+/* 手入力。空欄は「変更しない」で、0 とは区別します。 */
+function fundSaveManual(){
+  const num = id => {
+    const el = $(id);
+    if(!el) return null;
+    const s = String(el.value || '').trim();
+    if(!s) return null;
+    const v = pasteNum(s);
+    return isNum(v) ? v : null;
+  };
+  const dEl = $('#fundD');
+  let d;
+  if(dEl && dEl.value.trim()){
+    const dt = pasteDate(dEl.value);
+    if(!dt){ notice('日付が読めません。2026/08/07 のように入れてください。', true); return; }
+    d = dkey(dt);
+  } else {
+    d = fundDefaultDate();       /* 空欄なら、いま表示している最後の足の日 */
+  }
+  const point = {};
+  const eps = num('#fundEps'), bps = num('#fundBps'),
+        dps = num('#fundDps'), eqr = num('#fundEqr');
+  if(isNum(eps)) point.eps = eps;
+  if(isNum(bps)) point.bps = bps;
+  if(isNum(dps)) point.dps = dps;
+  if(isNum(eqr)) point.eqr = eqr;
+  if(!Object.keys(point).length){ notice('数値がひとつも入っていません。', true); return; }
+  if(fundApply(point, d, '手入力')) notice('保存しました。株価が動くたびに計算し直します。');
+}
+
+/* 「いまの値を入れる」— 保存済みの最新値をフォームに戻す。訂正用です。 */
+function fundFillForm(){
+  const x = fundLatest();
+  const d = new Date();
+  const set = (id, v, dp) => { const el = $(id); if(el) el.value = isNum(v) ? v.toFixed(dp) : ''; };
+  const dEl = $('#fundD');
+  if(dEl) dEl.value = (x && x.last)
+    ? `${x.last.d.slice(0,4)}/${x.last.d.slice(4,6)}/${x.last.d.slice(6,8)}`
+    : `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  set('#fundEps', x && x.last ? x.last.eps : null, 2);
+  set('#fundBps', x && x.last ? x.last.bps : null, 2);
+  set('#fundDps', x && x.last ? x.last.dps : null, 2);
+  set('#fundEqr', x && x.last ? x.last.eqr : null, 1);
+}
+
+/* ---- 米国株: SEC EDGAR から決算の数値を自動で ----------------------
+   data.sec.gov の XBRL API は無料でAPIキーも要りませんが、CORSに対応して
+   いないので中継サーバー経由になります。SECは「名乗らない相手」に403を
+   返すため、公開の無料中継では弾かれることがあります。そのときは自分の
+   中継サーバー(worker.js)を使ってください — こちらはSEC向けの名乗りを
+   付けてあります。
+
+   日付には貸借対照表の日ではなく <b>filed(提出日)</b> を使います。
+   6月末決算の数字を6月末の足に当てると、まだ誰も知らない数字で過去の
+   PERを描くことになるからです。同じ期末に複数の提出があるときは、
+   いちばん早い提出を採ります(市場が最初に見た数字)。 */
+const SEC_MAP_KEY = 'secmap';
+const SEC_MAP_TTL = 30 * 86400000;
+let fundBusy = false;
+
+function secCik10(n){ return 'CIK' + String(n).padStart(10, '0'); }
+
+async function secTickerMap(){
+  let cached = null;
+  try { cached = await DB.get(SEC_MAP_KEY); } catch(e){}
+  if(cached && cached.map && (Date.now() - (+cached.at || 0)) < SEC_MAP_TTL) return cached.map;
+  const j = await relayFetch('https://www.sec.gov/files/company_tickers.json', {timeout: 20000});
+  const map = Object.create(null);
+  for(const k in j){
+    const r = j[k];
+    if(!r || !r.ticker || !isNum(+r.cik_str)) continue;
+    const t = String(r.ticker).toUpperCase();
+    if(!/^[A-Z0-9.\-]{1,12}$/.test(t)) continue;
+    if(t === '__PROTO__') continue;
+    map[t] = +r.cik_str;
+  }
+  if(!Object.keys(map).length) throw new Error('銘柄一覧が空でした');
+  try { await DB.set(SEC_MAP_KEY, {at: Date.now(), map}); } catch(e){}
+  return map;
+}
+
+/* 1つの概念(タグ)を取る。持っていない会社は404なので null を返します。 */
+async function secConcept(cik, ns, tag){
+  try{
+    const j = await relayFetch(
+      `https://data.sec.gov/api/xbrl/companyconcept/${cik}/${ns}/${tag}.json`, {timeout: 20000});
+    return (j && j.units) ? j.units : null;
+  }catch(e){ return null; }
+}
+
+/* 同じ end に複数の提出があれば、いちばん<b>早い</b>提出だけ残します。
+   日付も値もそれに揃えます。市場が最初にその数字を見た日と、そのとき
+   見えていた数字です。あとから訂正された版を採ると、その時点では誰も
+   知らなかった数字で過去のPERを描くことになります。
+
+   株式分割で1株当たりの数字がずれる件は、あとから出し直された書類を
+   探すのではなく splitAdjustFund で株価側の分割イベントに合わせて
+   直します。両方でやると2回割ってしまいますし、出し直しの有無は
+   会社によってまちまちで当てにできません。 */
+function secByEnd(list){
+  const map = new Map();
+  for(const f of (Array.isArray(list) ? list : [])){
+    if(!f || !isNum(+f.val) || !/^\d{4}-\d{2}-\d{2}$/.test(String(f.end || ''))) continue;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(f.filed || ''))) continue;
+    const cur = map.get(f.end);
+    if(!cur || String(f.filed) < String(cur.filed))
+      map.set(f.end, {end: f.end, filed: f.filed, val: +f.val});
+  }
+  return [...map.values()].sort((a, b) => a.end.localeCompare(b.end));
+}
+
+const DAY = 86400000;
+const secDay = s => Date.parse(s + 'T00:00:00Z');
+
+/* 四半期(80〜100日)を4つ足して1年分にします。
+
+   足せるのは<b>切れ目なく続く4本</b>だけです。配列の上から4本を機械的に
+   足していたので、四半期が1つ抜けているとそこを飛ばして15か月分を1年と
+   して足していました。米国企業の多くは第4四半期を単独では開示せず
+   「通期 − 第3四半期までの累計」で示すため、これは例外ではなく<b>毎年
+   1回必ず</b>起きます。第4四半期は通期から引いて作り、それでも埋まらない
+   期間は通期をそのまま使います。 */
+function secTtm(units, key){
+  const raw = (units && units[key]) ? units[key] : [];
+  const qs = [], ys = [];
+  for(const f of raw){
+    if(!f || !isNum(+f.val)) continue;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(f.start || ''))) continue;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(f.end || ''))) continue;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(f.filed || ''))) continue;
+    const a = secDay(f.start), b = secDay(f.end);
+    if(!isFinite(a) || !isFinite(b)) continue;
+    const d = (b - a) / DAY;
+    const rec = {start: f.start, end: f.end, filed: f.filed, val: +f.val};
+    if(d >= 80 && d <= 100) qs.push(rec);
+    else if(d >= 330 && d <= 400) ys.push(rec);
+  }
+  /* end ごとに1本。secByEnd と同じく、いちばん早い提出を採ります。 */
+  const dedupe = arr => {
+    const m = new Map();
+    for(const f of arr){
+      const c = m.get(f.end);
+      if(!c || f.filed < c.filed) m.set(f.end, f);
+    }
+    return [...m.values()].sort((a, b) => a.end.localeCompare(b.end));
+  };
+  const q = dedupe(qs), y = dedupe(ys);
+
+  /* 開示されていない第4四半期を、通期から3四半期を引いて作ります */
+  const have = new Set(q.map(f => f.end));
+  for(const fy of y){
+    if(have.has(fy.end)) continue;
+    const inside = q.filter(f => f.start >= fy.start && f.end <= fy.end);
+    if(inside.length !== 3) continue;
+    const covered = inside.reduce((t, f) => t + (secDay(f.end) - secDay(f.start)) / DAY, 0);
+    const total = (secDay(fy.end) - secDay(fy.start)) / DAY;
+    if(!(total - covered >= 80 && total - covered <= 100)) continue;
+    const last = inside[inside.length - 1];
+    q.push({start: last.end, end: fy.end, filed: fy.filed,
+            val: fy.val - inside.reduce((t, f) => t + f.val, 0)});
+    have.add(fy.end);
+  }
+  q.sort((a, b) => a.end.localeCompare(b.end));
+
+  const out = [];
+  for(let i = 3; i < q.length; i++){
+    const win = q.slice(i - 3, i + 1);
+    /* 切れ目が無いこと。各本の start が前の本の end の翌日前後にあり、
+       4本合わせて1年になっていることを確かめます。 */
+    let ok = true;
+    for(let k = 1; k < 4; k++){
+      const gap = (secDay(win[k].start) - secDay(win[k-1].end)) / DAY;
+      if(!(gap >= -2 && gap <= 4)){ ok = false; break; }
+    }
+    const total = (secDay(win[3].end) - secDay(win[0].start)) / DAY;
+    if(!ok || !(total >= 330 && total <= 400)) continue;
+    out.push({end: win[3].end, filed: win[3].filed,
+              val: win.reduce((t, f) => t + f.val, 0)});
+  }
+  /* 四半期でまかなえない範囲は通期で埋めます */
+  const covered = new Set(out.map(f => f.end));
+  for(const f of y) if(!covered.has(f.end)) out.push({end: f.end, filed: f.filed, val: f.val});
+  return out.sort((a, b) => a.end.localeCompare(b.end));
+}
+
+/* end 以前で最も新しいもの */
+function secAsOf(list, end){
+  let best = null;
+  for(const f of list){ if(f.end <= end) best = f; else break; }
+  return best;
+}
+
+/* 株式分割の直し込み。
+
+   決算書に載っている1株当たりの数字は当時のままです。株価のほうは、
+   分割があると<b>過去にさかのぼって</b>分割後の水準に直したものが配信
+   されてきます。そのまま割ると、10分割した銘柄の分割前のPERが10倍に
+   なります(2024年のエヌビディアなら66倍が660倍)。
+
+   同じ end に対する新しい提出があれば secByEnd がすでに直し込み済みの
+   値を拾いますが、その提出がまだ無い期間や、分割後に一度も参照されて
+   いない古い期は残ります。そこで、いま開いている株価データが持っている
+   分割イベントを使って、その日より<b>後</b>に起きた分割の分だけ割ります。
+
+   分割イベントが取れない経路(CSV・Stooq)では何もしません。数字を
+   黙って動かすより、動かさないほうが原因を追えます。 */
+function splitAdjustFund(points){
+  const ev = (state.raw && Array.isArray(state.raw.events)) ? state.raw.events : [];
+  const sp = ev.filter(e => e && e.kind === 'split' && isNum(e.f) && e.f > 0 && e.f !== 1)
+               .sort((a, b) => String(a.d).localeCompare(String(b.d)));
+  if(!sp.length) return points;
+  return points.map(p => {
+    let k = 1;
+    for(const e of sp) if(String(e.d) > String(p.d)) k *= e.f;
+    if(k === 1) return p;
+    const out = {d: p.d};
+    /* 1株当たりの数字だけが動きます。自己資本比率は比なので不変。 */
+    if(isNum(p.eps)) out.eps = p.eps / k;
+    if(isNum(p.bps)) out.bps = p.bps / k;
+    if(isNum(p.dps)) out.dps = p.dps / k;
+    if(isNum(p.eqr)) out.eqr = p.eqr;
+    return out;
+  });
+}
+
+async function loadUsFund(){
+  const code = fundGuard();
+  if(!code) return false;
+  if(!isUsEquity(code)){
+    notice('SECから取れるのは米国上場株だけです。日本株は手入力か貼り付けをお使いください。', true);
+    return false;
+  }
+  if(fundBusy) return false;
+  fundBusy = true;
+  const stat = $('#fundStat');
+  if(stat) stat.textContent = 'SEC EDGAR から決算の数値を取得しています…';
+  try{
+    const map = await secTickerMap();
+    let cik = null;
+    for(const t of symCandidates(code)) if(map[t]){ cik = secCik10(map[t]); break; }
+    if(!cik) throw new Error('SECの一覧にこのティッカーがありません');
+
+    const [eqU, asU, shU, epsU, dpsU] = await Promise.all([
+      secConcept(cik, 'us-gaap', 'StockholdersEquity'),
+      secConcept(cik, 'us-gaap', 'Assets'),
+      secConcept(cik, 'dei',     'EntityCommonStockSharesOutstanding'),
+      secConcept(cik, 'us-gaap', 'EarningsPerShareDiluted'),
+      secConcept(cik, 'us-gaap', 'CommonStockDividendsPerShareDeclared')
+    ]);
+    const equity = secByEnd(eqU && eqU.USD);
+    const assets = secByEnd(asU && asU.USD);
+    const shares = secByEnd(shU && shU.shares);
+    let epsT = secTtm(epsU, 'USD/shares');
+    /* 希薄化後を出していない会社だけ、基本を取りにいきます。毎回両方を
+       取ると、持っていない側は404まで中継の全段を試すので5往復が無駄に
+       なります(ほとんどの会社は希薄化後を出しています)。 */
+    if(epsT.length < 2){
+      const epsB = await secConcept(cik, 'us-gaap', 'EarningsPerShareBasic');
+      const alt = secTtm(epsB, 'USD/shares');
+      if(alt.length > epsT.length) epsT = alt;
+    }
+    const dpsT = secTtm(dpsU, 'USD/shares');
+    if(!equity.length && !epsT.length) throw new Error('この会社のXBRLに必要な項目がありません');
+
+    /* 貸借対照表の日を軸にして、そこに載る数字を集めます */
+    const ends = new Set([...equity.map(f => f.end), ...epsT.map(f => f.end)]);
+    const points = [];
+    for(const end of [...ends].sort()){
+      const e  = secAsOf(equity, end), a = secAsOf(assets, end);
+      const ep = secAsOf(epsT, end), dp = secAsOf(dpsT, end);
+      /* 提出日がいちばん遅いものに合わせます。どれか1つでも未提出なら
+         その組み合わせはまだ世に出ていません。 */
+      let filed = '';
+      for(const f of [e, a, ep, dp]) if(f && f.end === end && f.filed > filed) filed = f.filed;
+      if(!filed) filed = (e && e.end === end ? e.filed : '') || (ep && ep.end === end ? ep.filed : '');
+      if(!filed) continue;
+      /* 発行済株式数だけは、決算期末ではなく<b>提出日</b>で合わせます。
+         これは表紙に書く「この書類を出す時点の株数」で、end は期末の
+         数週間あとの日付になります。期末で引くと必ず1つ前の書類の株数に
+         当たり、その四半期の自社株買いや新株発行がまるごと抜けます。 */
+      const s = secAsOf(shares, filed);
+      const pt = {d: filed.replace(/-/g, '')};
+      if(ep) pt.eps = ep.val;
+      if(e && s && s.val > 0) pt.bps = e.val / s.val;
+      if(e && a && a.val > 0) pt.eqr = e.val / a.val * 100;
+      if(dp) pt.dps = dp.val;
+      if(isNum(pt.eps) || isNum(pt.bps) || isNum(pt.eqr) || isNum(pt.dps)) points.push(pt);
+    }
+    if(!points.length) throw new Error('組み立てられる数値がありませんでした');
+    /* 同じ提出日に落ちた期は新しいほうを残す */
+    const byD = new Map();
+    for(const p of points.sort((x, y) => x.d.localeCompare(y.d))) byD.set(p.d, p);
+    const final = splitAdjustFund([...byD.values()].slice(-40));
+
+    /* ここまでで数十秒。その間に別の銘柄へ移っていることがあります。
+       移った先の Ext.fund と混ぜて、取りにいったほうのコードで保存して
+       しまうと、両方の記録が壊れます(空売りの取得はこの確認を先に
+       入れてあり、こちらだけ抜けていました)。 */
+    if(Ext.codeKey() !== code){
+      if(stat) stat.textContent = '';
+      renderFundCard();
+      return false;
+    }
+    const n = Ext.mergeFund(final, 'SEC EDGAR', code, true);
+    if(!state.toggles.valuation){
+      state.toggles.valuation = true;
+      const b = document.querySelector('.chip[data-t="valuation"]');
+      if(b) b.setAttribute('aria-pressed', 'true');
+    }
+    state.ind = alignExt(state.ind);
+    renderFundCard();
+    redraw(); renderSignals();
+    notice(`SECから${final.length}期分を取り込みました(新規 ${n}件)。`);
+    return true;
+  }catch(err){
+    /* 失敗のお知らせも、取りにいった銘柄が画面に出ているときだけ。
+       別の銘柄に移ったあとで書くと、その銘柄のカードの「保有データ」が
+       他銘柄のエラーで上書きされます。 */
+    renderFundCard();
+    if(Ext.codeKey() !== code) return false;
+    const msg = (err && err.message) || '取得できませんでした';
+    if(stat) stat.innerHTML = `SECから取得できませんでした: ${esc(msg, 90)}`
+      + `<br>SECは名乗らない相手を断ることがあります。「通信(中継サーバー)」で`
+      + `<b>自分の中継サーバー</b>を設定すると通ります。`;
+    return false;
+  } finally { fundBusy = false; }
+}
+
 function afterExtUpdate(){
   syncShortCardChrome();
   if((Ext.short || Ext.usvol) && !state.toggles.shortPanel){
@@ -7156,6 +8578,95 @@ function drawMarginPanel(g){
   panelFrame(g, p);
   state._marginY = y;
 }
+
+/* PER(または PBR)の推移。
+
+   ねらいは「いま何倍か」ではなく「この銘柄の平常値からどれだけ離れて
+   いるか」なので、目盛りの線ではなく<b>この銘柄自身の過去の四分位</b>を
+   横線に引きます。市場平均の15倍と比べても業種差しか見えません。
+
+   決算の数値を入れた日より前は、いちばん古い決算の数値をそのまま当てた
+   ものなので、実線ではなく薄い破線にしています。数字としては出しますが、
+   「その時点で実際にそうだった」わけではないためです。 */
+function drawValuation(g){
+  const p = panel('valuation'); if(!p) return;
+  const f = state.ind && state.ind.fund;
+  const kind = valuationKind();
+  if(!f || !kind){ panelFrame(g, p); return; }
+  const arr = kind === 'pbr' ? f.pbr : f.per;
+  const bars = state.raw.bars;
+  let mn = Infinity, mx = -Infinity;
+  for(let i=Math.max(0,state.i0);i<=Math.min(state.i1, bars.length-1);i++){
+    const v = arr[i];
+    if(!isNum(v)) continue;
+    if(v < mn) mn = v;
+    if(v > mx) mx = v;
+  }
+  /* 表示している範囲に1本も値が無いことがあります(いまが赤字で、過去の
+     黒字だった時期だけPERがある銘柄)。枠だけ描いて黙るのではなく、
+     なぜ空なのかを書きます。 */
+  if(!isFinite(mn) || !isFinite(mx)){
+    panelFrame(g, p);
+    g.fillStyle = C.ink3;
+    g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillText(kind === 'per' ? 'この期間は赤字のためPERがありません' : 'この期間は計算できる値がありません',
+               p.x + 6, p.y + p.h / 2);
+    return;
+  }
+  const pad = Math.max((mx - mn) * 0.12, Math.abs(mx) * 0.02, 1e-6);
+  const y = makeY(p, Math.max(0, mn - pad), mx + pad, 14, 6);
+  resetSlots();
+
+  /* この銘柄自身の四分位。ただし決算が1期しか入っていないと、PERは
+     「株価 ÷ 定数」でしかなく、四分位は株価の四分位そのものになります。
+     それを「過去のPERレンジ」と称するのは嘘なので、2期以上あるときだけ。 */
+  const q = fundQuartiles(f, arr);
+  let drew = 0;
+  if(q){
+    g.save();
+    for(let k = 0; k < 3; k++){
+      const Y = y(q[k]);
+      if(Y < p.y + 2 || Y > p.y + p.h - 2) continue;
+      g.strokeStyle = C.ink3; g.globalAlpha = k === 1 ? .5 : .28;
+      g.setLineDash(k === 1 ? [] : [3,3]); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(p.x, Math.round(Y)+.5); g.lineTo(p.x+p.w, Math.round(Y)+.5); g.stroke();
+    }
+    g.restore();
+    const step = Math.abs(q[2] - q[0]) || Math.abs(q[1]) || 1;
+    for(const [k, tag] of [[0,'安'],[1,'中央'],[2,'高']]){
+      const Y = y(q[k]);
+      if(Y < p.y + 2 || Y > p.y + p.h - 2) continue;
+      yLabel(g, p, Y, fmtTick(q[k], step / 4, '倍') + ' ' + tag);
+      drew++;
+    }
+  }
+  /* 四分位が全部パネルの外(ズームで狭い範囲だけ見ている)だと、目盛りが
+     1本も無い線になります。そのときはふつうの目盛りに戻します。 */
+  if(!drew){
+    const tk = ticks(Math.max(0, mn - pad), mx + pad, 2);
+    const step = tk.length > 1 ? Math.abs(tk[1] - tk[0]) : (Math.abs(mx) || 1);
+    for(const t of tk){ gridline(g, p, y(t)); yLabel(g, p, y(t), fmtTick(t, step, '倍')); }
+  }
+
+  /* 実際の決算が効き始める足。そこより前は当てはめただけなので破線。
+     firstReal が無い(全部が当てはめ)ときは、全部を破線にします。 */
+  const col = kind === 'pbr' ? C.ma[1] : C.ma[0];
+  const fr = f.allBackfill ? arr.length
+           : ((isNum(f.firstReal) && f.firstReal >= 0) ? f.firstReal : 0);
+  if(fr > 0){
+    const pre = arr.map((v, i) => i <= fr ? v : null);
+    line(g, p, pre, y, C.ink3, 1.4, [4,3]);
+  }
+  if(fr < arr.length){
+    const post = arr.map((v, i) => i >= fr ? v : null);
+    line(g, p, post, y, col, 2);
+  }
+  endLabel(g, p, arr, y, f.allBackfill ? C.ink3 : col,
+           kind.toUpperCase() + (f.allBackfill ? '(参考)' : ''));
+  panelFrame(g, p);
+  state._valuationY = y;
+}
 /* ============================================================
    12. Workspace persistence (IndexedDB)
    localStorage is 5 MB of synchronous strings — fine for a list of
@@ -7246,6 +8757,22 @@ let wsTimer = null, wsRestoring = false, wsCleared = false;
    it uploads with this, so the other device can say how old it is */
 let wsSavedAt = +Store.get('wsAt', 0) || 0;
 
+/* 分割・配当のイベントも、保存して読み戻すときは作り直します。
+   保存の中身は「このオリジンで動いた何か」が書ける場所なので、
+   ほかの記録と同じく信用しません。 */
+function cleanEvents(list){
+  /* 新しいほうを残します。先頭から400件だと、日付の古い順に並んでいる
+     ぶん<b>新しい分割</b>が落ちます — 直し込みに要るのはまさにそれです。 */
+  return (Array.isArray(list) ? list : []).slice(-400).map(e => {
+    if(!e || !/^\d{8}$/.test(String(e.d))) return null;
+    const kind = e.kind === 'split' ? 'split' : e.kind === 'div' ? 'div' : null;
+    if(!kind) return null;
+    const out = {d: String(e.d), kind, text: cleanText(e.text, 24)};
+    if(kind === 'split' && isNum(e.f) && e.f > 0 && e.f < 1000) out.f = +e.f;
+    return out;
+  }).filter(Boolean);
+}
+
 function snapshotWorkspace(){
   Tabs.snapshot();
   return {
@@ -7275,7 +8802,12 @@ function snapshotWorkspace(){
         code: cleanText(t.raw.code, 24),
         currency: /^[A-Z]{3}$/.test(t.raw.currency || '') ? t.raw.currency : 'JPY',
         source: cleanText(t.raw.source, 60),
-        tz: /^[A-Za-z_]+\/[A-Za-z_+\-0-9]+$/.test(t.raw.tz || '') ? t.raw.tz : null
+        tz: /^[A-Za-z_]+\/[A-Za-z_+\-0-9]+$/.test(t.raw.tz || '') ? t.raw.tz : null,
+        /* 分割・配当のイベントも持ち帰ります。ここに無いと、リロード後は
+           state.raw.events が空になり、SECから取った1株当たりの数字を
+           株式分割に合わせて直す処理が黙って効かなくなります(分割前の
+           PERが10倍のまま出る)。表示している分割マークも消えていました。 */
+        events: cleanEvents(t.raw.events)
       } : null,
       bars: t.raw && t.raw.bars && t.raw.bars.length ? packBars(t.raw.bars) : null
     };})
@@ -7353,7 +8885,8 @@ async function restoreWorkspace(){
       if(bars && t.meta){
         stampBars(bars, t.meta.tz || null);
         tab.raw = {bars, name: t.meta.name, code: t.meta.code, tz: t.meta.tz || null,
-                   currency: t.meta.currency, source: t.meta.source};
+                   currency: t.meta.currency, source: t.meta.source,
+                   events: cleanEvents(t.meta.events)};
       }
       tabs.push(tab);
     }
@@ -7379,7 +8912,7 @@ async function restoreWorkspace(){
       updateExternalLinks();
       await Ext.loadCache();
       state.ind = alignExt(state.ind);
-      renderExtStatus(); renderShorts(null); renderMarginStatus(null);
+      renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
       redraw(); renderSignals();
     }
     setSaveState('restored');
@@ -7406,12 +8939,13 @@ async function restoreWorkspace(){
 
 /* ---- Ext caches move to IndexedDB, with a one-time lift from localStorage */
 async function extLoadFromDB(code){
-  const out = {short: null, margin: null, usvol: null};
+  const out = {short: null, margin: null, usvol: null, fund: null};
   if(!code) return out;
   /* `usvol` is a separate key on purpose. It is a different statistic with a
      different shape, and keeping it out of `short.*` means the JP migrations
-     and the sync path can never try to fold it into filings it does not have. */
-  for(const kind of ['short','margin','usvol']){
+     and the sync path can never try to fold it into filings it does not have.
+     `fund` (決算の数値) is separate for the same reason. */
+  for(const kind of ['short','margin','usvol','fund']){
     let v = null;
     try { v = await DB.get(kind + '.' + code); } catch(e){}
     if(!v){
@@ -7424,7 +8958,9 @@ async function extLoadFromDB(code){
   return out;
 }
 async function extSaveToDB(kind, code, val){
-  if(!code) return;
+  /* null を書かない。呼び出し側が持っていたはずの記録を、順番待ちの
+     あいだに失っていた場合に、その空を保存に固定してしまいます。 */
+  if(!code || !val) return;
   try { await DB.set(kind + '.' + code, val); } catch(e){}
   /* the timestamp Store.prune() orders by, so the oldest cache is the one
      that goes when the quota runs out */
@@ -7477,11 +9013,12 @@ function buildBundle(opts){
 function collectSupply(){
   const out = Object.create(null);
   const here = Ext.codeKey();
-  if(here && (Ext.short || Ext.margin || Ext.usvol)){
+  if(here && (Ext.short || Ext.margin || Ext.usvol || Ext.fund)){
     out[here] = Object.create(null);
     if(Ext.short)  out[here].short  = Ext.short;
     if(Ext.margin) out[here].margin = Ext.margin;
     if(Ext.usvol)  out[here].usvol  = Ext.usvol;
+    if(Ext.fund)   out[here].fund   = Ext.fund;
   }
   return out;
 }
@@ -7495,7 +9032,7 @@ async function collectSupplyAll(){
          up to 250 downloads' worth — was silently absent from every backup
          and every sync, while the checkbox beside it said 「空売り・信用の
          蓄積データも含める」. */
-      const m = /^(short|margin|usvol)\.(.+)$/.exec(String(k));
+      const m = /^(short|margin|usvol|fund)\.(.+)$/.exec(String(k));
       if(!m) continue;
       const code = cleanSymbol(m[2]);
       if(!code) continue;                      /* '__proto__' and friends */
@@ -7703,6 +9240,10 @@ async function applyBundle(raw, mode){
         if(merge) bag[code] = Object.assign(bag[code] || {}, {usvol: v.usvol});
         else { await DB.set('usvol.' + code, v.usvol); added++; }
       }
+      if(v && v.fund){
+        if(merge) bag[code] = Object.assign(bag[code] || {}, {fund: v.fund});
+        else { await DB.set('fund.' + code, v.fund); added++; }
+      }
     }
     /* one call for the whole file: mergeSupplyIn reloads the cache and
        repaints the chart at the end, and doing that per stock made a
@@ -7710,7 +9251,7 @@ async function applyBundle(raw, mode){
     if(Object.keys(bag).length) added += await mergeSupplyIn(bag);
     await Ext.loadCache();
     state.ind = alignExt(state.ind);
-    renderExtStatus(); renderShorts(null); renderMarginStatus(null);
+    renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
     redraw(); renderSignals();
   }
 
@@ -8236,12 +9777,25 @@ function cleanSupply(sup){
      and because the receiving device writes what it read back to the file,
      they were deleted from the shared copy as well. SYNC_MAX is the real
      size guard; this one only needs to stop a runaway. */
-  for(const raw of Object.keys(sup).slice(0, 400)){
+  /* 400では足りませんでした。JSONは整数に見える鍵を先に並べるので、
+     切られるのはいつも大きい日本株コードと<b>米国株のティッカー全部</b>です。
+     実際の大きさの歯止めは SYNC_MAX なので、ここは暴走を止めるだけの数に
+     しておきます。 */
+  for(const raw of Object.keys(sup).slice(0, 2000)){
     const code = cleanSymbol(raw);
     if(!code) continue;
-    for(const kind of ['short','margin','usvol']){
+    for(const kind of ['short','margin','usvol','fund']){
       const inc = sup[raw] && sup[raw][kind];
       if(!inc) continue;
+      /* 決算の数値。cleanPoint の margin 形に落ちると buy/sell/ratio に
+         作り替えられて中身が消えるので、専用の正規化を通します。 */
+      if(kind === 'fund'){
+        const points = normalizeFundPoints(inc.points).slice(-400);
+        if(!points.length) continue;
+        out[code] = out[code] || Object.create(null);
+        out[code].fund = {points, src: cleanText(inc.src, 60)};
+        continue;
+      }
       if(kind === 'usvol'){
         const points = normalizeUsVolPoints(inc.points).slice(-400);
         if(!points.length) continue;
@@ -8342,6 +9896,34 @@ async function mergeSupplyIn(raw0){
         }catch(e){}
       }
     });
+    /* fund: usvol と同じく日付の和集合。ただし1つの日付に対して片方が
+       eps しか持たず、もう片方が bps しか持たないことがあります(貼り付け
+       で少しずつ足した場合)。日付ごと丸ごと捨てずに、欠けている項目だけ
+       埋めます。既にある値は上書きしません。 */
+    const fu = sup[code].fund;
+    if(fu) await withKey('fund.' + code, async () => {
+      let cur = null;
+      try { cur = await DB.get('fund.' + code); } catch(e){}
+      const map = new Map(normalizeFundPoints(cur && cur.points).map(p => [p.d, p]));
+      let added = 0;
+      for(const q of fu.points){
+        const had = map.get(q.d);
+        if(!had){ map.set(q.d, q); added++; continue; }
+        let filled = false;
+        for(const f of ['eps','bps','dps','eqr'])
+          if(!isNum(had[f]) && isNum(q[f])){ had[f] = q[f]; filled = true; }
+        if(filled) added++;
+      }
+      if(added){
+        const points = normalizeFundPoints([...map.values()])
+          .sort((a, b) => a.d.localeCompare(b.d)).slice(-400);
+        try{
+          await DB.set('fund.' + code, {points,
+            src: cleanText(fu.src, 60) || (cur && cur.src) || ''});
+          n += added; touched = true;
+        }catch(e){}
+      }
+    });
     for(const kind of ['margin']){
       const inc = sup[code][kind];
       if(!inc) continue;
@@ -8382,7 +9964,7 @@ async function mergeSupplyIn(raw0){
     try{
       await Ext.loadCache();
       state.ind = alignExt(state.ind);
-      renderExtStatus(); renderShorts(null); renderMarginStatus(null);
+      renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
       redraw(); renderSignals();
     }catch(e){}
   }
@@ -9049,6 +10631,20 @@ function reportFacts(){
     if(isNum(d.extMargin.buy[n]))  put('信用買残', String(Math.round(d.extMargin.buy[n])));
     if(isNum(d.extMargin.sell[n])) put('信用売残', String(Math.round(d.extMargin.sell[n])));
     if(isNum(d.extMargin.ratio[n])) put('信用倍率', rptNum(d.extMargin.ratio[n], 2));
+  }
+  /* 決算の数値。AIに読ませたときに「割安か」を自分で確かめられるよう、
+     出所と、その数値がどの決算のものかも一緒に出します。 */
+  if(d.fund){
+    const tag = fundIsBackfilled(d.fund, n) ? '(この足の時点では未発表の決算を当てはめた参考値)' : '';
+    if(isNum(d.fund.per[n])) put('PER' + tag, rptNum(d.fund.per[n], 2));
+    if(isNum(d.fund.pbr[n])) put('PBR' + tag, rptNum(d.fund.pbr[n], 2));
+    if(isNum(d.fund.roe[n])) put('ROE(%)' + tag, rptNum(d.fund.roe[n], 2));
+    if(isNum(d.fund.eps[n])) put('EPS' + tag, rptNum(d.fund.eps[n], 2));
+    if(isNum(d.fund.dy[n]))  put('配当利回り(%)' + tag, rptNum(d.fund.dy[n], 2));
+    if(isNum(d.fund.eqr[n])) put('自己資本比率(%)' + tag, rptNum(d.fund.eqr[n], 1));
+    if(d.fund.last) put('決算数値の出所',
+      `${d.fund.last.d.slice(0,4)}/${d.fund.last.d.slice(4,6)}/${d.fund.last.d.slice(6,8)} 時点 / `
+      + (d.fund.src || '手入力'));
   }
   return L;
 }
@@ -9852,8 +11448,16 @@ const ALLOW = [
   'jpx.co.jp',
   'www.taisyaku.jp',
   /* 米国株の空売り比率(FINRA Reg SHO 日次ファイル) */
-  'cdn.finra.org'
+  'cdn.finra.org',
+  /* 米国株の決算数値(SEC EDGAR の XBRL API・無料・APIキー不要) */
+  'data.sec.gov',
+  'www.sec.gov'
 ];
+
+/* SEC は「誰が取りにきているか名乗ること」を求めており、名乗らない相手には
+   403 を返します。連絡先はご自身のメールアドレスに書き換えてください
+   (書き換えなくても動きますが、名乗るのが本来の作法です)。 */
+const SEC_UA = 'ta-tool/1.0 (personal stock chart tool; contact: your-address@example.com)';
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -9918,11 +11522,17 @@ export default {
     if (target.protocol !== 'https:') return deny('https only', 400, origin);
     if (!allowed(target.hostname)) return deny('host not allowed: ' + target.hostname, 403, origin);
 
-    const hdrs = {
-      /* 素のfetchだと弾く相手がいるので、ふつうのブラウザとして名乗ります */
-      'User-Agent': 'Mozilla/5.0 (compatible; ta-relay/1.0)',
-      'Accept': request.headers.get('Accept') || '*/*',
-      'Accept-Language': 'ja,en;q=0.8'
+    /* SEC だけは名乗り方が決まっているので分けます。ほかは、素のfetchだと
+       弾く相手がいるので、ふつうのブラウザとして名乗ります。
+       転送先はホストが変わりうるので、1ホップごとに作り直します。 */
+    const accept = request.headers.get('Accept') || '*/*';
+    const headersFor = host => {
+      const isSec = /(^|\\.)sec\\.gov$/i.test(String(host || ''));
+      return {
+        'User-Agent': isSec ? SEC_UA : 'Mozilla/5.0 (compatible; ta-relay/1.0)',
+        'Accept': accept,
+        'Accept-Language': isSec ? 'en-US,en;q=0.9' : 'ja,en;q=0.8'
+      };
     };
 
     let upstream;
@@ -9932,7 +11542,7 @@ export default {
          ALLOW 外の中身がそのまま返り、オープンプロキシになっていました。
          (news.google.com のように転送を持つ相手が1つあれば成立します) */
       upstream = await fetch(target.href, {
-        method: 'GET', headers: hdrs, redirect: 'manual',
+        method: 'GET', headers: headersFor(target.hostname), redirect: 'manual',
         cf: {cacheTtl: 20, cacheEverything: false}
       });
 
@@ -9946,7 +11556,7 @@ export default {
           return deny('redirect not allowed: ' + (next.hostname || '?'), 403, origin);
         }
         upstream = await fetch(next.href, {
-          method: 'GET', headers: hdrs, redirect: 'manual',
+          method: 'GET', headers: headersFor(next.hostname), redirect: 'manual',
           cf: {cacheTtl: 20, cacheEverything: false}
         });
       }
@@ -10138,6 +11748,15 @@ function resetPaste(){
   const box = $('#pasteBox'); if(box) box.value = '';
   try { renderPastePreview(null); } catch(e){}
   const go = $('#pasteGo'); if(go) go.disabled = true;
+  /* 指標の貼り付け欄と手入力欄も、同じ理由で銘柄ごとに空にします。
+     前の銘柄のPERを、開いたばかりの別の銘柄に取り込めてしまうためです。 */
+  fundPasteParsed = null;
+  const fb = $('#fundPaste'); if(fb) fb.value = '';
+  try { renderFundPastePreview(null); } catch(e){}
+  const fg = $('#fundPasteGo'); if(fg) fg.disabled = true;
+  for(const id of ['#fundD','#fundEps','#fundBps','#fundDps','#fundEqr']){
+    const el = $(id); if(el) el.value = '';
+  }
 }
 
 /* How many empty slots to keep on the right. The cloud needs 26; a scheduled
@@ -10772,14 +12391,15 @@ async function runSelfTests(){
   test('需給データが正しい足に並ぶ', () => {
     const bars = [0,1,2].map(i => ({t: new Date(Date.UTC(2024,6,1+i,0,0)), o:1,h:1,l:1,c:1,v:1}));
     stampBars(bars, 'Asia/Tokyo');
-    const keep = {raw: state.raw, ind: state.ind, s: Ext.short};
+    const keep = {raw: state.raw, ind: state.ind, s: Ext.short, c: Ext.code};
     state.raw = {bars, code:'7203.T', name:'x', currency:'JPY', source:'t'};
     Ext.short = {points: [{d:'20240701', ratio:1, qty:1, holders:[]},
                           {d:'20240702', ratio:2, qty:1, holders:[]},
                           {d:'20240703', ratio:3, qty:1, holders:[]}], src:'t'};
+    Ext.code = '7203';
     const ind = alignExt({});
     const got = ind.extShort ? ind.extShort.ratio.join(',') : 'なし';
-    state.raw = keep.raw; state.ind = keep.ind; Ext.short = keep.s;
+    state.raw = keep.raw; state.ind = keep.ind; Ext.short = keep.s; Ext.code = keep.c;
     return eq(got, '1,2,3');
   });
   test('FINRAの行を拾える(CRLF・BOM・小数株・トレーラ)', () => {
@@ -10822,7 +12442,7 @@ async function runSelfTests(){
       : '通ってしまった: ' + JSON.stringify(out);
   });
   test('米国の比率は「残高」と呼ばれない', () => {
-    const keep = {s: Ext.short, u: Ext.usvol, raw: state.raw};
+    const keep = {s: Ext.short, u: Ext.usvol, raw: state.raw, c: Ext.code};
     /* 16:00Z = 12:00 EDT, so the bar's OWN market day is the 1st. At 00:00Z
        New York is still on the 30th and the point would not have applied. */
     const bars = [{t: new Date(Date.UTC(2024,6,1,16,0)), o:1,h:1,l:1,c:1,v:1}];
@@ -10830,8 +12450,9 @@ async function runSelfTests(){
     state.raw = {bars, code:'AAPL', name:'x', currency:'USD', source:'t'};
     Ext.short = null;
     Ext.usvol = {points: [{d:'20240701', short:1, exempt:0, total:2, ratio:50}], src:'t'};
+    Ext.code = 'AAPL';
     const ind = alignExt({});
-    state.raw = keep.raw; Ext.short = keep.s; Ext.usvol = keep.u;
+    state.raw = keep.raw; Ext.short = keep.s; Ext.usvol = keep.u; Ext.code = keep.c;
     return ind.extShort && ind.extShort.us === true && ind.extShort.ratio[0] === 50;
   });
   test('比較データも各市場の営業日で突き合わせる', () => {
@@ -11268,6 +12889,11 @@ async function runSelfTests(){
        script could post the Drive token to. FINRA is a real fetch and was
        missing from this list entirely. */
     'https://cdn.finra.org/equity/regsho/daily/CNMSshvol20250815.txt',
+    /* SEC EDGAR。ここが抜けていると、中継サーバー経由でしか通らず、
+       しかも公開の中継はSEC向けの名乗りを付けないので必ず失敗します。
+       ブラウザが黙って止めるので、原因も分かりません。 */
+    'https://www.sec.gov/files/company_tickers.json',
+    'https://data.sec.gov/api/xbrl/companyconcept/CIK0000320193/us-gaap/Assets.json',
     'https://www.googleapis.com/drive/v3/files',
     'https://www.googleapis.com/upload/drive/v3/files/x',
     'wss://streamer.finance.yahoo.com/?version=2'
@@ -11340,6 +12966,382 @@ async function runSelfTests(){
   }catch(e){ dbRound = e.message; }
   tgroup('保存と復元');
   test('IndexedDBに型付き配列を往復保存できる', () => dbRound);
+
+  /* 蓄積したデータが消える系。ここは実際に順番を作らないと出ません。 */
+  let keepMerge = '走りませんでした', noResurrect = '走りませんでした', noNull = '走りませんでした';
+  try{
+    const K = '__selftest_fund';
+    const keep = {raw: state.raw, fund: Ext.fund, code: Ext.code};
+    const bars = [{t: new Date(2026,0,1), o:1,h:1,l:1,c:1,v:1}];
+    stampBars(bars, 'Asia/Tokyo');
+    state.raw = {bars, name:'x', code:K, tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+
+    /* (1) 順番待ちのあいだに同期がディスクを書き足していても、両方残る。
+           先に「時間のかかる書き手」を並ばせて、そのうしろで保存させます。 */
+    await withKey('fund.' + K, async () => { try { await DB.del('fund.' + K); } catch(e){} });
+    Ext.fund = {points: [{d:'20260101', eps:10, bps:null, dps:null, eqr:null}], src:'手元'};
+    Ext.code = K;
+    withKey('fund.' + K, async () => {
+      await new Promise(r => setTimeout(r, 40));
+      await DB.set('fund.' + K, {points: [{d:'20260201', eps:20, bps:null, dps:null, eqr:null}], src:'同期'});
+    });
+    await Ext.saveFund(K);
+    const both = await DB.get('fund.' + K);
+    const ds = (both && both.points || []).map(x => x.d).sort().join(',');
+    keepMerge = ds === '20260101,20260201' ? true : '残ったのは ' + (ds || 'なし');
+
+    /* (2) 保存の順番待ちのあいだに消したら、消えたまま */
+    Ext.fund = {points: [{d:'20260301', eps:30, bps:null, dps:null, eqr:null}], src:'手元'};
+    Ext.saveFund(K);
+    Ext.fund = null;
+    await withKey('fund.' + K, async () => { try { await DB.del('fund.' + K); } catch(e){} });
+    await new Promise(r => setTimeout(r, 30));
+    noResurrect = (await DB.get('fund.' + K)) ? '消したものが戻ってきました' : true;
+
+    /* (3) 空を保存に固定しない */
+    await DB.set('fund.' + K, {points: [{d:'20260401', eps:40, bps:null, dps:null, eqr:null}], src:'x'});
+    await extSaveToDB('fund', K, null);
+    const after = await DB.get('fund.' + K);
+    noNull = (after && after.points && after.points.length === 1) ? true : 'null で上書きされました';
+
+    try { await DB.del('fund.' + K); } catch(e){}
+    state.raw = keep.raw; Ext.fund = keep.fund; Ext.code = keep.code;
+  }catch(e){ keepMerge = noResurrect = noNull = (e && e.message) || String(e); }
+
+  /* 「桁の合わない N件を外しました」の直しが、書き戻しで元に戻らないこと */
+  let healSticks = '走りませんでした';
+  try{
+    const K = '__selftest_margin';
+    const keep = {raw: state.raw, margin: Ext.margin, code: Ext.code};
+    const bars = [{t: new Date(2025,0,1), o:1,h:1,l:1,c:1,v:1}];
+    stampBars(bars, 'Asia/Tokyo');
+    state.raw = {bars, name:'x', code:K, tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    const weekly = [];
+    for(let w = 0; w < 12; w++){
+      const d = new Date(2025, 0, 3 + w * 7);
+      weekly.push({d: dkey(d), buy: 6400000 + w, sell: 1000000, ratio: 6.4, k: null});
+    }
+    const foreign = ['20250205','20250206','20250207']
+      .map(d => ({d, buy: 680000, sell: 90000, ratio: 7.5, k: null}));
+    await withKey('margin.' + K, async () => { try { await DB.del('margin.' + K); } catch(e){} });
+    /* 直っていない記録がディスクにあり、手元は直したあとの記録 */
+    await DB.set('margin.' + K, {points: weekly.concat(foreign)
+      .sort((a,b)=>a.d.localeCompare(b.d)), src: '旧'});
+    Ext.margin = {points: weekly.map(p => ({...p, k:'credit'})), src:'旧', kind:'credit'};
+    Ext.code = K;
+    await Ext.saveMargin(K);
+    const back = await DB.get('margin.' + K);
+    const n = back && back.points ? back.points.length : 0;
+    healSticks = (back && back.points.some(p => p.buy === 680000))
+      ? '外れ値が戻ってきました(' + n + '点)'
+      : (n === 12 ? true : '点数が ' + n);
+    try { await DB.del('margin.' + K); } catch(e){}
+    state.raw = keep.raw; Ext.margin = keep.margin; Ext.code = keep.code;
+  }catch(e){ healSticks = (e && e.message) || String(e); }
+
+  test('保存は書く直前にディスクと突き合わせる', () => keepMerge);
+  test('消したデータが保存で戻ってこない', () => noResurrect);
+  test('空の記録で上書きしない', () => noNull);
+  test('鍵ごと消える(文字列の null を残さない)', () => {
+    try{
+      localStorage.setItem('ta.__deltest', '1');
+      Store.del('__deltest');
+      return eq(localStorage.getItem('ta.__deltest'), null);
+    }catch(e){ return 'localStorage を使えません'; }
+  });
+  test('外した点が保存で戻ってこない(信用残と貸借残)', () => healSticks);
+  test('別の銘柄の外部データを足に貼らない', () => {
+    const keep = {raw: state.raw, s: Ext.short, f: Ext.fund, c: Ext.code};
+    const bars = [{t: new Date(2026,0,1), o:1,h:1,l:1,c:1,v:1}];
+    stampBars(bars, 'Asia/Tokyo');
+    state.raw = {bars, name:'x', code:'AAAA', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.short = {points: [{d:'20260101', ratio:5, qty:1, holders:[]}], src:'t'};
+    Ext.fund  = {points: [{d:'20260101', eps:10, bps:100, dps:null, eqr:null}], src:'t'};
+    Ext.code  = 'BBBB';                       /* 別の銘柄の記録が残っている状態 */
+    const stale = alignExt({});
+    Ext.code = 'AAAA';
+    const fresh = alignExt({});
+    state.raw = keep.raw; Ext.short = keep.s; Ext.fund = keep.f; Ext.code = keep.c;
+    if(stale.extShort || stale.fund) return '別銘柄の記録が貼られました';
+    return (fresh.extShort && fresh.fund) ? true : '同じ銘柄なのに貼られませんでした';
+  });
+
+  /* ---------------------------------------------------------------- */
+  tgroup('株価指標(PER・PBR・ROE)');
+  test('壊れた点を落とす', () => {
+    const out = normalizeFundPoints([
+      {d:'20250101', eps:100, bps:1000, dps:30, eqr:42},
+      {d:'ダメ', eps:100},
+      {d:'20250401', eps:'x'},
+      {d:'20250701', eqr:180}]);
+    return eq(out.length, 1);
+  });
+  test('赤字(epsが負)は残す', () => eq(normalizeFundPoints([{d:'20250701', eps:-50}]).length, 1));
+  test('PER・PBR・ROE・利回りの計算', () => {
+    const bars = Array.from({length:30}, (_,i)=> ({t:new Date(2025,0,1+i),
+      o:3000, h:3000, l:3000, c:3000, v:1}));
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars, name:'x', code:'T.T', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.fund = {points:[{d:'20241201', eps:200, bps:2000, dps:60, eqr:40}], src:'test'};
+    const f = buildFundSeries(bars);
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    const i = bars.length - 1;
+    return near(f.per[i], 15, 1e-9, 'PER')
+        && near(f.pbr[i], 1.5, 1e-9, 'PBR')
+        && near(f.roe[i], 10, 1e-9, 'ROE')
+        && near(f.dy[i],  2,  1e-9, '利回り');
+  });
+  test('PBR = PER × ROE が成り立つ', () => {
+    const bars = Array.from({length:5}, (_,i)=> ({t:new Date(2025,0,1+i),
+      o:1234, h:1234, l:1234, c:1234, v:1}));
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars, name:'x', code:'T.T', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.fund = {points:[{d:'20241201', eps:87, bps:913}], src:'test'};
+    const f = buildFundSeries(bars);
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    const i = bars.length - 1;
+    return near(f.per[i] * f.roe[i] / 100, f.pbr[i], 1e-9);
+  });
+  test('赤字ならPERを出さない', () => {
+    const bars = Array.from({length:5}, (_,i)=> ({t:new Date(2025,0,1+i),
+      o:1000, h:1000, l:1000, c:1000, v:1}));
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars, name:'x', code:'T.T', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.fund = {points:[{d:'20241201', eps:-10, bps:500}], src:'test'};
+    const f = buildFundSeries(bars);
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    const i = bars.length - 1;
+    return !isNum(f.per[i]) && near(f.pbr[i], 2, 1e-9);
+  });
+  test('決算日より前は参考値だとわかる', () => {
+    const bars = Array.from({length:20}, (_,i)=> ({t:new Date(2025,0,1+i),
+      o:1000, h:1000, l:1000, c:1000, v:1}));
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars, name:'x', code:'T.T', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.fund = {points:[{d:'20250110', eps:100}], src:'test'};
+    const f = buildFundSeries(bars);
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    if(f.firstReal <= 0) return 'firstReal=' + f.firstReal;
+    return isNum(f.per[0]) ? true : '前の区間が空です';
+  });
+  test('貼り付け: 配当利回りと1株配当を取り違えない', () => {
+    const v = parseFundPaste('配当利回り（会社予想）\t2.26%\n1株配当（会社予想）\t（連）60.00').vals;
+    return near(v.dy, 2.26, 1e-9, '利回り') && near(v.dps, 60, 1e-9, '1株配当');
+  });
+  test('貼り付け: Yahoo形式の8項目を読む', () => {
+    const v = parseFundPaste('PER（会社予想）\t（連）15.32倍\nPBR（実績）\t（連）1.04倍\n'
+      + 'ROE（実績）\t7.05%\nEPS（会社予想）\t（連）210.51\nBPS（実績）\t（連）3,102.42\n'
+      + '1株配当（会社予想）\t（連）60.00\n配当利回り（会社予想）\t2.26%\n自己資本比率\t42.3%').vals;
+    return eq(Object.keys(v).length, 8, JSON.stringify(v));
+  });
+  test('貼り付け: 英単語の中のPERを拾わない', () => {
+    const v = parseFundPaste('Performance 99.9\nSUPERB 88.8').vals;
+    return eq(v.per, undefined, JSON.stringify(v));
+  });
+  test('貼り付け: EPSが無ければPERと株価から逆算', () => {
+    const r = fundFromPasted({per: 15, pbr: 1.2}, 3000);
+    return near(r.point.eps, 200, 1e-9, 'EPS') && near(r.point.bps, 2500, 1e-9, 'BPS');
+  });
+  test('貼り付け: 数字が無ければ何も作らない', () => {
+    const r = fundFromPasted(parseFundPaste('本日は晴天なり').vals, 3000);
+    return eq(Object.keys(r.point).length, 0);
+  });
+  test('貼り付け: 赤字の△▲−を負の数として読む', () => {
+    for(const s of ['▲','△','−','-','－']){
+      const v = parseFundPaste('EPS（会社予想）\t（連）' + s + '120.50').vals.eps;
+      if(!near(v, -120.5, 1e-9)) return s + ' → ' + v;
+    }
+    return true;
+  });
+  test('貼り付け: 見出し行と数字行が分かれた表', () => {
+    const v = parseFundPaste('PER\tPBR\t利回り\t信用倍率\n15.3倍\t1.04倍\t2.26%\t3.21倍').vals;
+    return near(v.per, 15.3, 1e-9, 'PER') && near(v.pbr, 1.04, 1e-9, 'PBR');
+  });
+  test('貼り付け: 値が先・見出しが後でも読む', () => {
+    const v = parseFundPaste('15.32倍\tPER（会社予想）\n1.04倍\tPBR（実績）').vals;
+    return near(v.per, 15.32, 1e-9, 'PER') && near(v.pbr, 1.04, 1e-9, 'PBR');
+  });
+  test('貼り付け: 桁区切りのカンマで割らない', () => {
+    const v = parseFundPaste('BPS（実績）\t（連）3,102.42').vals;
+    return near(v.bps, 3102.42, 1e-9);
+  });
+  test('貼り付け: PER<PBR は読み違いとして捨てる', () => {
+    const r = parseFundPaste('PER（会社予想）\t1.04倍\nPBR（実績）\t15.32倍');
+    return eq(r.vals.per, undefined) && eq(r.vals.pbr, undefined) && (r.notes.length > 0);
+  });
+  test('貼り付け: ROEが裏付けるPER<PBRは捨てない', () => {
+    /* 自社株買いで自己資本が小さい会社では実際に起こります */
+    const v = parseFundPaste('PER（実績）\t38.2倍\nPBR（実績）\t59.6倍\nROE（実績）\t156.1%').vals;
+    return near(v.per, 38.2, 1e-9, 'PER') && near(v.pbr, 59.6, 1e-9, 'PBR');
+  });
+  test('貼り付け: 値は見出しの右を先に読む', () => {
+    const v = parseFundPaste('株価\t2,650\tPER\t15.3倍').vals;
+    return near(v.per, 15.3, 1e-9, JSON.stringify(v));
+  });
+  test('貼り付け: 表が2つ続いても混ざらない', () => {
+    const v = parseFundPaste('PER\tPBR\n15.32倍\t1.04倍\nROE\t自己資本比率\n7.05%\t42.3%').vals;
+    return near(v.per, 15.32, 1e-9, 'PER') && near(v.roe, 7.05, 1e-9, 'ROE')
+        && near(v.eqr, 42.3, 1e-9, '自己資本比率');
+  });
+  test('貼り付け: 区切りが行ごとに違っても全部拾う', () => {
+    const v = parseFundPaste('PER（会社予想）\t15.32倍\nPBR（実績） 1.04倍\n'
+      + 'ROE（実績） 7.05%\n自己資本比率 42.3%').vals;
+    return eq(Object.keys(v).length, 4, JSON.stringify(v));
+  });
+  test('前史に「あとから足した項目」を描かない', () => {
+    const bars = Array.from({length:20}, (_,i)=> ({t:new Date(2025,0,1+i),
+      o:1000, h:1000, l:1000, c:1000, v:1}));
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars, name:'x', code:'T.T', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.fund = {points:[{d:'20250105', eps:10}, {d:'20250115', bps:100}], src:'test'};
+    const f = buildFundSeries(bars);
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    return !isNum(f.pbr[0]) && !isNum(f.pbr[8]) && near(f.pbr[19], 10, 1e-9);
+  });
+  test('末尾だけの決算では四分位を出さない', () => {
+    const bars = Array.from({length:200}, (_,i)=> {
+      const px = 100 + i / 2;
+      return {t:new Date(2025,0,1+i), o:px, h:px, l:px, c:px, v:1};
+    });
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars, name:'x', code:'T.T', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.fund = {points:[{d:barKey(bars[190]), eps:10}, {d:barKey(bars[195]), eps:10}], src:'test'};
+    const late = fundQuartiles(buildFundSeries(bars), buildFundSeries(bars).per);
+    Ext.fund = {points:[{d:barKey(bars[5]), eps:10}, {d:barKey(bars[100]), eps:11}], src:'test'};
+    const wide = fundQuartiles(buildFundSeries(bars), buildFundSeries(bars).per);
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    return eq(late, null, '末尾だけ') && (wide ? true : '全体を覆う場合に出ません');
+  });
+  test('範囲外の手入力は保存したと言わない', () => {
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars:[{t:new Date(2025,0,1), o:1,h:1,l:1,c:1,v:1}], name:'x', code:'T.T',
+                 tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    stampBars(state.raw.bars, 'Asia/Tokyo');
+    Ext.fund = null;
+    const bad = fundApply({eqr: 423}, '20250101', 'test');
+    const had = Ext.fund;
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    return eq(bad, false) && eq(had, null);
+  });
+  test('分割イベントが保存と復元を往復する', () => {
+    const out = cleanEvents([{d:'20240610', kind:'split', text:'分割 10:1', f:10},
+                             {d:'20240301', kind:'div', text:'配当 0.24'},
+                             {d:'こわれ', kind:'split', f:10}]);
+    return eq(out.length, 2) && eq(out[0].f, 10) && eq(out[1].f, undefined);
+  });
+  test('項目ごとに引き継ぐ(片方だけ更新しても消えない)', () => {
+    const bars = Array.from({length:20}, (_,i)=> ({t:new Date(2025,0,1+i),
+      o:1000, h:1000, l:1000, c:1000, v:1}));
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars, name:'x', code:'T.T', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.fund = {points:[{d:'20250102', eps:100, bps:1000, eqr:45},
+                        {d:'20250110', eqr:47}], src:'test'};
+    const f = buildFundSeries(bars);
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    const i = bars.length - 1;
+    return near(f.per[i], 10, 1e-9, 'PER') && near(f.eqr[i], 47, 1e-9, '自己資本比率');
+  });
+  test('決算日が最後の足より先なら全区間を参考にする', () => {
+    const bars = Array.from({length:10}, (_,i)=> ({t:new Date(2025,0,1+i),
+      o:1000, h:1000, l:1000, c:1000, v:1}));
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, fund: Ext.fund};
+    state.raw = {bars, name:'x', code:'T.T', tz:'Asia/Tokyo', currency:'JPY', source:'x', events:[]};
+    Ext.fund = {points:[{d:'20991231', eps:100}], src:'test'};
+    const f = buildFundSeries(bars);
+    state.raw = keep.raw; Ext.fund = keep.fund;
+    return f.allBackfill === true && fundIsBackfilled(f, bars.length-1) === true;
+  });
+  test('債務超過(自己資本がマイナス)を捨てない', () => {
+    const out = normalizeFundPoints([{d:'20250331', eps:5, bps:-2.3, eqr:-8.4}]);
+    return eq(out.length, 1) && near(out[0].eqr, -8.4, 1e-9);
+  });
+  test('SEC: 開示されない第4四半期を通期から作る', () => {
+    const q = (s, e, f, v) => ({start:s, end:e, filed:f, val:v});
+    const u = {'USD/shares': [
+      q('2023-01-01','2023-03-31','2023-05-01',1),
+      q('2023-04-01','2023-06-30','2023-08-01',2),
+      q('2023-07-01','2023-09-30','2023-11-01',3),
+      q('2023-01-01','2023-12-31','2024-02-01',10),      /* 第4四半期は 4 */
+      q('2024-01-01','2024-03-31','2024-05-01',5)]};
+    const t = secTtm(u, 'USD/shares');
+    const got = t.find(x => x.end === '2024-03-31');
+    return got ? near(got.val, 14, 1e-9) : '2024-03-31 がありません';
+  });
+  test('SEC: 四半期に穴があれば足さない', () => {
+    const q = (s, e, f, v) => ({start:s, end:e, filed:f, val:v});
+    const u = {'USD/shares': [
+      q('2024-01-01','2024-03-31','2024-05-01',1),
+      q('2024-04-01','2024-06-30','2024-08-01',2),
+      q('2024-10-01','2024-12-31','2025-02-01',4),
+      q('2025-01-01','2025-03-31','2025-05-01',5),
+      q('2025-04-01','2025-06-30','2025-08-01',6)]};
+    return eq(secTtm(u, 'USD/shares').length, 0);
+  });
+  test('SEC: 訂正版ではなく最初の提出を採る', () => {
+    const out = secByEnd([
+      {end:'2024-01-31', filed:'2024-08-28', val:0.119},
+      {end:'2024-01-31', filed:'2024-02-21', val:1.19}]);
+    return eq(out.length, 1) && near(out[0].val, 1.19, 1e-9) && eq(out[0].filed, '2024-02-21');
+  });
+  test('株式分割のぶんだけ古い1株当たりの数字を直す', () => {
+    const keep = state.raw;
+    state.raw = {bars:[], name:'x', code:'X', tz:'America/New_York', currency:'USD', source:'x',
+                 events:[{d:'20240610', kind:'split', text:'分割 10:1', f:10}]};
+    const out = splitAdjustFund([{d:'20240221', eps:11.9, bps:100, dps:1, eqr:40},
+                                 {d:'20240828', eps:1.2,  bps:12,  dps:0.1, eqr:41}]);
+    state.raw = keep;
+    return near(out[0].eps, 1.19, 1e-9, '分割前')
+        && near(out[0].eqr, 40, 1e-9, '比率は不変')
+        && near(out[1].eps, 1.2, 1e-9, '分割後');
+  });
+  test('SEC: 同じ期末なら先に出した方を採る', () => {
+    const out = secByEnd([
+      {end:'2025-03-31', filed:'2025-08-01', val:200},
+      {end:'2025-03-31', filed:'2025-05-01', val:100},
+      {end:'2025-06-30', filed:'2025-08-01', val:300},
+      {end:'こわれ',      filed:'2025-05-01', val:1}]);
+    return eq(out.length, 2) && eq(out[0].val, 100) && eq(out[0].filed, '2025-05-01');
+  });
+  test('SEC: 四半期4本で1年分にする', () => {
+    const q = (s, e, f, v) => ({start:s, end:e, filed:f, val:v});
+    const u = {'USD/shares': [
+      q('2024-01-01','2024-03-31','2024-05-01',1),
+      q('2024-04-01','2024-06-30','2024-08-01',2),
+      q('2024-07-01','2024-09-30','2024-11-01',3),
+      q('2024-10-01','2024-12-31','2025-02-01',4),
+      q('2025-01-01','2025-03-31','2025-05-01',5)]};
+    const t = secTtm(u, 'USD/shares');
+    if(t.length !== 2) return '期数 ' + t.length;
+    return eq(t[0].val, 10, '1本目') && eq(t[1].val, 14, '2本目')
+        && eq(t[1].filed, '2025-05-01', '提出日');
+  });
+  test('SEC: 四半期が足りなければ通期を使う', () => {
+    const u = {'USD/shares': [
+      {start:'2024-01-01', end:'2024-12-31', filed:'2025-02-01', val:9}]};
+    const t = secTtm(u, 'USD/shares');
+    return eq(t.length, 1) && eq(t[0].val, 9);
+  });
+  test('SEC: 中継先に data.sec.gov が入っている', () =>
+    /data\.sec\.gov/.test(WORKER_SRC) && /www\.sec\.gov/.test(WORKER_SRC));
+  test('同期に fund が乗る', () => {
+    const w = cleanSupply({'7203': {fund: {points: [
+      {d:'20250101', eps:1, bps:2, dps:3, eqr:4}], src:'t'}}});
+    return !!(w['7203'] && w['7203'].fund && w['7203'].fund.points.length === 1
+              && w['7203'].fund.points[0].bps === 2);
+  });
+  test('同期の入り口が fund を素通ししない', () => {
+    const w = cleanSupply({'7203': {fund: {points: [{d:'ダメ', eps:1}], src:'t'}}});
+    return eq(w['7203'], undefined);
+  });
+  test('保存の掃除が fund を対象に含む', () => /fund/.test(Store.prune.toString()));
 
   await new Promise(r => setTimeout(r, 60));
   tgroup('XSS(表示部への注入)');
@@ -12066,6 +14068,9 @@ $$('.chip[data-t]').forEach(btn => {
         notice(`${esc(IV_LABEL[state.interval] || 'この足種', 8)}の上に畳める足がないため、上位足は出せません。`
              + `週足以下でお使いください。`);
     }
+    /* PER/PBRのカードにも同じ切り替えボタンを置いてあるので、
+       文言をそろえます。放っておくと片方だけ「出す」のまま残ります。 */
+    if(k === 'valuation') renderFundCard();
     /* the verdict list is toggle-dependent too — スーパートレンド, VWAP,
        一目・三役, 資金フロー and 価格帯別出来高 all appear only when their
        chip is on, and the score is weighted by them. redraw() alone left the
@@ -12711,6 +14716,12 @@ function apply(data){
      seen nothing move" — carrying it across a symbol change made the answer
      meaningless */
   if(!state.raw || state.raw.code !== data.code){ pollCount = 0; pollChanged = 0; }
+  /* 別の銘柄に移るなら、前の銘柄の外部データを先に落とします。
+     Ext.loadCache() は下で呼びますが非同期で、その前に走る recompute() が
+     前の銘柄の空売り・信用・決算を新しい足に貼り付けてしまいます。
+     空売りや信用は「線が1本余分に出る」で済んでいましたが、決算は
+     PERという<b>数字</b>になるので、前の銘柄のEPSで割った値が出ます。 */
+  if(!state.raw || Ext.codeKey() !== key) Ext.forget();
   state.raw = data;
   state.ind = recompute(data.bars);
   state.hover = -1;
@@ -12725,11 +14736,14 @@ function apply(data){
      stock it was pasted on; neither had any reset path at all, so both
      followed the user onto the next stock — including onto US charts. */
   resetEarnings(); renderShina(null); resetPaste();
+  /* カードも先に空にします。読み込みが返るまでの数十ミリ秒、前の銘柄の
+     PERやBPSが新しい銘柄の名前で出たままになっていました。 */
+  renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
   Ext.loadCache().then(() => {
     if(!state.raw || Ext.codeKey() !== key) return;   /* moved on while reading */
     state.ind = alignExt(state.ind);
-    renderExtStatus(); renderShorts(null); renderMarginStatus(null);
-    if(Ext.short || Ext.margin){ redraw(); renderSignals(); }
+    renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
+    if(Ext.short || Ext.usvol || Ext.margin || Ext.fund){ redraw(); renderSignals(); }
     /* then top it up from the sources, without being asked */
     setTimeout(() => { autoFetchExt().catch(() => {}); }, 800);
   });
@@ -13234,6 +15248,31 @@ $('#pasteClear').addEventListener('click', () => {
   renderPastePreview(null);
   $('#pasteGo').disabled = true;
 });
+
+/* ---- 株価指標(PER・PBR・ROE) ------------------------------------------ */
+$('#fundPaste').addEventListener('input', fundPastePreview);
+$('#fundPaste').addEventListener('paste', () => setTimeout(fundPastePreview, 0));
+$('#fundPasteGo').addEventListener('click', fundPasteImport);
+$('#fundPasteClear').addEventListener('click', () => {
+  $('#fundPaste').value = '';
+  fundPasteParsed = null;
+  renderFundPastePreview(null);
+  $('#fundPasteGo').disabled = true;
+});
+$('#fundSave').addEventListener('click', fundSaveManual);
+$('#fundFill').addEventListener('click', fundFillForm);
+$('#fundSec').addEventListener('click', loadUsFund);
+$('#fundClear').addEventListener('click', () => Ext.clear('fund'));
+/* パネルのオン/オフはチップと同じ動きをさせます。カードの中から
+   触れたほうが自然な流れなので、両方に置いてあります。 */
+$('#fundPanelBtn').addEventListener('click', () => {
+  const on = !state.toggles.valuation;
+  state.toggles.valuation = on;
+  const b = document.querySelector('.chip[data-t="valuation"]');
+  if(b) b.setAttribute('aria-pressed', String(on));
+  renderFundCard();
+  redraw(); renderSignals();
+});
 $('#watchBody').addEventListener('click', e => {
   const th = e.target.closest('th[data-sk]');
   if(th){
@@ -13430,6 +15469,7 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
   Tabs.render();
   Compare.renderChips();
   renderNews(null);
+  renderFundCard();
   apply(demoData());
   notice('起動時はサンプルデータを表示しています。上の入力欄に銘柄コードを入れて「分析」を押してください。'
        + ' タブ(＋)で複数銘柄を並行表示、★でお気に入り登録できます。');

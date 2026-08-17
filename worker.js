@@ -45,8 +45,16 @@ const ALLOW = [
   'jpx.co.jp',
   'www.taisyaku.jp',
   /* 米国株の空売り比率(FINRA Reg SHO 日次ファイル) */
-  'cdn.finra.org'
+  'cdn.finra.org',
+  /* 米国株の決算数値(SEC EDGAR の XBRL API・無料・APIキー不要) */
+  'data.sec.gov',
+  'www.sec.gov'
 ];
+
+/* SEC は「誰が取りにきているか名乗ること」を求めており、名乗らない相手には
+   403 を返します。連絡先はご自身のメールアドレスに書き換えてください
+   (書き換えなくても動きますが、名乗るのが本来の作法です)。 */
+const SEC_UA = 'ta-tool/1.0 (personal stock chart tool; contact: your-address@example.com)';
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -111,11 +119,17 @@ export default {
     if (target.protocol !== 'https:') return deny('https only', 400, origin);
     if (!allowed(target.hostname)) return deny('host not allowed: ' + target.hostname, 403, origin);
 
-    const hdrs = {
-      /* 素のfetchだと弾く相手がいるので、ふつうのブラウザとして名乗ります */
-      'User-Agent': 'Mozilla/5.0 (compatible; ta-relay/1.0)',
-      'Accept': request.headers.get('Accept') || '*/*',
-      'Accept-Language': 'ja,en;q=0.8'
+    /* SEC だけは名乗り方が決まっているので分けます。ほかは、素のfetchだと
+       弾く相手がいるので、ふつうのブラウザとして名乗ります。
+       転送先はホストが変わりうるので、1ホップごとに作り直します。 */
+    const accept = request.headers.get('Accept') || '*/*';
+    const headersFor = host => {
+      const isSec = /(^|\.)sec\.gov$/i.test(String(host || ''));
+      return {
+        'User-Agent': isSec ? SEC_UA : 'Mozilla/5.0 (compatible; ta-relay/1.0)',
+        'Accept': accept,
+        'Accept-Language': isSec ? 'en-US,en;q=0.9' : 'ja,en;q=0.8'
+      };
     };
 
     let upstream;
@@ -125,7 +139,7 @@ export default {
          ALLOW 外の中身がそのまま返り、オープンプロキシになっていました。
          (news.google.com のように転送を持つ相手が1つあれば成立します) */
       upstream = await fetch(target.href, {
-        method: 'GET', headers: hdrs, redirect: 'manual',
+        method: 'GET', headers: headersFor(target.hostname), redirect: 'manual',
         cf: {cacheTtl: 20, cacheEverything: false}
       });
 
@@ -139,7 +153,7 @@ export default {
           return deny('redirect not allowed: ' + (next.hostname || '?'), 403, origin);
         }
         upstream = await fetch(next.href, {
-          method: 'GET', headers: hdrs, redirect: 'manual',
+          method: 'GET', headers: headersFor(next.hostname), redirect: 'manual',
           cf: {cacheTtl: 20, cacheEverything: false}
         });
       }
