@@ -5969,6 +5969,12 @@ function renderMarginStatus(status){
   if(status && status.loading){ box.innerHTML = '<p class="qsrc">読み込んでいます…</p>'; return; }
   const bits = [];
   if(status && status.error) bits.push(`<p class="qsrc">読み込めませんでした: ${esc(status.error, 200)}</p>`);
+  /* 買残も売残も 0 の日。「取り込みました」と言うと、そのあと線が真下に
+     落ちていないことのほうが不審に見えるので、何が起きたかを書きます。 */
+  if(status && status.zero){
+    bits.push(`<p class="qsrc">「${esc(status.name, 80)}」の当日の残高は<b>買残・売残とも0</b>でした。`
+      + `これは「残高がゼロ」ではなく<b>その日の数字が無い</b>という意味なので、推移には入れていません。</p>`);
+  }
   if(status && status.ok){
     bits.push(status.loanOnly
       ? `<p class="qsrc">「${esc(status.name, 80)}」は<b>貸借残(日証金)</b>でした。`
@@ -6143,7 +6149,10 @@ const Ext = {
       const pts = m.points.filter(p => p && okDate(p.d)).slice(-400).map(p => ({
         d: p.d, buy: isNum(p.buy) ? p.buy : null,
         sell: isNum(p.sell) ? p.sell : null, ratio: isNum(p.ratio) ? p.ratio : null,
-        k: p.k === 'loan' || p.k === 'credit' ? p.k : null}));
+        k: p.k === 'loan' || p.k === 'credit' ? p.k : null}))
+        /* 読むときにも落とします。すでに保存してしまった 0 の行が、
+           開くたびに線を真下へ落としつづけるためです。 */
+        .filter(marginHasData);
       /* A record written before the two statistics were separated holds both
          at once, and nothing in it says which is which. The kind is taken
          from the source name where that is enough, and the leftovers are
@@ -6312,6 +6321,10 @@ const Ext = {
   mergeMargin(points, src, code, kind){
     kind = kind === 'loan' ? 'loan' : 'credit';
     src = cleanText(src, 60);
+    /* 買残も売残も 0 の行は入れません。その日のデータが無いという意味で、
+       残高がゼロになったわけではないからです。 */
+    points = (Array.isArray(points) ? points : []).filter(marginHasData);
+    if(!points.length) return {empty: true};
     const k = code || this.codeKey();
     /* 手元の記録が別の銘柄のものなら、混ぜずに捨てます */
     const cur = (this.code === k) ? this.margin : null;
@@ -6392,6 +6405,20 @@ function kindFromSrc(src){
      decided whether the user's 信用残 history survived being reloaded.
      Everything this app writes for 貸借残 says 日証金 or 貸借 outright. */
   return /日証金|taisyaku|貸借|融資|貸株/.test(String(src || '')) ? 'loan' : 'credit';
+}
+
+/* 買残も売残も 0 の行は「残高がゼロ」ではなく「その日のデータが無い」です。
+
+   信用残の表に載っている銘柄の買残が本当に 0 になることはありません
+   (0 なら表に出てきません)。売残だけが 0 なのは<b>ふつうにあります</b>ので、
+   落とすのは<b>両方とも 0</b> のときだけにします。
+
+   空欄と「-」は toNum / pasteNum が弾いていたのに、リテラルの 0 だけが
+   観測値として通っていました。1本だけ 0 が混ざると、そこまで積み上がって
+   いた線が<b>真下に落ちて</b>、そのまま最新値として引き継がれます。
+   画面では「信用残高が突然ゼロになった」ように見えます。 */
+function marginHasData(p){
+  return !!p && ((isNum(p.buy) && p.buy !== 0) || (isNum(p.sell) && p.sell !== 0));
 }
 
 /* Remove points that plainly belong to the other statistic.
@@ -7223,8 +7250,13 @@ function parseMarginCSV(text){
     pts.push({d: dkey(t), buy: isNum(buy) ? buy : null, sell: isNum(sell) ? sell : null,
               ratio: isNum(ratio) ? ratio : null});
   }
-  if(!pts.length) throw new Error('有効な行がありませんでした');
-  return pts;
+  /* 買残も売残も 0 の行は落とします。プレビューに出したものと保存する
+     ものを食い違わせないため、解析の時点で外します。 */
+  const keep = pts.filter(marginHasData);
+  if(!keep.length) throw new Error(pts.length
+    ? '読めた行は買残・売残とも0でした(その日の数字が無い行です)'
+    : '有効な行がありませんでした');
+  return keep;
 }
 /* ---------------------------------------------------------------------
    日証金 (Japan Securities Finance) publishes a per-stock loan / stock-lending
@@ -7429,8 +7461,9 @@ async function loadJSF(){
                 src: '日証金 貸借取引残高(zandaka.csv)'};
     const r = Ext.mergeMargin([pt], '日証金 貸借取引残高(zandaka.csv)', code, 'loan');
     afterExtUpdate();
-    renderMarginStatus({ok: true, added: r && r.kept ? 0 : 1, name: '日証金 ' + pt.d,
-                        loanOnly: !!(r && r.kept)});
+    if(r && r.empty) renderMarginStatus({zero: true, name: '日証金 ' + pt.d});
+    else renderMarginStatus({ok: true, added: r && r.kept ? 0 : 1, name: '日証金 ' + pt.d,
+                             loanOnly: !!(r && r.kept)});
     return;
   }catch(e){ lastErr = e.message; }
 
@@ -7448,8 +7481,9 @@ async function loadJSF(){
                   src: '日証金 貸借取引残高'};
       const r2 = Ext.mergeMargin([pt], '日証金 貸借取引残高', code, 'loan');
       afterExtUpdate();
-      renderMarginStatus({ok: true, added: r2 && r2.kept ? 0 : 1, name: '日証金',
-                          loanOnly: !!(r2 && r2.kept)});
+      if(r2 && r2.empty) renderMarginStatus({zero: true, name: '日証金'});
+      else renderMarginStatus({ok: true, added: r2 && r2.kept ? 0 : 1, name: '日証金',
+                               loanOnly: !!(r2 && r2.kept)});
       return;
     }catch(e){ lastErr = e.message; }
   }
@@ -9764,9 +9798,12 @@ function cleanPoint(kind, p){
      back from the source name. When that guess disagreed with the points
      already on disk, dropForeignPoints threw the whole accumulated series
      away — 「同期すると信用残が消える」. */
-  return {d: String(p.d), buy: isNum(p.buy) ? p.buy : null,
-          sell: isNum(p.sell) ? p.sell : null, ratio: isNum(p.ratio) ? p.ratio : null,
-          k: p.k === 'loan' || p.k === 'credit' ? p.k : null};
+  const mp = {d: String(p.d), buy: isNum(p.buy) ? p.buy : null,
+              sell: isNum(p.sell) ? p.sell : null, ratio: isNum(p.ratio) ? p.ratio : null,
+              k: p.k === 'loan' || p.k === 'credit' ? p.k : null};
+  /* 同期の線でも 0 の行は通しません。片方の端末で拾ってしまった空行が、
+     もう片方の蓄積にも同じ縦落ちを作ります。 */
+  return marginHasData(mp) ? mp : null;
 }
 /* Short-selling data is stored as the FILINGS, with the displayed series
    folded from them. Sending only the folded series across loses the
@@ -12050,7 +12087,9 @@ function parsePasted(text){
     if(!isNum(ratio) && isNum(buy) && isNum(sell) && sell > 0) ratio = buy / sell;
     if(isNum(ratio)) pt.ratio = ratio;
     if(isNum(gy)) pt.gyaku = gy;
-    if(pt.buy === undefined && pt.sell === undefined && pt.gyaku === undefined){
+    /* 買残も売残も 0 の行は、逆日歩だけでも入っていない限り飛ばします。
+       プレビューに出しておいて取り込みでは落とす、では件数が食い違います。 */
+    if(!marginHasData(pt) && !isNum(pt.gyaku)){
       out.skipped++; continue;
     }
     out.rows.push(pt);
@@ -12123,12 +12162,12 @@ function pasteImport(){
   const res = pasteParsed;
   if(!res || !res.rows.length){ pastePreview(); return; }
   const code = Ext.codeKey();
-  const pts = res.rows.filter(r => isNum(r.buy) || isNum(r.sell)).map(r => ({
+  const pts = res.rows.map(r => ({
     d: r.d,
     buy:  isNum(r.buy)  ? r.buy  : null,
     sell: isNum(r.sell) ? r.sell : null,
     ratio: isNum(r.ratio) ? r.ratio : null
-  }));
+  })).filter(marginHasData);
   if(pts.length){
     /* a pasted 信用残 table is the market-wide statistic */
     Ext.mergeMargin(pts, '貼り付け(手入力)', code, 'credit');
@@ -13069,6 +13108,25 @@ async function runSelfTests(){
     }catch(e){ return 'localStorage を使えません'; }
   });
   test('外した点が保存で戻ってこない(信用残と貸借残)', () => healSticks);
+  test('信用残: 買残も売残も0の行を観測値にしない', () => {
+    /* 0 は「残高ゼロ」ではなく「その日の数字が無い」。1本混ざるだけで、
+       積み上がっていた線が真下に落ちて、そのまま最新値になります。
+       空欄と「-」は弾けていたのに、リテラルの 0 だけが通っていました。 */
+    if(marginHasData({buy:0, sell:0})) return '両方0が通ります';
+    if(marginHasData({buy:null, sell:null})) return '空の行が通ります';
+    if(!marginHasData({buy:6400000, sell:0})) return '売残0の行まで落ちます';
+    if(!marginHasData({buy:0, sell:120000})) return '買残0の行まで落ちます';
+    const csv = parseMarginCSV('日付,信用買残,信用売残\n'
+      + '2026/07/31,6400000,1000000\n2026/08/07,6410000,1010000\n2026/08/14,0,0\n');
+    if(csv.length !== 2) return 'CSVで ' + csv.length + '件';
+    const pasted = parsePasted('日付\t信用買残\t信用売残\n'
+      + '2026/07/31\t6,400,000\t1,000,000\n2026/08/14\t0\t0');
+    if(pasted.rows.length !== 1) return '貼り付けで ' + pasted.rows.length + '件';
+    const wire = cleanSupply({'8267': {margin: {points: [
+      {d:'20260731', buy:6400000, sell:1000000, ratio:6.4, k:'credit'},
+      {d:'20260814', buy:0, sell:0, ratio:null, k:'credit'}], src:'t', kind:'credit'}}});
+    return eq(wire['8267'].margin.points.length, 1, '同期の線');
+  });
   test('別の銘柄の外部データを足に貼らない', () => {
     const keep = {raw: state.raw, s: Ext.short, f: Ext.fund, c: Ext.code};
     const bars = [{t: new Date(2026,0,1), o:1,h:1,l:1,c:1,v:1}];
