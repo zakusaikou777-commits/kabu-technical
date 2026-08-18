@@ -907,6 +907,16 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
         1倍割れが妙味になるのは、<b>低ROEが一時的で、改善する理由があるとき</b>だけ。
         「なぜ安いのか」を説明できないうちは、安さではなく<b>安いなりの理由</b>だと考えたほうが安全です。</p>
 
+      <p class="qsrc" style="margin:0 0 12px;line-height:1.8">
+        <b>逆向きも同じ式で読めます。</b>ROEが低いのにPBRが1倍を大きく超えている会社があります。
+        式の右辺のうちROEが小さいのですから、その値段を作っているのは<b>PERの高さ</b>のほうです。
+        たとえば PER50倍 × ROE6% ＝ PBR3倍。資産を効率よく回しているから高いのではなく、
+        <b>いまの利益では説明できない何かを市場が織り込んでいる</b>状態です。
+        構造改革・子会社の価値・保有資産の含み・単に人気、理由はさまざまですが、
+        <b>その理由が外れたときに落ちる幅が大きい</b>のは共通しています。
+        PBRが高いか低いかより、<b>その高さ低さが効率(ROE)から来ているのか期待(PER)から来ているのか</b>が
+        見るべきところです。</p>
+
       <p class="qsrc" style="margin:0 0 8px"><b>目安の数字は、そのまま信じないでください。</b>
         上の表の「目安」は慣習であって、ルールではありません。</p>
       <table class="wtab" style="margin-bottom:12px"><tbody>
@@ -915,7 +925,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
           成熟した製造業や商社は低く出ます。比べるなら市場平均ではなく
           <b>同業他社と、その会社自身の過去のPER</b>と。</td></tr>
         <tr><td class="wl"><b>PBR 1倍</b></td><td class="wl">上のとおり。1倍割れは「割安」ではなく
-          「低ROE」のサインであることが多いです。</td></tr>
+          「低ROE」のサインであることが多いです。高いほうも同じで、
+          <b>高PBRは「優良」の意味ではありません</b>。ROEが高いのか、PERが高いだけなのかで中身が違います。</td></tr>
         <tr><td class="wl"><b>配当利回り 3%</b></td><td class="wl">利回りは 配当÷株価 なので、
           <b>株価が下がっただけでも上がります</b>。急に跳ねた銘柄は増配ではなく株価下落が理由のことが多く、
           そのあと減配が来ると利回りも株価も同時に失われます。
@@ -930,7 +941,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <ol class="qsrc" style="margin:0 0 12px;padding-left:1.4em;line-height:1.9">
         <li><b>EPSの推移。</b>右肩上がりでなければ、PERの割安さはあてになりません。
           分母が縮んでいるだけかもしれないからです。</li>
-        <li><b>ROE。</b>稼ぐ力がなければ、PBRが低いのは当然の結果です。</li>
+        <li><b>ROE。</b>稼ぐ力がPBRの高さ低さを作ります。稼げていなければPBRが低いのは当然ですし、
+          <b>稼げていないのにPBRが高いなら、その値段は資産ではなく期待に付いています</b>。</li>
         <li><b>PER・PBRを同業他社と比べる。</b>市場平均ではなく同業と。
           あわせて<b>その会社自身の過去のレンジ</b>と(チャートの「PER/PBRの推移」がこれです)。</li>
         <li><b>自己資本比率で足元を確認。</b>同業種の水準に対して極端に低くないか。</li>
@@ -1222,7 +1234,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v41';
+const APP_VER = 'v42';
 const APP_DATE = '2026-08-18';
 
 /* ============================================================
@@ -7659,6 +7671,43 @@ function fundCell(key, unit, val, dp, note, warn){
        + (note ? `<span class="fn">${note}</span>` : '') + `</div>`;
 }
 
+/* カードが「低い」「高い」と言い始める線。ヘルプの目安表と同じ数を使います。
+   ここを別の数にすると、カードとヘルプが違うことを言い出します。 */
+const ROE_LOW = 8;
+const PER_MID = 15;
+
+/* PBR ＝ PER × ROE を、その銘柄の数字で読み下します。
+
+   もとは「PBRが低いことと、ROEが低いことは同じことを別の側から見た
+   ものです」と決め打ちで書いていました。PBRが1倍を割っている日本株では
+   そのとおりですが、式の右辺の<b>どちらが効いているか</b>は銘柄ごとに
+   違います。イオン(PER 51.6倍 / ROE 6.0% / PBR 3.12倍)では、画面に
+   「3.12倍」と出したすぐ下に「PBRが低い」と書いていました。まるきり逆で、
+   しかも読んだ人はPBRの意味のほうを疑うことになります。
+
+   直したあとも一度は間違えました。PBRとROEの2つだけで書き分けたので、
+   「PBR 5倍・ROE 8.5%」(PER 59倍)に「資産を効率よく利益に変えているぶん
+   高くなります」と出ていました。ROEが8%を1回またいだだけで、期待で
+   買われている銘柄が効率のよい銘柄に化けます。
+
+   結局、式の右辺の話をしたいなら<b>右辺の2つをそのまま見る</b>のが
+   いちばん確かです。PERとROEを目安と比べ、どちらが効いているかだけを
+   言います。左辺(PBR)の高い低いは、そこから出てくる結果です。 */
+function pbrStory(per, pbr, roe){
+  const hiP = per > PER_MID, hiR = roe >= ROE_LOW;
+  if(hiP && hiR)
+    return `利益への評価(PER)も資産の効率(ROE)も目安より高く、`
+         + `PBRの${pbr.toFixed(2)}倍はその<b>両方</b>から来ています。`;
+  if(hiP)
+    return 'ROEは目安より低いので、この値段を作っているのは<b>PERの高さ</b>のほうです。'
+         + '資産の効率ではなく、将来の利益への期待が織り込まれています。';
+  if(hiR)
+    return 'PERは目安より低いので、PBRを支えているのは<b>ROEの高さ</b>のほうです。'
+         + '資産を効率よく利益に変えている、ということです。';
+  return 'PERもROEも目安より低いので、PBRが1倍前後かそれ以下に収まるのはその結果です。'
+       + (pbr < 1 ? '1倍割れは「割安」というより、その裏返しであることが多い形です。' : '');
+}
+
 function renderFundCard(){
   const box = $('#fundBox'), stat = $('#fundStat');
   if(!box || !stat) return;
@@ -7718,21 +7767,42 @@ function renderFundCard(){
      : `この銘柄の平常の範囲内(中央${q[1].toFixed(1)}倍)`)
     : '同業他社と、この銘柄自身の過去と比べてください';
 
+  /* 判定は<b>画面に出す桁に丸めてから</b>。生の値で比べていたので、
+     7.96% は「8.0%」と表示されながら注記は「8%を下回っています」、
+     0.996倍は「1.00倍」と表示されながら「1倍割れ」と赤くなっていました。
+     カードが自分の書いた数字と食い違って見えます。 */
+  const roeS = isNum(x.roe) ? Math.round(x.roe * 10) / 10 : null;
+  const pbrS = isNum(x.pbr) ? Math.round(x.pbr * 100) / 100 : null;
+  const lowPbr = isNum(pbrS) && pbrS < 1;
+
   box.innerHTML = '<div class="fgrid">'
     + fundCell('PER 株価収益率', '倍', x.per, 1, perNote)
     + fundCell('PBR 株価純資産倍率', '倍', x.pbr, 2,
-        isNum(x.pbr) && x.pbr < 1
-          ? '1倍割れ。割安ではなく<b>ROEが低い</b>ことの裏返しである場合が多いので、理由を確かめてから'
-          : '資産に対する評価。ROEと合わせて見る指標です',
-        isNum(x.pbr) && x.pbr < 1)
+        !lowPbr
+          ? (isNum(roeS) && roeS < ROE_LOW && isNum(pbrS) && pbrS >= 1.5
+              ? `ROEは${roeS.toFixed(1)}%です。この倍率は資産の効率ではなくPERの高さから来ています`
+              : '資産に対する評価。ROEと合わせて見る指標です')
+        : (isNum(roeS) && roeS >= ROE_LOW)
+          ? `1倍割れですが、ROEは${roeS.toFixed(1)}%あります。理由はPERの低さのほうです`
+          : '1倍割れ。割安ではなく<b>ROEが低い</b>ことの裏返しである場合が多いので、理由を確かめてから',
+        lowPbr)
     + fundCell('ROE 自己資本利益率', '%', x.roe, 1,
-        isNum(x.roe) && x.roe < 8 ? '8%を下回っています。PBRが低いのは当然の結果かもしれません'
-                                  : 'EPS ÷ BPS。株主のお金を増やせている割合')
+        /* 赤字(EPS<0)でもBPSが残っていればROEは出ます。そこに
+           「増やせている割合としては低め」と書いていました。減っています。 */
+        !isNum(roeS) ? 'EPS ÷ BPS。株主のお金を増やせている割合'
+        : roeS <= 0 ? '<b>マイナスです</b>。株主のお金が増えるどころか減っている状態です'
+        : roeS >= ROE_LOW ? 'EPS ÷ BPS。株主のお金を増やせている割合'
+        : lowPbr
+          ? `${ROE_LOW}%を下回っています。PBRの1倍割れはその裏返しかもしれません`
+          : `${ROE_LOW}%を下回っています。株主のお金を増やせている割合としては低めです`,
+        isNum(roeS) && roeS <= 0)
     + fundCell('EPS 1株当たり純利益', unit, x.eps, 2,
-        '水準より<b>向き</b>。過去の値も入れると推移が見えます')
+        isNum(x.eps) && x.eps < 0 ? '<b>赤字です</b>。この期間はPERが出ません'
+                                  : '金額そのものより<b>増えているか</b>。過去の値も入れると推移が出ます',
+        isNum(x.eps) && x.eps < 0)
     + fundCell('配当利回り', '%', x.dy, 2,
         isNum(x.dy) && x.dy >= 5
-          ? '高いときは<b>株価下落が理由</b>のことが多いので、配当そのものの推移も確認を'
+          ? '<b>配当額と株価のどちらが理由か</b>を確かめてください。株価下落が理由なら利回りは長続きしません'
           : (isNum(x.dps) ? `1株配当 ${x.dps.toFixed(2)}${unit}` : '1株配当が未入力です'))
     + fundCell('自己資本比率', '%', x.eqr, 1,
         '<b>業種で全然違います</b>。銀行は数%が正常、ソフトウェアは70%超も普通')
@@ -7747,7 +7817,7 @@ function renderFundCard(){
     box.innerHTML += `<p class="qsrc" style="margin:0 0 4px;line-height:1.8">`
       + `<b>PBR ＝ PER × ROE</b>: `
       + `${x.per.toFixed(2)}倍 × ${x.roe.toFixed(2)}% = <b>${x.pbr.toFixed(2)}倍</b>。`
-      + `PBRが低いことと、ROEが低いことは同じことを別の側から見たものです。`
+      + pbrStory(x.per, x.pbr, x.roe)
       + `</p>`;
   }
   if(x.backfilled){
@@ -13545,6 +13615,72 @@ async function runSelfTests(){
     return eq(w['7203'], undefined);
   });
   test('保存の掃除が fund を対象に含む', () => /fund/.test(Store.prune.toString()));
+
+  /* PBR ＝ PER × ROE の読み下し。「PBRが低い」を決め打ちで書いていて、
+     PBR 3.12倍のイオンにも PBR 5倍の銘柄にも同じ文が出ていました。 */
+  test('イオン型(PER51/ROE6/PBR3.1)は期待と書く', () => {
+    const s = pbrStory(51.65, 3.12, 6.04);
+    return /PERの高さ/.test(s) && !/低い/.test(s.replace('目安より低い', '')) ? true : '出た文: ' + s;
+  });
+  test('PBR5倍でもPER59倍なら効率とは書かない', () => {
+    /* 直したつもりで一度ここを間違えた: ROEが8%を1回またぐだけで
+       「効率よく利益に変えている」に化けていました。 */
+    const s = pbrStory(58.8, 5.0, 8.5);
+    return !/効率よく利益に変えている、/.test(s) && /両方/.test(s) ? true : '出た文: ' + s;
+  });
+  test('PER10×ROE25でPBR2.5は効率と書く', () => {
+    const s = pbrStory(10, 2.5, 25);
+    return /ROEの高さ/.test(s) ? true : '出た文: ' + s;
+  });
+  test('PER10×ROE6.7の1倍割れは裏返しと書く', () => {
+    const s = pbrStory(10, 0.67, 6.7);
+    return /1倍割れ/.test(s) && /裏返し/.test(s) ? true : '出た文: ' + s;
+  });
+  test('PER14×ROE7.9に1倍割れと書かない', () => {
+    const s = pbrStory(14, 1.11, 7.9);
+    return !/1倍割れ/.test(s) ? true : '出た文: ' + s;
+  });
+  test('4通りが全部ちがう文になる', () => {
+    const v = [pbrStory(10, 0.67, 6.7), pbrStory(10, 2.5, 25),
+               pbrStory(51.65, 3.12, 6.04), pbrStory(58.8, 5.0, 8.5)];
+    return eq(new Set(v).size, 4);
+  });
+  test('しきい値がカードと式とヘルプで同じ', () =>
+    eq(ROE_LOW, 8) && eq(PER_MID, 15)
+    && /PER_MID/.test(pbrStory.toString()) && /ROE_LOW/.test(pbrStory.toString())
+    && /ROE_LOW/.test(renderFundCard.toString())
+    && /PER 15倍/.test(document.querySelector('#fundHelp').innerHTML));
+  test('赤字のROEを「低め」と書かない', () => {
+    const bars = [{t:new Date(2026,0,5),o:800,h:800,l:800,c:800,v:1}];
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, ind: state.ind, fund: Ext.fund, code: Ext.code};
+    state.raw = {bars, name:'x', code:'9999.T', tz:'Asia/Tokyo', currency:'JPY', source:'t', events:[]};
+    Ext.fund = {points:[{d: barKey(bars[0]), eps:-50, bps:500}], src:'t'};
+    Ext.code = Ext.codeKey();
+    state.ind = {c:[800], fund: buildFundSeries(bars)};
+    renderFundCard();
+    const t = document.querySelector('#fundBox').textContent;
+    state.raw = keep.raw; state.ind = keep.ind; Ext.fund = keep.fund; Ext.code = keep.code;
+    renderFundCard();
+    return /マイナスです/.test(t) && !/増やせている割合としては低め/.test(t)
+      ? true : '出た文: ' + t.slice(0, 120);
+  });
+  test('7.96%を「8.0%」と出して「下回る」と書かない', () => {
+    /* 表示は丸めた値、判定は生の値、で食い違っていました */
+    const bars = [{t:new Date(2026,0,5),o:796,h:796,l:796,c:796,v:1}];
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, ind: state.ind, fund: Ext.fund, code: Ext.code};
+    state.raw = {bars, name:'x', code:'9999.T', tz:'Asia/Tokyo', currency:'JPY', source:'t', events:[]};
+    Ext.fund = {points:[{d: barKey(bars[0]), eps:79.6, bps:1000}], src:'t'};
+    Ext.code = Ext.codeKey();
+    state.ind = {c:[796], fund: buildFundSeries(bars)};
+    renderFundCard();
+    const t = document.querySelector('#fundBox').textContent;
+    state.raw = keep.raw; state.ind = keep.ind; Ext.fund = keep.fund; Ext.code = keep.code;
+    renderFundCard();
+    return /8\.0%/.test(t) && !/8%を下回っています/.test(t)
+      ? true : '出た文: ' + t.slice(0, 140);
+  });
 
   await new Promise(r => setTimeout(r, 60));
   tgroup('XSS(表示部への注入)');
