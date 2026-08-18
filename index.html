@@ -32,7 +32,13 @@
   --hairline:rgba(11,11,11,.10);
   --wash:rgba(11,11,11,.04);
   --up:#e34948;         --down:#2a78d6;
+  /* 系統ごとに色相を分けます。緑=移動平均だけ、紫=一目均衡表、灰=帯(ボリンジャー・
+     ドンチャン・OSGFCのチャネル)、琥珀=上位足、桃=価格をならした線(VWAP・カーネル)、
+     赤青=向きそのものが意味を持つもの(ローソク足・スーパートレンド)。
+     同じ系統の中は濃淡と実線/破線で分けます。 */
   --ma1:#3ec89a;        --ma2:#14926a;     --ma3:#08573c;
+  --ich1:#8a5cd6;       --ich2:#4b2a8f;
+  --mtf:#b8730c;        --smooth:#c0398c;
   --band:#898781;
   --cmp1:#2a78d6; --cmp2:#eb6834; --cmp3:#1baf7a; --cmp4:#eda100; --cmp5:#e87ba4;
   --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b;
@@ -49,6 +55,8 @@
     --wash:rgba(255,255,255,.05);
     --up:#e66767;         --down:#3987e5;
     --ma1:#14926a;        --ma2:#3ec89a;    --ma3:#a8e8cd;
+    --ich1:#a98af0;       --ich2:#d3c0f8;
+    --mtf:#e0a132;        --smooth:#ee7ab8;
     --band:#898781;
     --cmp1:#3987e5; --cmp2:#d95926; --cmp3:#199e70; --cmp4:#c98500; --cmp5:#d55181;
   }
@@ -62,6 +70,8 @@
   --wash:rgba(255,255,255,.05);
   --up:#e66767;         --down:#3987e5;
   --ma1:#14926a;        --ma2:#3ec89a;    --ma3:#a8e8cd;
+  --ich1:#a98af0;       --ich2:#d3c0f8;
+  --mtf:#e0a132;        --smooth:#ee7ab8;
   --band:#898781;
   --cmp1:#3987e5; --cmp2:#d95926; --cmp3:#199e70; --cmp4:#c98500; --cmp5:#d55181;
 }
@@ -602,7 +612,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <span class="live" id="saveBox"><i class="dot" aria-hidden="true"></i><span id="saveState"></span></span>
     <button class="chip" data-t="ma" aria-pressed="true"><i class="sw" style="background:var(--ma2)"></i>移動平均</button>
     <button class="chip" data-t="bb" aria-pressed="true"><i class="sw" style="background:var(--band)"></i>ボリンジャー</button>
-    <button class="chip" data-t="ichimoku" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>一目均衡表</button>
+    <button class="chip" data-t="ichimoku" aria-pressed="false"><i class="sw" style="background:var(--ich1)"></i>一目均衡表</button>
     <button class="chip" data-t="vol" aria-pressed="true"><i class="sw"></i>出来高</button>
     <button class="chip" data-t="rsi" aria-pressed="true"><i class="sw" style="background:var(--down)"></i>RSI</button>
     <button class="chip" data-t="macd" aria-pressed="true"><i class="sw" style="background:var(--ma2)"></i>MACD</button>
@@ -610,17 +620,22 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="adx" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>DMI/ADX</button>
     <button class="chip" data-t="fib" aria-pressed="false"><i class="sw" style="background:var(--ink-3)"></i>フィボナッチ</button>
     <button class="chip" data-t="st" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>スーパートレンド</button>
-    <button class="chip" data-t="vwap" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>VWAP</button>
+    <button class="chip" data-t="vwap" aria-pressed="false"><i class="sw" style="background:var(--smooth)"></i>VWAP</button>
     <button class="chip" data-t="don" aria-pressed="false"><i class="sw" style="background:var(--band)"></i>ドンチャン</button>
-    <button class="chip" data-t="mtf" aria-pressed="false"><i class="sw" style="background:var(--ma3)"></i>上位足の流れ</button>
+    <button class="chip" data-t="mtf" aria-pressed="false"><i class="sw" style="background:var(--mtf)"></i>上位足の流れ</button>
     <button class="chip" data-t="osgfc" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>OSGFC</button>
-    <button class="chip" data-t="lorentz" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>Lorentzian</button>
+    <button class="chip" data-t="lorentz" aria-pressed="false"><i class="sw" style="background:var(--smooth)"></i>Lorentzian</button>
     <button class="chip" data-t="shortPanel" aria-pressed="false"><i class="sw" style="background:var(--down)"></i>空売り残高</button>
     <button class="chip" data-t="marginPanel" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>信用残</button>
     <button class="chip" data-t="flow" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>資金フロー</button>
     <button class="chip" data-t="sizeflow" aria-pressed="false"><i class="sw" style="background:var(--ma3)"></i>大口/小口(推定)</button>
     <button class="chip" data-t="vprofile" aria-pressed="false"><i class="sw" style="background:var(--band)"></i>価格帯別出来高</button>
     <button class="chip" data-t="valuation" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>PER / PBRの推移</button>
+    <button class="chip" data-t="rates" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--cmp2),var(--ich1))"></i>日米金利差</button>
+    <button class="chip" data-t="cbank" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--cmp2),var(--ich1))"></i>FOMC・日銀</button>
+    <button class="chip" data-t="pivot" aria-pressed="false"><i class="sw" style="background:var(--ink-2)"></i>節目・ピボット</button>
+    <button class="chip" data-t="session" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--cmp2),var(--ich1),var(--smooth))"></i>取引時間帯</button>
+    <button class="chip" data-t="cot" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>円の建玉(CFTC)</button>
     <button class="chip" data-t="events" aria-pressed="true"><i class="sw" style="background:var(--ink-2)"></i>分割・配当</button>
     <button id="csvBtn" class="chip" aria-pressed="false" style="border-style:dashed">CSVを読み込む</button>
     <input type="file" id="csvFile" accept=".csv,.txt,text/csv" class="sr" aria-hidden="true" tabindex="-1">
@@ -805,6 +820,50 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <a id="lnkNkGyaku" target="_blank" rel="noopener noreferrer">日経 逆日歩・貸借残</a>
     </div>
     <p id="extNote"></p>
+  </div>
+
+  <div class="card" id="rateCard">
+    <h2>金利(日米10年債)</h2>
+    <p class="qsrc" style="margin:0 0 10px">為替は「どちらの通貨で持っていたほうが
+      利息が付くか」で動く場面が多く、ドル円と<b>日米10年債の金利差</b>の相関は、
+      たいていのテクニカル指標より素直です。銘柄に紐づかないデータなので、
+      <b>一度取れば全部の銘柄・全部のタブで使えます</b>。
+      あわせて<b>CFTCの円の建玉</b>(シカゴの円先物を投機筋がどれだけ持っているか)も取ります。
+      株でいう信用残にあたるもので、極端に傾いているほど巻き戻しの燃料が多い状態です。</p>
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="rateGet">金利を取得する</button>
+      <button class="chip" id="ratePanelBtn" style="border-style:dashed">金利差をチャートに出す</button>
+      <button class="chip" id="cotPanelBtn" style="border-style:dashed">円の建玉をチャートに出す</button>
+      <button class="chip hide" id="rateClear" style="border-style:dashed">保有データを消す</button>
+    </div>
+    <p class="qsrc" id="rateStat" style="margin:0 0 10px"></p>
+    <div id="rateBox"></div>
+    <p class="qsrc" style="margin:0 0 10px">
+      <b>この3つは同期(Googleドライブ)には乗りません。</b>誰でも取れる公開データで、
+      1974年からの全部だと数百KBあるためです。端末ごとに一度ずつ押してください。</p>
+    <div class="links" style="margin-top:12px">
+      <a href="https://www.mof.go.jp/jgbs/reference/interest_rate/" target="_blank" rel="noopener noreferrer">財務省 国債金利情報</a>
+      <a href="https://finance.yahoo.com/quote/%5ETNX/" target="_blank" rel="noopener noreferrer">^TNX 米10年債利回り</a>
+    </div>
+    <details class="dhelp" style="margin-top:10px">
+      <summary><b>金利差の見かた</b></summary>
+      <p class="qsrc" style="margin:10px 0 9px;line-height:1.8">
+        金利の高い通貨は、持っているだけで利息が付きます。だから
+        <b>金利差が開けばドルが買われて円安、縮めば円高</b>に振れやすくなります。
+        ドル円のチャートと金利差の線を重ねると、たいていの期間で同じ形をしています。</p>
+      <p class="qsrc" style="margin:0 0 9px;line-height:1.8">
+        大事なのは<b>ずれたとき</b>です。金利差が縮んでいるのにドル円が下がらない、
+        という状態は長くは続きません。どちらかが動いて、たいていは為替のほうが追いつきます。
+        「なぜ上がっているか説明できない上昇」に理由を1つ足せる、という使い方です。</p>
+      <p class="qsrc" style="margin:0 0 9px;line-height:1.8">
+        <b>効かない場面もあります。</b>リスクが一気に外れた日(有事・株の急落)は、
+        金利差と関係なく円が買われます。介入があった日も同じです。
+        金利差は<b>平時の重力</b>で、事件の説明ではありません。</p>
+      <p class="qsrc" style="margin:0;line-height:1.8">
+        数字は<b>10年債</b>で見ています。実際の為替の売買に効くのは2年債など
+        もっと短いところだという見方もありますが、10年は両国とも毎営業日きちんと
+        公表され、報道でも「日米金利差」といえばこれです。</p>
+    </details>
   </div>
 
   <div class="card" id="fundCard">
@@ -1234,7 +1293,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v42';
+const APP_VER = 'v44';
 const APP_DATE = '2026-08-18';
 
 /* ============================================================
@@ -1314,8 +1373,40 @@ function fmtCur(v, d, cur){
   return s;
 }
 
-function fmtNum(v, cur){
+/* 為替かどうか。Yahooの為替コードは USDJPY=X の形です。 */
+function isFxCode(code){ return /=X$/.test(String(code || '')); }
+function isFxNow(){ return isFxCode(state && state.raw && state.raw.code); }
+
+/* 為替の建値の桁。
+
+   「1銭」は最小単位ではありません。実際の建値は 159.635 のように
+   1/10銭(0.001)まで動きます。decimalsFor は 159.6 を返すので、
+   1万通貨で350円ぶんの値動きが画面から消えていました。前日比も
+   同じで、+0.245 が「+0.2」になります。
+
+   建値の桁は世界共通で「円建ては小数3桁、それ以外は5桁」。
+   1を割る通貨(ウォン円など)はそれだと足りないので、有効数字で決めます。 */
+function fxDecimals(v, cur){
+  const a = Math.abs(v);
+  if(!(a > 0)) return 3;
+  if(a >= 1) return cur === 'JPY' ? 3 : 5;
+  return clamp(4 - Math.floor(Math.log10(a)), 3, 8);
+}
+/* code を渡すと<b>その銘柄で</b>桁を決めます。渡さないと画面の銘柄です。
+
+   お気に入り一覧・アラート・履歴は、1行ずつ別の銘柄の値です。画面の
+   銘柄で決めていたので、ドル円を見ているあいだ一覧のトヨタが
+   ¥2,647.500 になり、逆にトヨタを見ているとドル円の行は ¥159.6 のまま
+   ——直したかったのがまさにそこでした。 */
+function fmtNum(v, cur, code){
   if(!isNum(v)) return '—';
+  const fx = (code === undefined) ? isFxNow() : isFxCode(code);
+  if(fx){
+    /* 通貨が渡らない呼び出し(表・軸)もあります。null と undefined を
+       同じに扱わないと、表だけ5桁になります。 */
+    const c = (cur == null) ? (state && state.raw && state.raw.currency) : cur;
+    return fmtCur(v, fxDecimals(v, c), cur);
+  }
   return fmtCur(v, decimalsFor(v, v), cur);
 }
 function fmtVol(v){
@@ -3185,7 +3276,8 @@ const state = {
   toggles: {ma:true, bb:true, ichimoku:false, vol:true, rsi:true, macd:true, stoch:false, adx:false,
             fib:false, st:false, vwap:false, don:false, mtf:false, osgfc:false, lorentz:false,
             shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false,
-            valuation:false, events:true},
+            valuation:false, rates:false, cbank:false, pivot:false,
+            session:false, cot:false, events:true},
   range: '1y', interval: '1d'
 };
 
@@ -3202,6 +3294,9 @@ function readColors(){
     ink3: cssVar('--ink-3'), grid: cssVar('--grid'), axis: cssVar('--axis'),
     up: cssVar('--up'), down: cssVar('--down'),
     ma: [cssVar('--ma1'), cssVar('--ma2'), cssVar('--ma3')],
+    ich: [cssVar('--ich1'), cssVar('--ich2')],
+    mtf: cssVar('--mtf'), smooth: cssVar('--smooth'),
+    rateUs: cssVar('--cmp2'),          /* 米10年債。緑でも紫でも桃でもない色 */
     band: cssVar('--band'), warn: cssVar('--warn')
   };
 }
@@ -3286,6 +3381,17 @@ function layout(){
     subs.push({key:'valuation',
       title: (vk === 'pbr' ? 'PBRの推移(倍' : 'PERの推移(倍')
            + (one ? '・いまの決算の数値で換算)' : ')')});
+  }
+
+  /* 金利は銘柄に紐づかないので、まだ取っていなければ空の箱になります。
+     箱だけ出しても場所を取るだけなので、データがあるときだけ。 */
+  if(state.toggles.cot && state.ind && state.ind.cot){
+    subs.push({key:'cot', title:'円の建玉(CFTC・投機筋のネット枚数)'});
+  }
+  if(state.toggles.rates && state.ind && state.ind.rates){
+    const r = state.ind.rates;
+    subs.push({key:'rates',
+      title: r.hasSpread ? '日米10年債の金利差(%)' : '10年債の利回り(%)'});
   }
 
   /* Each panel can be stretched or squashed on its own. The scale is a
@@ -3412,6 +3518,16 @@ function yLabel(g, p, y, text, color){
 
 /* Axis ticks get their decimals from the STEP, not from a fixed guess.
    A short-interest panel topping out at 0.01% printed 0.0% four times. */
+/* 価格軸の目盛り。為替は<b>刻みに合わせて</b>桁を出します。
+   値そのものは3桁で出しますが、0.5刻みの軸に 159.500 と並べても
+   末尾のゼロが増えるだけで、横幅を食うぶん損です。 */
+function fmtAxis(v, step, cur){
+  if(!isFxNow()) return fmtNum(v, cur);
+  const a = Math.abs(step || 0);
+  let d = 0;
+  while(d < 6 && Math.abs(+a.toFixed(d) - a) > 1e-9) d++;
+  return fmtCur(v, d, cur);
+}
 function fmtTick(v, step, suffix){
   if(!isNum(v)) return '—';
   const s = Math.abs(step || v || 1);
@@ -3428,7 +3544,16 @@ function axisFree(y, h){
   AXIS_SLOTS.push([a, b]);
   return true;
 }
+/* 株価パネルの軸を広げてよい上限。ローソク足の値幅の上下25%までなので、
+   どれだけ指標を足してもローソク足が高さの3分の2を保ちます。
+   値幅がゼロ(全部同じ値)の足でも軸がつぶれないよう、下駄をはかせます。 */
+function axisCap(lo, hi){
+  const H = (isFinite(hi) && isFinite(lo) && hi > lo)
+    ? hi - lo : (Math.abs(hi) * 0.02 || 1);
+  return {lo: lo - H * 0.25, hi: hi + H * 0.25};
+}
 function panelFrame(g, p){
+  flushLabels(g, p);
   g.strokeStyle = C.axis; g.lineWidth = 1;
   g.beginPath();
   g.moveTo(p.x, Math.round(p.y+p.h)+.5); g.lineTo(p.x+p.w, Math.round(p.y+p.h)+.5);
@@ -3440,8 +3565,17 @@ function panelFrame(g, p){
     g.fillText(p.title, p.x + 3, p.y + 2);
   }
 }
+/* パネルの枠で切ります。軸をローソク足に合わせた結果、雲やMA75は枠の
+   外へ出ることがあります。切らないと隣のパネル(出来高やRSI)の上に
+   線が乗って、そちらのほうが読めなくなります。 */
+function clipPanel(g, p){
+  g.beginPath();
+  g.rect(p.x - 1, p.y, p.w + 2, p.h);
+  g.clip();
+}
 function line(g, p, arr, y, color, width, dash){
   g.save();
+  clipPanel(g, p);
   g.strokeStyle = color; g.lineWidth = width || 2;
   g.lineJoin = 'round'; g.lineCap = 'round';
   if(dash) g.setLineDash(dash);
@@ -3461,7 +3595,7 @@ function line(g, p, arr, y, color, width, dash){
    vertical slot; a colliding label is nudged, and dropped only if the band
    is genuinely full (the value is still in the tooltip and the table). */
 let SLOTS = [];
-function resetSlots(){ SLOTS = []; }
+function resetSlots(){ SLOTS = []; LBLQ = []; }
 /* `lo`/`hi` bound where the label may end up. Without them the collision
    dodge could shift a label up to 33px out of its panel — the POC and the
    Fibonacci percentages were being drawn above the top of the chart, and on a
@@ -3482,28 +3616,81 @@ function claimSlot(y, h, lo, hi){
   }
   return null;
 }
+/* 右端のラベルは<b>溜めてから、まとめて</b>並べます。
+
+   1本ずつ「空いている所を7か所さがして、無ければ捨てる」方式でした。
+   8本目からは黙って消え、残った7本も 11px 刻みで団子になります。
+   実際、MA5/MA25/MA75・週足MA13・±2σ・基準・転換・ST・OSGFC の
+   9本を出した画面をいただきました。読めません。
+
+   目標の高さ順に並べて、重なるぶんだけ下へずらし、下端を超えたら
+   下から押し戻す。場所がある限り<b>全部出て、絶対に重ならない</b>方式に
+   変えました。入りきらないときだけ間引き、何本落としたかを出します。 */
+let LBLQ = [];
 function endLabel(g, p, arr, y, color, text){
   for(let i = Math.min(state.i1, arr.length-1); i >= state.i0; i--){
     if(!isNum(arr[i])) continue;
     const Y0 = y(arr[i]);
-    if(Y0 < p.y + 2 || Y0 > p.y + p.h - 2) return;
-    const Y = claimSlot(Y0, 15, p.y + 2, p.y + p.h - 2);
-    if(Y === null) return;
-    g.font = `600 ${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
-    g.textAlign = 'right'; g.textBaseline = 'middle';
-    const w = g.measureText(text).width + 8;
-    const X = xAt(p, i);
-    if(Math.abs(Y - Y0) > 2){                 /* leader line back to the mark */
-      g.save(); g.strokeStyle = color; g.globalAlpha = .45; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(X - 2, Y0); g.lineTo(X - 2, Y); g.stroke(); g.restore();
-    }
-    g.fillStyle = C.surface; g.globalAlpha = .85;
-    g.fillRect(X - w, Y - 7, w, 14);
-    g.globalAlpha = 1;
-    g.fillStyle = color;
-    g.fillText(text, X - 4, Y);
+    /* NaN は < も > も false なので、この2つの条件だけだと通り抜けます。
+       通すと flushLabels の詰め直しが NaN に汚染されて、そのパネルの
+       ラベルが<b>1枚残らず</b>消えます(以前は1枚落ちるだけでした)。 */
+    if(!isNum(Y0) || Y0 < p.y + 2 || Y0 > p.y + p.h - 2) return;
+    LBLQ.push({y: Y0, x: xAt(p, i), color, text});
     return;
   }
+}
+function flushLabels(g, p){
+  const q = LBLQ; LBLQ = [];
+  if(!q.length) return;
+  const HH = 15, half = HH / 2, top = p.y + 2, floorY = p.y + p.h - 2;
+  let bot = floorY;
+  q.sort((a, b) => a.y - b.y);
+  let fit = Math.max(1, Math.floor((bot - top) / HH));
+  let use = q, dropped = 0;
+  if(q.length > fit){
+    /* 「ほかN本」を出すぶん、下を1段あけます。あけないと、いちばん下の
+       ラベル(残すために間引きを工夫した当のもの)の上に重なって書きます。 */
+    bot -= HH;
+    fit = Math.max(1, Math.floor((bot - top) / HH));
+    /* 間引くときは端(いちばん上といちばん下)を必ず残します。
+       そこが値幅の端で、いちばん知りたい線だからです。 */
+    const step = q.length / fit;
+    use = [];
+    for(let k = 0; k < fit; k++) use.push(q[Math.min(q.length - 1, Math.round(k * step))]);
+    if(use.length >= 2) use[use.length - 1] = q[q.length - 1];   /* 1枠しかないなら上を残す */
+    use = use.filter((v, k) => use.indexOf(v) === k);
+    dropped = q.length - use.length;
+  }
+  let floor = top;
+  for(const L of use){ L.c = Math.max(L.y, floor + half); floor = L.c + half; }
+  let ceil = bot;
+  for(let k = use.length - 1; k >= 0; k--){
+    use[k].c = Math.min(use[k].c, ceil - half);
+    ceil = use[k].c - half;
+  }
+  g.save();
+  g.font = `600 ${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  for(const L of use){
+    const w = g.measureText(L.text).width + 8;
+    if(Math.abs(L.c - L.y) > 2){              /* もとの位置へ引き出し線 */
+      g.save(); g.strokeStyle = L.color; g.globalAlpha = .45; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(L.x - 2, L.y); g.lineTo(L.x - 2, L.c); g.stroke(); g.restore();
+    }
+    g.fillStyle = C.surface; g.globalAlpha = .85;
+    g.fillRect(L.x - w, L.c - 7, w, 14);
+    g.globalAlpha = 1;
+    g.fillStyle = L.color;
+    g.fillText(L.text, L.x - 4, L.c);
+  }
+  if(dropped > 0){
+    g.fillStyle = C.ink3; g.globalAlpha = .9;
+    g.font = `${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
+    g.textAlign = 'right'; g.textBaseline = 'bottom';
+    g.fillText(`ほか${dropped}本`, p.x + p.w - 4, floorY);   /* あけた1段ぶん下に書く */
+  }
+  g.restore();
+  return use;
 }
 
 /* ---- panels -------------------------------------------------------- */
@@ -3526,17 +3713,54 @@ function drawMain(g){
     if(d.l[i] < min) min = d.l[i];
     if(d.h[i] > max) max = d.h[i];
   }
-  const consider = a => { for(let i=Math.max(0,state.i0);i<=state.i1;i++){
-    const v = a[i]; if(isNum(v)){ if(v<min) min=v; if(v>max) max=v; } } };
-  if(T.bb){ consider(d.bb.upper); consider(d.bb.lower); }
-  if(T.ma) d.ma.forEach(consider);
-  if(T.ichimoku){ consider(d.ich.spanA); consider(d.ich.spanB); consider(d.ich.tenkan); consider(d.ich.kijun); }
-  if(T.don){ consider(d.don.upper); consider(d.don.lower); }
-  if(T.mtf && d.mtf) consider(d.mtf.line);
-  if(T.vwap) consider(d.vwap);
-  if(T.st) consider(d.st.line);
-  if(T.osgfc && d.osgfc){ consider(d.osgfc.upper); consider(d.osgfc.lower); }
-  if(T.lorentz && d.lorentz) consider(d.lorentz.kern);
+  /* ここまでの min/max は<b>ローソク足だけ</b>。軸はこれを主役にします。
+
+     以前は雲もMA75も無条件に範囲へ入れていました。一目の雲は26本先へ
+     描くので、下降トレンドでは株価のはるか上に居ます。その1本のために
+     軸が 1,400〜2,150 まで広がり、肝心のローソク足が下の4割に潰れた画面を
+     いただきました。線1本のために主役が読めなくなるのは逆です。
+
+     ローソク足の値幅を H として、軸を広げてよいのは上下それぞれ H×25% まで。
+     そこを超える線は画面の外に出て、名前だけ左上に出します。
+     こうするとローソク足は必ず全体の6割以上を占めます。 */
+  const {lo: capLo, hi: capHi} = axisCap(min, max);
+  /* 遅行線は混んでいるときは描きません(下の一目の節と同じ条件)。
+     描いていない線を「画面の外です」と言わないよう、ここで先に決めます。 */
+  const ichBusy = (T.ma ? 1 : 0) + (T.bb ? 1 : 0) + (T.osgfc ? 1 : 0);
+  const ovl = [];
+  const consider = (a, name) => {
+    let lo = Infinity, hi = -Infinity;
+    for(let i=Math.max(0,state.i0);i<=state.i1;i++){
+      const v = a[i]; if(isNum(v)){ if(v<lo) lo=v; if(v>hi) hi=v; }
+    }
+    if(!isFinite(lo)) return;
+    if(lo < min) min = Math.max(lo, capLo);
+    if(hi > max) max = Math.min(hi, capHi);
+    /* 名前を出す判定は<b>いちばん右の値</b>で。線の一部が一瞬はみ出す
+       だけなら、見えているし右端のラベルも出ます。それを「画面の外」と
+       書くと、目の前にある線について嘘をつくことになります。
+       右端が範囲外の線 = ラベルも出ない線 = 探しても見つからない線です。
+       判定は軸が確定してから(縦のズームで戻ってくることがあります)。 */
+    let last = null;
+    for(let i = Math.min(state.i1, a.length - 1); i >= Math.max(0, state.i0); i--){
+      if(isNum(a[i])){ last = a[i]; break; }
+    }
+    if(name && isNum(last)) ovl.push({name, last});
+  };
+  /* 帯は上下そろえて名前を付けます。下側を名無しにしていたので、
+     急騰した銘柄の「20日安値」が切られても何も出ませんでした。
+     まさに「押したのに線が出ない」で、この注記が防ぎたかったものです。 */
+  if(T.bb){ consider(d.bb.upper, '±2σ'); consider(d.bb.lower, '±2σ'); }
+  if(T.ma) d.ma.forEach((a, k) => consider(a, 'MA' + P.ma[k]));
+  if(T.ichimoku){ consider(d.ich.spanA, '雲'); consider(d.ich.spanB, '雲');
+                  consider(d.ich.tenkan, '転換線'); consider(d.ich.kijun, '基準線');
+                  if(!ichBusy) consider(d.ich.chikou, '遅行線'); }
+  if(T.don){ consider(d.don.upper, 'ドンチャン'); consider(d.don.lower, 'ドンチャン'); }
+  if(T.mtf && d.mtf) consider(d.mtf.line, d.mtf.label + 'MA' + d.mtf.slowN);
+  if(T.vwap) consider(d.vwap, 'VWAP');
+  if(T.st) consider(d.st.line, 'スーパートレンド');
+  if(T.osgfc && d.osgfc){ consider(d.osgfc.upper, 'OSGFC'); consider(d.osgfc.lower, 'OSGFC'); }
+  if(T.lorentz && d.lorentz) consider(d.lorentz.kern, 'カーネル');
   if(!isFinite(min) || !isFinite(max)) { min = 0; max = 1; }
   /* The price scale the reader chose. A two-finger vertical spread sets it;
      1 means "fit what is on screen", which is what it always did. Zooming
@@ -3559,11 +3783,13 @@ function drawMain(g){
     y = makeY(p, min-pad, max+pad, 4, 4);
     const lastC2 = d.c[nb-1];
     if(isNum(lastC2) && state.i1 >= nb-1) axisFree(y(lastC2), 18);
-    for(const t of ticks(min-pad, max+pad, LAY.narrow ? 4 : 6)){
+    const tk2 = ticks(min-pad, max+pad, LAY.narrow ? 4 : 6);
+    const st2 = tk2.length > 1 ? tk2[1] - tk2[0] : 0;
+    for(const t of tk2){
       const Y = y(t);
       if(!isNum(Y) || Y < p.y || Y > p.y+p.h) continue;   /* NaN compares false both ways */
       gridline(g, p, Y);
-      if(axisFree(Y, 14)) yLabel(g, p, Y, fmtNum(t));
+      if(axisFree(Y, 14)) yLabel(g, p, Y, fmtAxis(t, st2));
     }
   } else if(cmp && cmp.base){
     /* one axis, in index terms; price maps onto it through the same divisor */
@@ -3592,21 +3818,27 @@ function drawMain(g){
        is skipped rather than half-drawn */
     const lastC = d.c[nb-1];
     if(isNum(lastC) && state.i1 >= nb-1) axisFree(y(lastC), 18);
-    for(const t of ticks(min-pad, max+pad, LAY.narrow ? 4 : 6)){
+    const tk1 = ticks(min-pad, max+pad, LAY.narrow ? 4 : 6);
+    const st1 = tk1.length > 1 ? tk1[1] - tk1[0] : 0;
+    for(const t of tk1){
       const Y = y(t);
       if(!isNum(Y) || Y < p.y || Y > p.y+p.h) continue;   /* NaN compares false both ways */
       gridline(g, p, Y);
-      if(axisFree(Y, 14)) yLabel(g, p, Y, fmtNum(t));
+      if(axisFree(Y, 14)) yLabel(g, p, Y, fmtAxis(t, st1));
     }
   }
+
+  /* 取引時間帯の帯。いちばん下に敷きます(線もローソク足も上に乗る) */
+  drawSessions(g, p);
 
   /* Ichimoku cloud — a diverging fill: the sign of (A−B) is the meaning */
   if(T.ichimoku){
     /* with other overlays on the same panel the cloud steps back so the
        lines on top of it stay readable */
-    const busy = (T.ma ? 1 : 0) + (T.bb ? 1 : 0) + (T.osgfc ? 1 : 0);
+    const busy = ichBusy;
     const cloudA = busy >= 2 ? .07 : busy === 1 ? .10 : .13;
     const A = d.ich.spanA, B = d.ich.spanB;
+    g.save(); clipPanel(g, p);
     for(let i = Math.max(state.i0, 1); i <= state.i1; i++){
       if(!isNum(A[i]) || !isNum(B[i]) || !isNum(A[i-1]) || !isNum(B[i-1])) continue;
       g.fillStyle = A[i] >= B[i] ? C.up : C.down;
@@ -3617,18 +3849,22 @@ function drawMain(g){
       g.closePath(); g.fill();
       g.globalAlpha = 1;
     }
+    g.restore();
+    /* 雲の縁は「もう2本の線」ではなく雲の境目。薄くして、雲そのものに見せます */
+    g.save(); g.globalAlpha = .45;
     line(g, p, A, y, C.up, 1);
     line(g, p, B, y, C.down, 1);
-    line(g, p, d.ich.tenkan, y, C.ma[0], 1.5);
-    line(g, p, d.ich.kijun,  y, C.ma[2], 2);
-    if(!busy) line(g, p, d.ich.chikou, y, C.ink3, 1, [3,3]);   /* noisiest line goes first */
-    endLabel(g, p, d.ich.kijun,  y, C.ma[2], '基準');
-    endLabel(g, p, d.ich.tenkan, y, C.ma[0], '転換');
+    g.restore();
+    line(g, p, d.ich.tenkan, y, C.ich[0], 1.5);
+    line(g, p, d.ich.kijun,  y, C.ich[1], 2);
+    if(!busy) line(g, p, d.ich.chikou, y, C.ich[0], 1, [3,3]);   /* noisiest line goes first */
+    endLabel(g, p, d.ich.kijun,  y, C.ich[1], '基準');
+    endLabel(g, p, d.ich.tenkan, y, C.ich[0], '転換');
   }
 
   /* Bollinger — an envelope, so it stays neutral and takes no series hue */
   if(T.bb){
-    g.save(); g.globalAlpha = .07; g.fillStyle = C.band;
+    g.save(); clipPanel(g, p); g.globalAlpha = .07; g.fillStyle = C.band;
     g.beginPath();
     let started = false;
     for(let i=state.i0;i<=state.i1;i++){ if(isNum(d.bb.upper[i])){ const X=xAt(p,i),Y=y(d.bb.upper[i]);
@@ -3641,6 +3877,9 @@ function drawMain(g){
     endLabel(g, p, d.bb.upper, y, C.ink2, '+2σ');
     endLabel(g, p, d.bb.lower, y, C.ink2, '−2σ');
   }
+
+  /* 節目とピボット。水平線なので、斜めの線より下に置きます */
+  drawPivot(g, p, y, min - pad, max + pad);
 
   /* Fibonacci retracement over the visible swing */
   if(T.fib){
@@ -3677,8 +3916,8 @@ function drawMain(g){
      Drawing it smoothed would imply intra-period information it does not have. */
   if(T.mtf && d.mtf && !d.mtf.thin){
     const m = d.mtf;
-    g.save();
-    g.strokeStyle = C.ma[2] || C.ink2;
+    g.save(); clipPanel(g, p);
+    g.strokeStyle = C.mtf || C.ink2;
     g.lineWidth = 1.5; g.setLineDash([6,3]);
     g.beginPath();
     let open = false;
@@ -3689,14 +3928,14 @@ function drawMain(g){
       if(!open){ g.moveTo(X, Y); open = true; } else { g.lineTo(X, Y); }
     }
     g.stroke(); g.restore();
-    endLabel(g, p, m.line, y, C.ma[2] || C.ink2, m.label + 'MA' + m.slowN);
+    endLabel(g, p, m.line, y, C.mtf || C.ink2, m.label + 'MA' + m.slowN);
   }
 
   /* OSGFC — the filter line carries direction, so it is drawn in segments
      using the same up/down pair as the candles; the ATR channel stays neutral */
   if(T.osgfc && d.osgfc){
     const os = d.osgfc;
-    g.save(); g.globalAlpha = .06;
+    g.save(); clipPanel(g, p); g.globalAlpha = .06;
     g.beginPath();
     let st0 = false;
     for(let i=state.i0;i<=state.i1;i++) if(isNum(os.upper[i])){ const X=xAt(p,i),Y=y(os.upper[i]);
@@ -3705,9 +3944,9 @@ function drawMain(g){
     g.closePath();
     g.fillStyle = os.dir[Math.min(state.i1, nb-1)] >= 0 ? C.up : C.down;
     g.fill(); g.restore();
-    line(g, p, os.upper, y, C.band, 1);
-    line(g, p, os.lower, y, C.band, 1);
-    g.save(); g.lineWidth = 2.4; g.lineJoin = 'round'; g.lineCap = 'round';
+    line(g, p, os.upper, y, C.band, 1, [2,3]);
+    line(g, p, os.lower, y, C.band, 1, [2,3]);
+    g.save(); clipPanel(g, p); g.lineWidth = 2.4; g.lineJoin = 'round'; g.lineCap = 'round';
     for(let i=Math.max(1,state.i0);i<=Math.min(state.i1, nb-1);i++){
       if(!isNum(os.filter[i]) || !isNum(os.filter[i-1])) continue;
       g.strokeStyle = os.dir[i] >= 0 ? C.up : C.down;
@@ -3721,7 +3960,7 @@ function drawMain(g){
 
   /* Supertrend — direction is the whole message, so it uses the diverging pair */
   if(T.st){
-    g.save(); g.lineWidth = 2; g.lineJoin='round'; g.lineCap='round';
+    g.save(); clipPanel(g, p); g.lineWidth = 2; g.lineJoin='round'; g.lineCap='round';
     for(let i=Math.max(1,state.i0);i<=Math.min(state.i1, nb-1);i++){
       if(!isNum(d.st.line[i]) || !isNum(d.st.line[i-1])) continue;
       if(d.st.dir[i] !== d.st.dir[i-1]) continue;        /* no line across a flip */
@@ -3735,8 +3974,8 @@ function drawMain(g){
   }
 
   if(T.vwap){
-    line(g, p, d.vwap, y, C.ma[1], 1.8, [6,3]);
-    endLabel(g, p, d.vwap, y, C.ma[1], 'VWAP');
+    line(g, p, d.vwap, y, C.smooth, 1.8, [6,3]);
+    endLabel(g, p, d.vwap, y, C.smooth, 'VWAP');
   }
 
   /* Volume profile — how much traded at each price over the visible range.
@@ -3746,7 +3985,7 @@ function drawMain(g){
     state._vp = vp;
     if(vp){
       const wMax = p.w * (LAY.narrow ? 0.30 : 0.24);
-      g.save();
+      g.save(); clipPanel(g, p);
       /* value area sits behind everything as a faint band */
       g.fillStyle = C.band; g.globalAlpha = .06;
       g.fillRect(p.x, y(vp.vaHigh), p.w, Math.max(1, y(vp.vaLow) - y(vp.vaHigh)));
@@ -3759,7 +3998,7 @@ function drawMain(g){
       }
       g.restore();
       const Yp = y(vp.poc);
-      g.save();
+      g.save(); clipPanel(g, p);
       g.strokeStyle = C.ink2; g.globalAlpha = .6; g.lineWidth = 1.5;
       g.beginPath(); g.moveTo(p.x, Math.round(Yp)+.5); g.lineTo(p.x + wMax, Math.round(Yp)+.5); g.stroke();
       g.restore();
@@ -3772,6 +4011,10 @@ function drawMain(g){
   } else state._vp = null;
 
   /* Candlesticks — thin marks; body min 1px so a doji still reads */
+  /* 軸をローソク足に合わせた結果、縦ズーム(2本指の上下)を効かせると
+     ローソク足自身が枠からはみ出します。切らないと出来高パネルの上に
+     ヒゲが伸びます。 */
+  g.save(); clipPanel(g, p);
   const bw = barW(p), body = Math.max(1, Math.min(bw * 0.68, 13));
   for(let i = Math.max(0, state.i0); i <= Math.min(state.i1, nb-1); i++){
     const X = xAt(p, i), up = d.c[i] >= d.o[i];
@@ -3793,6 +4036,7 @@ function drawMain(g){
       g.fillRect(X-body/2, top, body, hgt);
     }
   }
+  g.restore();
 
   if(T.ma){
     d.ma.forEach((a, k) => line(g, p, a, y, C.ma[k], 1.8));
@@ -3800,10 +4044,11 @@ function drawMain(g){
   }
 
   if(T.lorentz && d.lorentz){
-    line(g, p, d.lorentz.kern, y, C.ma[1], 2);
-    endLabel(g, p, d.lorentz.kern, y, C.ma[1], 'カーネル');
+    line(g, p, d.lorentz.kern, y, C.smooth, 2);
+    endLabel(g, p, d.lorentz.kern, y, C.smooth, 'カーネル');
     /* entry markers: a filled triangle plus a 2px surface ring so they
        stay legible on top of the candles */
+    g.save(); clipPanel(g, p);
     for(const f of d.lorentz.flips){
       if(f.i < state.i0 || f.i > state.i1 || f.i > nb-1) continue;
       const X = xAt(p, f.i);
@@ -3818,6 +4063,7 @@ function drawMain(g){
       g.fillStyle = f.dir > 0 ? C.up : C.down; g.fill();
       g.restore();
     }
+    g.restore();
   }
 
   /* last close marker */
@@ -3844,6 +4090,44 @@ function drawMain(g){
     g.textAlign='left'; g.textBaseline='middle';
     g.fillText(fmtNum(lc), p.x+p.w+6, Y);
   }
+  /* 軸に入りきらなかった線の名前。黙って切ると「押したのに線が出ない」に
+     なります。切ったことと、何を切ったかを出します。 */
+  if(!cmp || cmp.real){
+    /* 判定は<b>右端のラベルと同じ物差し</b>で。範囲を ±pad で見ていたので、
+       境目の2pxにいる線はラベルも出るのに「画面の外です」とも書かれました。 */
+    const names = [];
+    for(const o of ovl){
+      const Y = y(o.last);
+      if((!isNum(Y) || Y < p.y + 2 || Y > p.y + p.h - 2) && names.indexOf(o.name) < 0)
+        names.push(o.name);
+    }
+    if(names.length){
+      g.save();
+      g.font = `${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
+      g.textAlign = 'left'; g.textBaseline = 'top';
+      /* 幅に入るぶんだけ名前を出します。入らないまま書くと、価格の目盛りや
+         現在値の札の上に文字が乗って、そちらまで読めなくなります。 */
+      const room = p.w - 12;
+      const tail = ' は画面の外';
+      let txt = '';
+      for(let k = 0; k < names.length; k++){
+        const t = names.slice(0, k + 1).join('・')
+                + (k + 1 < names.length ? `ほか${names.length - k - 1}件` : '') + tail;
+        if(k > 0 && g.measureText(t).width > room) break;
+        txt = t;
+      }
+      if(!txt) txt = `${names.length}本が画面の外`;
+      /* 線の上に素で書くと読めません。下敷きを敷きます */
+      const w = Math.min(g.measureText(txt).width + 8, p.w - 4);
+      g.fillStyle = C.surface; g.globalAlpha = .82;
+      g.fillRect(p.x + 2, p.y + 2, w, 14);
+      g.globalAlpha = 1;
+      g.fillStyle = C.ink3;
+      g.fillText(txt, p.x + 6, p.y + 4);
+      g.restore();
+    }
+    state._offscreen = names;
+  } else state._offscreen = [];
   if(cmp && cmp.real) drawCompareReal(g, p, cmp);
   else if(cmp && yIdx) drawCompareLines(g, p, cmp, yIdx);
   panelFrame(g, p);
@@ -4152,6 +4436,7 @@ function renderBase(){
   drawEvents(bctx);
   drawVol(bctx); drawRSI(bctx); drawMACD(bctx); drawStoch(bctx); drawADX(bctx); drawLorentz(bctx);
   drawShortPanel(bctx); drawMarginPanel(bctx); drawValuation(bctx);
+  drawRates(bctx); drawCot(bctx);
   drawFlowPanel(bctx); drawSizeFlowPanel(bctx);
   drawGrips(bctx);
 }
@@ -4161,7 +4446,7 @@ function renderBase(){
    Marking them stops the chart from lying by omission — and the same
    marks explain the small step down on an ex-dividend date. */
 function drawEvents(g){
-  if(!state.toggles.events) return;
+  if(!state.toggles.events && !state.toggles.cbank) return;
   const ev = (state.raw && state.raw.events) || [];
   /* The earnings marker lives at the bottom of this function, so returning
      early on "no splits or dividends" took it with it — and a stock with no
@@ -4169,7 +4454,7 @@ function drawEvents(g){
      FX pair. The line the 決算 panel promises simply never appeared. */
   const wantEarn = typeof earnings !== 'undefined' && earnings && earnings.next
                    && Ext.codeKey() === earnings.code;
-  if(!ev.length && !wantEarn) return;
+  if(!ev.length && !wantEarn && !state.toggles.cbank) return;
   const p = panel('main'), bars = state.raw.bars;
   const pos = new Map();
   for(let i = Math.max(0, state.i0); i <= Math.min(state.i1, bars.length - 1); i++)
@@ -4177,8 +4462,9 @@ function drawEvents(g){
 
   g.save();
   g.beginPath(); g.rect(p.x, p.y, p.w, p.h); g.clip();
+  drawCbank(g, p, pos);
   const lastX = new Map();
-  for(const e of ev){
+  for(const e of (state.toggles.events ? ev : [])){
     const i = pos.get(e.d);
     if(i === undefined) continue;
     const x = Math.round(xAt(p, i)) + 0.5;
@@ -4203,7 +4489,7 @@ function drawEvents(g){
     }
   }
   /* the scheduled earnings date, when it falls inside the visible bars */
-  if(wantEarn){
+  if(wantEarn && state.toggles.events){
     let i = pos.get(earnings.next.d);
     if(i === undefined){
       /* The announcement is in the FUTURE — that is the whole point of the
@@ -4441,8 +4727,8 @@ function renderLegend(){
   if(T.ma) P.ma.forEach((n,k)=>L.push(`<span class="li"><i class="k" style="background:var(--ma${k+1})"></i>MA${n}</span>`));
   if(T.bb) L.push(`<span class="li"><i class="k" style="background:var(--band)"></i>ボリンジャー ±2σ</span>`);
   if(T.ichimoku){
-    L.push(`<span class="li"><i class="k" style="background:var(--ma1)"></i>転換線(9)</span>`);
-    L.push(`<span class="li"><i class="k" style="background:var(--ma3)"></i>基準線(26)</span>`);
+    L.push(`<span class="li"><i class="k" style="background:var(--ich1)"></i>転換線(9)</span>`);
+    L.push(`<span class="li"><i class="k" style="background:var(--ich2)"></i>基準線(26)</span>`);
     L.push(`<span class="li"><i class="kb" style="background:linear-gradient(90deg,var(--up),var(--down));opacity:.5"></i>雲(先行スパン)</span>`);
   }
   if(T.fib) L.push(`<span class="li"><i class="k" style="background:var(--ink-3)"></i>フィボナッチ</span>`);
@@ -4451,16 +4737,16 @@ function renderLegend(){
     L.push(`<span class="li" style="color:var(--ink-3)">上位足: この足種では出せません</span>`);
   if(T.mtf && state.ind && state.ind.mtf) L.push(state.ind.mtf.thin
     ? `<span class="li" style="color:var(--ink-3)">上位足: データが足りません</span>`
-    : `<span class="li"><i class="k" style="background:var(--ma3)"></i>${esc(state.ind.mtf.label,4)}のMA${state.ind.mtf.slowN}(確定した足だけ)</span>`);
+    : `<span class="li"><i class="k" style="background:var(--mtf)"></i>${esc(state.ind.mtf.label,4)}のMA${state.ind.mtf.slowN}(確定した足だけ)</span>`);
   /* An instrument with no volume — FX, the indices, ^VIX, the bond yields —
      has no VWAP and no MFI to draw. Listing the key for a line that is not
      there reads as a broken chart, so say why instead. */
   if(T.vwap) L.push(hasVals(state.ind && state.ind.vwap)
-    ? `<span class="li"><i class="k" style="background:var(--ma2)"></i>VWAP</span>`
+    ? `<span class="li"><i class="k" style="background:var(--smooth)"></i>VWAP</span>`
     : `<span class="li" style="color:var(--ink-3)">VWAP: この銘柄は出来高が配信されないため出せません</span>`);
   if(T.st) L.push(`<span class="li"><i class="k" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>スーパートレンド(${P.st.join(',')}) 上昇=赤 / 下降=青</span>`);
   if(T.osgfc) L.push(`<span class="li"><i class="k" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>OSGFC(深度${OSG.depth}, ATR${OSG.atrPeriod}×${OSG.atrMult})</span>`);
-  if(T.lorentz) L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>カーネル回帰 ・ ▲▼=エントリ(カーネルの向きが一致した転換のみ)</span>`);
+  if(T.lorentz) L.push(`<span class="li"><i class="k" style="background:var(--smooth)"></i>カーネル回帰 ・ ▲▼=エントリ(カーネルの向きが一致した転換のみ)</span>`);
   if(T.flow){
     if(hasVals(state.ind && state.ind.mfi)){
       L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>MFI(出来高込みの過熱感)</span>`);
@@ -4479,6 +4765,41 @@ function renderLegend(){
   if(T.marginPanel){
     L.push(`<span class="li"><i class="k" style="background:var(--up)"></i>信用買残</span>`);
     L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>信用売残</span>`);
+  }
+  if(T.session && isIntradayIv(state.interval)){
+    L.push(`<span class="li"><i class="kb" style="background:var(--cmp2);opacity:.5"></i>東京(9-15時)</span>`);
+    L.push(`<span class="li"><i class="kb" style="background:var(--ich1);opacity:.5"></i>ロンドン(現地8-16:30)</span>`);
+    L.push(`<span class="li"><i class="kb" style="background:var(--smooth);opacity:.5"></i>ニューヨーク(現地8-17時)</span>`);
+    L.push(`<span class="li" style="color:var(--ink-3)">色が重なっている所は、2つの市場が同時に開いています</span>`);
+  } else if(T.session){
+    L.push(`<span class="li" style="color:var(--ink-3)">取引時間帯の帯は分足でだけ出ます</span>`);
+  }
+  if(T.pivot){
+    L.push(`<span class="li"><i class="k" style="background:var(--ink-2)"></i>ピボット(前日の高安終値から) P/R1/R2/S1/S2</span>`);
+    L.push(`<span class="li"><i class="k" style="background:var(--band)"></i>節目(ラウンドナンバー)</span>`);
+  }
+  if(T.cbank){
+    L.push(`<span class="li"><i class="k" style="background:var(--cmp2)"></i>FOMC(結果は日本時間の翌朝)</span>`);
+    L.push(`<span class="li"><i class="k" style="background:var(--ich1)"></i>日銀 金融政策決定会合</span>`);
+  }
+  if(T.cot){
+    if(!(state.ind && state.ind.cot)){
+      L.push(`<span class="li" style="color:var(--ink-3)">円の建玉: 下の「金利」で取得すると出ます</span>`);
+    } else {
+      L.push(`<span class="li"><i class="k" style="background:var(--ink-1)"></i>投機筋(Leveraged Money)の円ネット枚数</span>`);
+      L.push(`<span class="li"><i class="k" style="background:var(--ink-3)"></i>資産運用勢(Asset Manager)</span>`);
+      L.push(`<span class="li" style="color:var(--ink-3)">0より上=円の買い越し / 下=売り越し。火曜時点の残高を金曜に公表</span>`);
+    }
+  }
+  if(T.rates){
+    if(!(state.ind && state.ind.rates)){
+      L.push(`<span class="li" style="color:var(--ink-3)">日米金利差: 下の「金利」で取得すると出ます</span>`);
+    } else {
+      L.push(`<span class="li"><i class="k" style="background:var(--cmp2)"></i>米10年債</span>`);
+      L.push(`<span class="li"><i class="k" style="background:var(--ich1)"></i>日10年債</span>`);
+      if(state.ind.rates.hasSpread)
+        L.push(`<span class="li"><i class="k" style="background:var(--ink-1)"></i>金利差(米−日)・塗りの厚みが差</span>`);
+    }
   }
   if(T.valuation){
     const vk = valuationKind();
@@ -5073,7 +5394,7 @@ function renderBook(){
   const cur = state.raw ? state.raw.code : '';
   his.innerHTML = '<option value="">履歴から選ぶ…</option>' + Book.hist.map(h =>
     `<option value="${esc(h.code, 24)}"${h.code === cur ? ' selected' : ''}>${esc(h.code, 24)} — ${esc(h.name, 40)}`
-    + `${isNum(h.price) ? ' (' + esc(fmtNum(h.price, h.cur)) + ')' : ''}</option>`).join('');
+    + `${isNum(h.price) ? ' (' + esc(fmtNum(h.price, h.cur, h.code)) + ')' : ''}</option>`).join('');
 
   const star = $('#favBtn');
   const on = state.raw && Book.isFav(state.raw.code);
@@ -5473,7 +5794,9 @@ function drawCompareReal(g, p, cmp){
     g.moveTo(p.x, Math.round(Y) + .5); g.lineTo(p.x + 5, Math.round(Y) + .5);
     g.strokeStyle = col; g.lineWidth = 1; g.stroke();
     g.globalAlpha = 1;
-    g.fillText(fmtNum(t), p.x - 3, Y);
+    /* この軸は<b>比較銘柄</b>の値段です。画面の銘柄がドル円だからと
+       いって、日経平均を 42,000.000 と書いてはいけません。 */
+    g.fillText(fmtNum(t, undefined, sy.sym || sy.code || ''), p.x - 3, Y);
   }
   g.restore();
 
@@ -6544,6 +6867,13 @@ function alignExt(ind){
      こけた、といった経路で、前の銘柄の空売り・信用・決算が新しい足に
      貼りついていました。線が1本余分なだけならまだしも、決算は
      「A社の1株利益 ÷ B社の株価」というPERの<b>数字</b>になります。 */
+  /* 金利は銘柄のデータではないので、銘柄が合わなくても消しません
+     (むしろ銘柄を替えても残るのが正しい)。上の門より前に置きます。 */
+  ind.rates = buildRateSeries(state.raw.bars);
+  /* トグルで作るのをやめると、チップを押しただけでは
+     redraw() しか走らず、パネルの出る条件(ind.cot)が never true でした。
+     ind.rates と同じで、常に作って出すかどうかだけトグルで決めます。 */
+  ind.cot = buildCotSeries(state.raw.bars);
   if(!Ext.fresh()){
     ind.extShort = null; ind.extMargin = null; ind.fund = null;
     return ind;
@@ -6704,6 +7034,564 @@ function pctlOf(arr, qs){
     const x = (v.length - 1) * q, lo = Math.floor(x), hi = Math.ceil(x);
     return lo === hi ? v[lo] : v[lo] + (v[hi] - v[lo]) * (x - lo);
   });
+}
+
+
+/* ============================================================
+   14. 為替まわり — 金融政策の日程・節目とピボット・取引時間帯
+   ============================================================ */
+
+/* --- 金融政策決定会合 ------------------------------------------------
+   FOMC も日銀も<b>1年以上先まで日程を公表しています</b>。取りにいく先を
+   増やすより表で持つほうが確実で、オフラインでも出ます。日付は
+   「会合の最終日」＝結果が出る日です(2日間の会合の2日目)。
+
+   出典 https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
+        https://www.boj.or.jp/mopo/mpmsche_minu/index.htm
+   表が切れたあとは何も描きません(勝手に延長すると、ありもしない日に
+   線が立ちます)。 */
+const CB_MEETINGS = [
+  /* FOMC(結果は日本時間の翌朝) */
+  ['20250129','F'],['20250319','F'],['20250507','F'],['20250618','F'],
+  ['20250730','F'],['20250917','F'],['20251029','F'],['20251210','F'],
+  ['20260128','F'],['20260318','F'],['20260429','F'],['20260617','F'],
+  ['20260729','F'],['20260916','F'],['20261028','F'],['20261209','F'],
+  ['20270127','F'],['20270317','F'],['20270428','F'],['20270609','F'],
+  ['20270728','F'],['20270915','F'],['20271027','F'],['20271208','F'],
+  /* 日銀 金融政策決定会合 */
+  ['20250124','B'],['20250319','B'],['20250501','B'],['20250617','B'],
+  ['20250731','B'],['20250919','B'],['20251030','B'],['20251219','B'],
+  ['20260123','B'],['20260319','B'],['20260428','B'],['20260616','B'],
+  ['20260731','B'],['20260918','B'],['20261030','B'],['20261218','B'],
+  ['20270122','B'],['20270318','B'],['20270428','B'],['20270611','B'],
+  ['20270722','B'],['20270922','B'],['20271029','B'],['20271217','B']
+];
+const CB_NAME = {F:'FOMC', B:'日銀'};
+function cbMeetings(){
+  return CB_MEETINGS.map(([d, w]) => ({d, w}))
+    .sort((a, b) => a.d.localeCompare(b.d) || a.w.localeCompare(b.w));
+}
+/* YYYYMMDD どうしの日数差。暦の日数で、営業日ではありません
+   (「次の会合まであと何日」は暦で数えるほうが素直です)。 */
+function daysBetweenKeys(a, b){
+  const mk = k => {
+    if(!/^\d{8}$/.test(String(k))) return null;
+    return Date.UTC(+k.slice(0,4), +k.slice(4,6) - 1, +k.slice(6,8));
+  };
+  const x = mk(a), y = mk(b);
+  if(x === null || y === null) return 0;
+  return Math.round((y - x) / 86400000);
+}
+
+/* 今日から見た次の会合。表の終わりを過ぎたら null で、
+   カードは「表が切れています」と出します。 */
+function nextCbMeeting(todayKey){
+  const t = todayKey || dkey(new Date());
+  for(const m of cbMeetings()) if(m.d >= t) return m;
+  return null;
+}
+function cbTableEnd(){
+  const all = cbMeetings();
+  return all.length ? all[all.length - 1].d : '';
+}
+
+/* 会合の日に縦線を立てます。分割・配当と同じ場所(drawEvents)から
+   呼ばれるので、切り抜きも重なりの間引きもそちらに任せます。 */
+function drawCbank(g, p, pos){
+  if(!state.toggles.cbank) return;
+  g.save();
+  g.font = `600 ${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'center'; g.textBaseline = 'top';
+
+  /* 見えている会合を x 順に並べ、近すぎるものは<b>ひとまとめ</b>にします。
+     FOMC の2日後に日銀、という並びは珍しくなく(2026年9月がそれです)、
+     400本の日足だと5px しか離れません。片方を黙って捨てると
+     「日銀の線が出ない」になり、両方書くと「FOM日銀」になります。 */
+  const seen = new Set();
+  const marks = [];
+  for(const m of cbMeetings()){
+    const i = pos.get(m.d);
+    if(i === undefined) continue;
+    const x = xAt(p, i);
+    const k = m.d + m.w;
+    if(seen.has(k)) continue;
+    seen.add(k);
+    marks.push({x, w: m.w, d: m.d});
+  }
+  marks.sort((a, b) => a.x - b.x);
+
+  /* 線は全部引きます。事実なので間引きません。 */
+  for(const mk of marks){
+    const x = Math.round(mk.x) + 0.5;
+    g.strokeStyle = mk.w === 'F' ? (C.rateUs || C.up) : C.ich[0];
+    g.globalAlpha = .55; g.lineWidth = 1; g.setLineDash([2,3]);
+    g.beginPath(); g.moveTo(x, p.y + 28); g.lineTo(x, p.y + p.h); g.stroke();
+  }
+  g.setLineDash([]); g.globalAlpha = 1;
+
+  /* 札は重ならないぶんだけ。近いものは1枚にまとめます。 */
+  const groups = [];
+  for(const mk of marks){
+    const last = groups[groups.length - 1];
+    const label = CB_NAME[mk.w] || '';
+    if(last && mk.x - last.x < g.measureText(last.text).width / 2 + 12){
+      if(last.text.indexOf(label) < 0) last.text += '・' + label;
+      last.x = (last.x + mk.x) / 2;
+      last.mixed = true;
+      continue;
+    }
+    groups.push({x: mk.x, text: label, w: mk.w, mixed: false});
+  }
+  let prevRight = -Infinity;
+  for(const gr of groups){
+    const w = g.measureText(gr.text).width + 6;
+    const left = gr.x - w / 2;
+    if(left < prevRight + 3) continue;              /* まだ重なるなら、この札は出さない */
+    if(left < p.x || left + w > p.x + p.w) continue;
+    prevRight = left + w;
+    /* 「上の左端の注記」の帯を避けて、少し下に置きます */
+    const ty = p.y + 16;
+    g.fillStyle = C.surface; g.globalAlpha = .85;
+    g.fillRect(left, ty, w, 12);
+    g.globalAlpha = 1;
+    g.fillStyle = gr.mixed ? C.ink2 : (gr.w === 'F' ? (C.rateUs || C.up) : C.ich[0]);
+    g.fillText(gr.text, gr.x, ty + 1);
+  }
+  g.restore();
+}
+
+/* --- 節目とピボット ---------------------------------------------------
+   どちらも<b>計算だけ</b>で出せます。通信も入力も要りません。
+
+   節目(ラウンドナンバー)は、為替で実際に注文が溜まる価格です。
+   159.00 や 160.00 で跳ね返るのは、そこに指値が集まっているからで、
+   テクニカルというより板の話です。
+
+   ピボットは前の1日の高値・安値・終値だけから引く水平線です。
+   計算が単純なぶん<b>誰が計算しても同じ線</b>になり、それ自体が
+   効く理由になっています。 */
+function roundStep(range){
+  if(!(range > 0)) return null;
+  const target = range / 6;                     /* 6本前後に収まる刻み */
+  const mag = Math.pow(10, Math.floor(Math.log10(target)));
+  for(const m of [1, 2, 5, 10]) if(target <= mag * m) return mag * m;
+  return mag * 10;
+}
+/* 前の1日ぶんの高値・安値・終値。日足なら1本前、分足ならその日より
+   前の最後の1日ぶんをまとめます。 */
+function pivotBase(bars, i){
+  if(!bars || i < 1) return null;
+  const intra = isIntradayIv(state.interval);
+  if(!intra){
+    const b = bars[i-1];
+    return b ? {h: b.h, l: b.l, c: b.c, d: barKey(b)} : null;
+  }
+  const today = barKey(bars[i]);
+  let j = i - 1;
+  while(j >= 0 && barKey(bars[j]) === today) j--;
+  if(j < 0) return null;
+  const prev = barKey(bars[j]);
+  let h = -Infinity, l = Infinity, c = bars[j].c;
+  while(j >= 0 && barKey(bars[j]) === prev){
+    if(bars[j].h > h) h = bars[j].h;
+    if(bars[j].l < l) l = bars[j].l;
+    j--;
+  }
+  return isFinite(h) && isFinite(l) ? {h, l, c, d: prev} : null;
+}
+function pivotLevels(b){
+  if(!b || !isNum(b.h) || !isNum(b.l) || !isNum(b.c)) return null;
+  const P0 = (b.h + b.l + b.c) / 3, R = b.h - b.l;
+  return [
+    {k:'R2', v: P0 + R,        big:false},
+    {k:'R1', v: 2*P0 - b.l,    big:false},
+    {k:'P',  v: P0,            big:true},
+    {k:'S1', v: 2*P0 - b.h,    big:false},
+    {k:'S2', v: P0 - R,        big:false}
+  ];
+}
+function drawPivot(g, p, y, lo, hi){
+  if(!state.toggles.pivot){ state._pivot = null; return; }
+  const bars = state.raw.bars;
+  const i = Math.min(state.i1, bars.length - 1);
+
+  /* 節目 */
+  const step = roundStep(hi - lo);
+  if(step){
+    g.save(); clipPanel(g, p);
+    g.font = `${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    const first = Math.ceil(lo / step) * step;
+    for(let v = first; v <= hi; v += step){
+      const Y = y(v);
+      if(!isNum(Y) || Y < p.y + 1 || Y > p.y + p.h - 1) continue;
+      /* 刻み10本ごとに1本は太く。1.00 や 160.00 のような「大きい節目」です */
+      const big = Math.abs(v / (step * 5) - Math.round(v / (step * 5))) < 1e-9;
+      g.strokeStyle = C.band; g.globalAlpha = big ? .40 : .18; g.lineWidth = 1;
+      g.setLineDash(big ? [] : [1,4]);
+      g.beginPath(); g.moveTo(p.x, Math.round(Y)+.5); g.lineTo(p.x+p.w, Math.round(Y)+.5);
+      g.stroke();
+    }
+    g.setLineDash([]);
+    g.restore();
+  }
+
+  /* ピボット */
+  const base = pivotBase(bars, i);
+  const lv = pivotLevels(base);
+  if(!lv) return;
+  g.save(); clipPanel(g, p);
+  g.font = `600 ${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  for(const L of lv){
+    const Y = y(L.v);
+    if(!isNum(Y) || Y < p.y + 1 || Y > p.y + p.h - 1) continue;
+    g.strokeStyle = L.big ? C.ink2 : C.ink3;
+    g.globalAlpha = L.big ? .65 : .40;
+    g.lineWidth = L.big ? 1.4 : 1;
+    g.setLineDash(L.big ? [] : [5,4]);
+    g.beginPath(); g.moveTo(p.x, Math.round(Y)+.5); g.lineTo(p.x+p.w, Math.round(Y)+.5);
+    g.stroke();
+    g.setLineDash([]);
+    g.globalAlpha = 1;
+    g.fillStyle = L.big ? C.ink2 : C.ink3;
+    /* 札の場所は POC・フィボナッチと共有です(全部パネルの左端)。
+       ピボットが先に取るので、フィボナッチと同時に出すと%の札のほうが
+       ずれます。線はどれも出ます。 */
+    const ly = claimSlot(Y, 12, p.y + 1, p.y + p.h - 1);
+    if(ly !== null) g.fillText(L.k, p.x + 3, ly);
+  }
+  g.restore();
+  state._pivot = {base, levels: lv};
+}
+
+/* --- 取引時間帯 -------------------------------------------------------
+   為替は24時間動きますが、性格は時間帯でまるきり違います。東京が
+   閉じてロンドンが開く夕方に流れが変わるのは毎日のことで、
+   「16時に伸びた」を毎回そういうものとして読めるようにします。
+
+   夏時間があるので、日本時間で決め打ちにはできません(ロンドンもNYも
+   年に2回ずれます)。各市場の<b>現地時刻</b>で判定します。 */
+const SESSIONS = [
+  {k:'tokyo',  tz:'Asia/Tokyo',        from:9,  to:15,   label:'東京'},
+  {k:'london', tz:'Europe/London',     from:8,  to:16.5, label:'ロンドン'},
+  {k:'ny',     tz:'America/New_York',  from:8,  to:17,   label:'ニューヨーク'}
+];
+const SESS_CACHE = new Map();
+function localHour(t, tz){
+  const bucket = tz + ':' + Math.floor(t / 900000);      /* 15分単位で使い回す */
+  if(SESS_CACHE.has(bucket)) return SESS_CACHE.get(bucket);
+  const f = tzFormatter(tz);
+  let h = null;
+  if(f){
+    const p = {};
+    for(const part of f.formatToParts(new Date(t))) p[part.type] = part.value;
+    h = (+p.hour % 24) + (+p.minute) / 60;
+  }
+  if(SESS_CACHE.size > 4000) SESS_CACHE.clear();
+  SESS_CACHE.set(bucket, h);
+  return h;
+}
+function drawSessions(g, p){
+  if(!state.toggles.session) return;
+  if(!isIntradayIv(state.interval)) return;
+  const bars = state.raw.bars;
+  const i0 = Math.max(0, state.i0), i1 = Math.min(state.i1, bars.length - 1);
+  if(i1 - i0 > 1200) return;                 /* 引きすぎ。帯が潰れて意味を成しません */
+  const bw = Math.max(1, barW(p));
+  g.save(); clipPanel(g, p);
+  SESSIONS.forEach((s, si) => {
+    g.fillStyle = si === 0 ? C.rateUs : si === 1 ? C.ich[0] : C.smooth;
+    g.globalAlpha = .055;
+    for(let i = i0; i <= i1; i++){
+      const h = localHour(bars[i].t.getTime(), s.tz);
+      if(h === null || h < s.from || h >= s.to) continue;
+      g.fillRect(xAt(p, i) - bw/2, p.y, bw + 0.6, p.h);
+    }
+  });
+  g.restore();
+}
+
+/* ============================================================
+   13. 金利 — 米10年債・日10年債とその差
+   ------------------------------------------------------------
+   為替は「どちらの通貨で持っていたほうが利息が付くか」で動く場面が
+   多く、ドル円と<b>日米10年債の金利差</b>の相関はテクニカル指標の
+   どれよりも素直です。ただしこれは銘柄に紐づくデータではないので、
+   Ext(銘柄ごと)ではなく Macro(市場全体)に置きます。銘柄を替えても
+   消えません。
+
+   取得先:
+   ・米 … Yahoo の ^TNX(CBOE 10年債利回り指数)。既存の経路をそのまま使います
+   ・日 … 財務省「国債金利情報」のCSV。無料で確実な源はここだけです
+          https://www.mof.go.jp/jgbs/reference/interest_rate/
+   ============================================================ */
+const JGB_NOW = 'https://www.mof.go.jp/jgbs/reference/interest_rate/jgbcm.csv';
+const JGB_ALL = 'https://www.mof.go.jp/jgbs/reference/interest_rate/data/jgbcm_all.csv';
+
+/* 財務省CSVの読み取り。
+
+   1行目は表題(「国債金利情報 (令和8年8月)」)、2行目が見出し
+   「基準日,1年,2年,…,10年,15年,20年,25年,30年,40年」で、そこから
+   データが並びます。日付は和暦で S49.9.24 / H31.4.30 / R8.8.17 の形。
+
+   文字コードは Shift_JIS ですが、<b>データ行は全部ASCII</b>なので
+   UTF-8として読んでも壊れません(壊れるのは日本語の見出し行だけで、
+   そこは元から読み飛ばします)。改行(0x0A)は Shift_JIS の2バイト目に
+   なりえないので、行の切れ目もずれません。中継サーバーに
+   バイト列で取りにいく口を足さずに済みます。 */
+const JGB_ROW = /^([SHR])(\d{1,2})\.(\d{1,2})\.(\d{1,2}),(.*)$/;
+const ERA_BASE = {S: 1925, H: 1988, R: 2018};   /* 昭和1年=1926 / 平成1年=1989 / 令和1年=2019 */
+function parseJgbCsv(text, col){
+  const want = isNum(col) ? col : 10;            /* 10年 = 日付の次から数えて10番目 */
+  const out = [];
+  const lines = String(text || '').split(/\r?\n/);
+  for(const raw of lines){
+    const m = JGB_ROW.exec(raw.trim());
+    if(!m) continue;
+    const base = ERA_BASE[m[1]];
+    const y = base + (+m[2]), mo = +m[3], d = +m[4];
+    if(!(y >= 1974 && y <= 2100) || !(mo >= 1 && mo <= 12) || !(d >= 1 && d <= 31)) continue;
+    const cells = m[5].split(',');
+    const v = pasteNum(cells[want - 1]);         /* 「-」や空欄は null になります */
+    if(!isNum(v) || v < -5 || v > 30) continue;  /* 国債利回りが30%になる日は来ません */
+    out.push({d: `${y}${String(mo).padStart(2,'0')}${String(d).padStart(2,'0')}`, v});
+  }
+  out.sort((a, b) => a.d.localeCompare(b.d));
+  return out;
+}
+
+/* ^TNX は「利回りそのもの(4.25 = 4.25%)」で返ってきます。過去には
+   CBOE の指数として10倍(42.5)で配信されていた時期があり、経路が
+   変われば戻る可能性もあります。10年債が20%になる世界は来ないので、
+   そこを越えていたら10で割ります。黙って直さず、注記に出します。 */
+function tnxScale(v){ return isNum(v) && Math.abs(v) > 20 ? v / 10 : v; }
+
+
+/* --- CFTC 円の建玉(IMMポジション) ------------------------------------
+   シカゴの円先物を、誰がどれだけ買って(売って)いるか。米商品先物取引
+   委員会(CFTC)が毎週金曜に公表します(火曜時点の残高)。株でいう
+   信用残にあたるもので、読み方も同じ ——「もう買った人」は
+   将来の買い手ではなく、<b>将来の売り手</b>です。
+
+   投機筋(Leveraged Money)の円ネットが大きく売りに傾いていると、
+   何かのきっかけで買い戻しが集中し、円高が一気に進みます。2024年の
+   夏がまさにそれでした。逆張りの指標ではなく<b>燃料の量</b>です。
+
+   取得先は CFTC の公開データ(Socrata)。無料・鍵不要です。
+   https://publicreporting.cftc.gov/resource/gpe5-46if.json  */
+const COT_URL = 'https://publicreporting.cftc.gov/resource/gpe5-46if.json'
+  + '?$select=report_date_as_yyyy_mm_dd,lev_money_positions_long,lev_money_positions_short,'
+  + 'asset_mgr_positions_long,asset_mgr_positions_short,open_interest_all'
+  + '&$where=contract_market_name=%27JAPANESE%20YEN%27'
+  + '&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=';
+
+function parseCot(rows){
+  if(!Array.isArray(rows)) return [];
+  const out = [];
+  for(const r of rows){
+    const d = String(r && r.report_date_as_yyyy_mm_dd || '').slice(0, 10).replace(/-/g, '');
+    if(!/^\d{8}$/.test(d)) continue;
+    const num = k => { const v = +r[k]; return Number.isFinite(v) ? v : null; };
+    const ll = num('lev_money_positions_long'), ls = num('lev_money_positions_short');
+    const al = num('asset_mgr_positions_long'), as = num('asset_mgr_positions_short');
+    if(!isNum(ll) || !isNum(ls)) continue;
+    /* 枚数が数百万になる契約ではありません。桁が違う応答は捨てます。 */
+    if(Math.abs(ll) > 2e6 || Math.abs(ls) > 2e6) continue;
+    out.push({d, lev: ll - ls,
+              amg: (isNum(al) && isNum(as)) ? al - as : null,
+              oi: num('open_interest_all')});
+  }
+  out.sort((a, b) => a.d.localeCompare(b.d));
+  return out;
+}
+
+const Macro = {
+  us10: null,      /* {points:[{d,v}], at, src} */
+  jp10: null,      /* {points:[{d,v}], at, src, full} */
+  cot:  null,      /* {points:[{d,lev,amg,oi}], at, src} */
+  busy: false,
+  note: '',
+
+  async load(){
+    for(const k of ['us10', 'jp10']){
+      try{
+        const rec = await DB.get('macro.' + k);
+        if(rec && Array.isArray(rec.points) && rec.points.length){
+          this[k] = {points: rec.points.filter(p => p && /^\d{8}$/.test(p.d) && isNum(p.v)),
+                     at: +rec.at || 0, src: cleanText(rec.src, 40), full: !!rec.full};
+        }
+      }catch(e){}
+    }
+    try{
+      const rec = await DB.get('macro.cot');
+      if(rec && Array.isArray(rec.points) && rec.points.length){
+        this.cot = {points: rec.points.filter(p => p && /^\d{8}$/.test(p.d) && isNum(p.lev)),
+                    at: +rec.at || 0, src: cleanText(rec.src, 40)};
+      }
+    }catch(e){}
+  },
+
+  /* 建玉は1点に4つの数字が乗るので、利回りの merge とは別にします。 */
+  mergeCot(points, src){
+    if(!points || !points.length) return 0;
+    const by = new Map();
+    for(const p of (this.cot && this.cot.points) || []) by.set(p.d, p);
+    let added = 0;
+    for(const p of points){
+      if(!by.has(p.d)) added++;
+      by.set(p.d, p);
+    }
+    const merged = [...by.values()].sort((a, b) => a.d.localeCompare(b.d));
+    this.cot = {points: merged, at: Date.now(), src};
+    const rec = this.cot;
+    withKey('macro.cot', async () => { try { await DB.set('macro.cot', rec); } catch(e){} });
+    return added;
+  },
+
+  /* 同じ日が2度来たら<b>あとから来たほうを採ります</b>。財務省は
+     速報値をあとで直すことがあり、古いほうを残すと直りません。 */
+  merge(key, points, src, full){
+    if(!points || !points.length) return 0;
+    const cur = (this[key] && this[key].points) || [];
+    const by = new Map();
+    for(const p of cur) by.set(p.d, p.v);
+    let added = 0;
+    for(const p of points){
+      if(!by.has(p.d)) added++;
+      by.set(p.d, p.v);
+    }
+    const merged = [...by.entries()].map(([d, v]) => ({d, v}))
+      .sort((a, b) => a.d.localeCompare(b.d));
+    this[key] = {points: merged, at: Date.now(), src,
+                 full: full || !!(this[key] && this[key].full)};
+    const rec = this[key];
+    withKey('macro.' + key, async () => { try { await DB.set('macro.' + key, rec); } catch(e){} });
+    return added;
+  },
+
+  latest(key){
+    const p = this[key] && this[key].points;
+    return (p && p.length) ? p[p.length - 1] : null;
+  },
+  /* 差を出せるのは<b>両方の値がある日</b>だけです。片方を前の日から
+     引き伸ばして差を作ると、動いていない側が動いたように見えます。 */
+  spreadAt(d){
+    const u = this.valueAt('us10', d), j = this.valueAt('jp10', d);
+    return (isNum(u) && isNum(j)) ? u - j : null;
+  },
+  valueAt(key, d){
+    const pts = this[key] && this[key].points;
+    if(!pts || !pts.length) return null;
+    let lo = 0, hi = pts.length - 1, out = null;
+    while(lo <= hi){
+      const mid = (lo + hi) >> 1;
+      if(pts[mid].d <= d){ out = pts[mid].v; lo = mid + 1; } else hi = mid - 1;
+    }
+    return out;
+  },
+
+  async fetchAll(force){
+    if(this.busy) return false;
+    this.busy = true;
+    this.note = '';
+    try { renderRateCard(); } catch(e){}      /* 「取得中…」を出す */
+    const msgs = [];
+    try{
+      /* --- 米10年債 --------------------------------------------------- */
+      try{
+        const first = !this.us10 || !this.us10.points.length;
+        const y = await fetchYahoo('^TNX', first || force ? 'max' : '3mo', '1d');
+        const pts = [];
+        let scaled = 0;
+        for(const b of y.bars){
+          const v = tnxScale(b.c);
+          if(v !== b.c) scaled++;
+          if(isNum(v) && v > -5 && v < 30) pts.push({d: barKey(b), v});
+        }
+        const n = this.merge('us10', pts, '^TNX (Yahoo)');
+        msgs.push(`米10年債 ${pts.length}日ぶん(新規${n})`);
+        if(scaled) msgs.push(`米の値が10倍で届いたので10で割りました(${scaled}日)`);
+      }catch(e){ msgs.push('米10年債は取得できませんでした: ' + cleanText(e && e.message, 40)); }
+
+      /* --- 日10年債 --------------------------------------------------- */
+      try{
+        const needAll = force || !this.jp10 || !this.jp10.full;
+        const url = needAll ? JGB_ALL : JGB_NOW;
+        const txt = await relayFetch(url, {text: true, timeout: needAll ? 25000 : 9000});
+        const pts = parseJgbCsv(txt, 10);
+        if(!pts.length) throw new Error('中身が読めませんでした');
+        const n = this.merge('jp10', pts, '財務省 国債金利情報', needAll);
+        msgs.push(`日10年債 ${pts.length}日ぶん(新規${n})`);
+      }catch(e){ msgs.push('日10年債は取得できませんでした: ' + cleanText(e && e.message, 40)); }
+
+      /* --- CFTC 円の建玉 ---------------------------------------------- */
+      try{
+        const first = !this.cot || !this.cot.points.length;
+        const rows = await relayFetch(COT_URL + (first || force ? 1200 : 12), {timeout: 15000});
+        const pts = parseCot(rows);
+        if(!pts.length) throw new Error('中身が読めませんでした');
+        const n = this.mergeCot(pts, 'CFTC (TFF)');
+        msgs.push(`円の建玉 ${pts.length}週ぶん(新規${n})`);
+      }catch(e){ msgs.push('円の建玉は取得できませんでした: ' + cleanText(e && e.message, 40)); }
+    } finally {
+      this.busy = false;
+    }
+    this.note = msgs.join(' / ');
+    return !!(this.us10 || this.jp10);
+  },
+
+  clear(){
+    this.us10 = this.jp10 = this.cot = null;
+    this.note = '';
+    for(const k of ['us10', 'jp10', 'cot'])
+      withKey('macro.' + k, async () => { try { await DB.del('macro.' + k); } catch(e){} });
+  }
+};
+
+/* 円の建玉を足ごとに。週次なので、次の公表まで平らになります。
+   公表は金曜、中身は<b>その週の火曜時点</b>なので、火曜の日付に
+   置きます(金曜に置くと3日ぶん未来の情報を過去に貼ることになります —
+   report_date_as_yyyy_mm_dd がすでに火曜の日付です)。 */
+function buildCotSeries(bars){
+  const pts = Macro.cot && Macro.cot.points;
+  if(!bars || !bars.length || !pts || !pts.length) return null;
+  const n = bars.length;
+  const lev = new Array(n).fill(null), amg = new Array(n).fill(null);
+  let j = 0, carry = null;
+  for(let i = 0; i < n; i++){
+    const key = barKey(bars[i]);
+    while(j < pts.length && pts[j].d <= key){ carry = pts[j]; j++; }
+    lev[i] = carry ? carry.lev : null;
+    amg[i] = carry && isNum(carry.amg) ? carry.amg : null;
+  }
+  return lev.some(isNum) ? {lev, amg} : null;
+}
+
+/* 足ごとの3本の系列。信用残と同じで「その日から先」に効かせます
+   (日足の金利を15分足に貼るので、当日の値が一日じゅう平らになります)。 */
+function buildRateSeries(bars){
+  if(!bars || !bars.length) return null;
+  if(!Macro.us10 && !Macro.jp10) return null;
+  const n = bars.length;
+  const us = new Array(n).fill(null), jp = new Array(n).fill(null), sp = new Array(n).fill(null);
+  const walk = (pts, out) => {
+    if(!pts || !pts.length) return;
+    let j = 0, carry = null;
+    for(let i = 0; i < n; i++){
+      const key = barKey(bars[i]);
+      while(j < pts.length && pts[j].d <= key){ carry = pts[j].v; j++; }
+      out[i] = carry;
+    }
+  };
+  walk(Macro.us10 && Macro.us10.points, us);
+  walk(Macro.jp10 && Macro.jp10.points, jp);
+  let has = 0;
+  for(let i = 0; i < n; i++){
+    if(isNum(us[i]) && isNum(jp[i])){ sp[i] = us[i] - jp[i]; has++; }
+  }
+  if(!has && !us.some(isNum) && !jp.some(isNum)) return null;
+  return {us, jp, sp, hasSpread: has > 0};
 }
 
 /* ============================================================
@@ -7708,6 +8596,98 @@ function pbrStory(per, pbr, roe){
        + (pbr < 1 ? '1倍割れは「割安」というより、その裏返しであることが多い形です。' : '');
 }
 
+
+/* ---- 金利カード ------------------------------------------------------- */
+function renderRateCard(){
+  const stat = $('#rateStat'), box = $('#rateBox');
+  if(!stat || !box) return;
+  const clr = $('#rateClear');
+  if(clr) clr.classList.toggle('hide', !(Macro.us10 || Macro.jp10));
+  const pb = $('#ratePanelBtn');
+  if(pb){
+    const on = !!state.toggles.rates;
+    pb.setAttribute('aria-pressed', String(on));
+    pb.textContent = on ? '金利差をチャートから消す' : '金利差をチャートに出す';
+  }
+  const cb = $('#cotPanelBtn');
+  if(cb){
+    const on = !!state.toggles.cot;
+    cb.setAttribute('aria-pressed', String(on));
+    cb.textContent = on ? '円の建玉をチャートから消す' : '円の建玉をチャートに出す';
+  }
+  const get = $('#rateGet');
+  if(get){
+    get.disabled = !!Macro.busy;
+    get.textContent = Macro.busy ? '取得中…'
+      : (Macro.us10 || Macro.jp10) ? '金利を更新する' : '金利を取得する';
+  }
+  const u = Macro.latest('us10'), j = Macro.latest('jp10');
+  if(!u && !j){
+    stat.textContent = 'まだ取得していません。「金利を取得する」を押すと、'
+      + '米国は Yahoo の ^TNX から、日本は財務省のCSVから取ります'
+      + '(初回だけ全期間を取りに行きます。財務省のファイルは1974年からですが、'
+      + '10年債の欄が埋まっているのは1980年代以降です)。';
+    box.innerHTML = '';
+    if(Macro.note) stat.textContent += ' — ' + Macro.note;
+    return;
+  }
+  const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+  const nx = nextCbMeeting();
+  const days = nx ? daysBetweenKeys(dkey(new Date()), nx.d) : 0;
+  const nU = Macro.us10 ? Macro.us10.points.length : 0;
+  const nJ = Macro.jp10 ? Macro.jp10.points.length : 0;
+  /* 差は<b>両方そろっている日</b>でしか出しません。祝日がずれるので、
+     いちばん新しい日どうしを引き算すると1日ずれた差になります。 */
+  const common = (u && j) ? (u.d <= j.d ? u.d : j.d) : null;
+  const sp = common ? Macro.spreadAt(common) : null;
+  stat.innerHTML = `米 ${nU}日ぶん(最新 ${u ? esc(fm(u.d),12) : '—'})`
+    + ` ・ 日 ${nJ}日ぶん(最新 ${j ? esc(fm(j.d),12) : '—'})`
+    + (Macro.note ? `<br>${esc(Macro.note, 160)}` : '');
+  const ct = (Macro.cot && Macro.cot.points.length)
+    ? Macro.cot.points[Macro.cot.points.length - 1] : null;
+  box.innerHTML = '<div class="fgrid">'
+    + fundCell('米10年債', '%', u ? u.v : null, 3, '^TNX (Yahoo)')
+    + fundCell('日10年債', '%', j ? j.v : null, 3, '財務省 国債金利情報')
+    + fundCell('金利差(米−日)', '%', sp, 3,
+        common ? `${fm(common)} 時点。両方そろっている日で計算しています`
+               : '両方そろった日がまだありません')
+    + (ct ? fundCell('円の建玉(投機筋)', '枚', ct.lev, 0,
+        `${fm(ct.d)} 時点・${ct.lev >= 0 ? '<b>円の買い越し</b>' : '<b>円の売り越し</b>'}`
+        + '。CFTC(火曜時点・金曜公表)') : '')
+    + '</div>'
+    + (nx ? `<p class="qsrc" style="margin:0 0 4px;line-height:1.8">`
+        + `次の会合は <b>${esc(fm(nx.d), 12)}</b> の ${esc(CB_NAME[nx.w] || '', 8)}`
+        + `(あと${days}日)。チャートの「FOMC・日銀」を押すと縦線で出ます。</p>`
+      : `<p class="qsrc" style="margin:0 0 4px;line-height:1.8">`
+        + `会合の日程表が <b>${esc(fm(cbTableEnd()), 12)}</b> で終わっています。`
+        + `このツールは日程を表で持っているので、そこから先は線が出ません。</p>`);
+}
+
+async function loadRates(force){
+  /* ここで busy を立てると、fetchAll の1行目にある同じ旗の再入防止に
+     自分でひっかかって<b>即座に何もせず返ります</b>。ボタンを押しても
+     通信が1回も飛ばず、エラーも出ませんでした。旗は fetchAll に任せます。 */
+  if(Macro.busy) return;
+  try{
+    await Macro.fetchAll(force);
+  }catch(e){
+    Macro.note = '取得できませんでした: ' + cleanText(e && e.message, 60);
+  }
+  if(!state.toggles.rates && (Macro.us10 || Macro.jp10)){
+    state.toggles.rates = true;
+    const b = document.querySelector('.chip[data-t="rates"]');
+    if(b) b.setAttribute('aria-pressed', 'true');
+  }
+  if(!state.toggles.cot && Macro.cot){
+    state.toggles.cot = true;
+    const b = document.querySelector('.chip[data-t="cot"]');
+    if(b) b.setAttribute('aria-pressed', 'true');
+  }
+  state.ind = alignExt(state.ind);
+  renderRateCard();
+  redraw(); renderSignals();
+}
+
 function renderFundCard(){
   const box = $('#fundBox'), stat = $('#fundStat');
   if(!box || !stat) return;
@@ -7817,7 +8797,7 @@ function renderFundCard(){
     box.innerHTML += `<p class="qsrc" style="margin:0 0 4px;line-height:1.8">`
       + `<b>PBR ＝ PER × ROE</b>: `
       + `${x.per.toFixed(2)}倍 × ${x.roe.toFixed(2)}% = <b>${x.pbr.toFixed(2)}倍</b>。`
-      + pbrStory(x.per, x.pbr, x.roe)
+      + pbrStory(Math.round(x.per * 100) / 100, pbrS, roeS)
       + `</p>`;
   }
   if(x.backfilled){
@@ -8781,6 +9761,136 @@ function drawMarginPanel(g){
    決算の数値を入れた日より前は、いちばん古い決算の数値をそのまま当てた
    ものなので、実線ではなく薄い破線にしています。数字としては出しますが、
    「その時点で実際にそうだった」わけではないためです。 */
+
+/* 日米10年債と、その差。
+
+   3本とも単位が「%」なので<b>同じ軸に置けます</b>。別々の軸にすると、
+   高さが揃って見えるだけで実際の差が読めません。2本のあいだを塗って、
+   その塗りの厚みが金利差そのものになるようにしています。
+
+   金利差の線も同じ軸に描きます。米4.2% / 日2.9% なら差は1.3%で、
+   3本とも 0〜5% に収まります。差がマイナス(日本のほうが高い)でも
+   軸が下へ伸びるだけで、読み方は変わりません。 */
+function drawRates(g){
+  const p = panel('rates'); if(!p) return;
+  const r = state.ind && state.ind.rates;
+  if(!r){ panelFrame(g, p); return; }
+  const nb = state.raw.bars.length;
+  const i0 = Math.max(0, state.i0), i1 = Math.min(state.i1, nb - 1);
+  let mn = Infinity, mx = -Infinity;
+  const scan = a => { for(let i = i0; i <= i1; i++){ const v = a[i];
+    if(isNum(v)){ if(v < mn) mn = v; if(v > mx) mx = v; } } };
+  scan(r.us); scan(r.jp); if(r.hasSpread) scan(r.sp);
+  if(!isFinite(mn) || !isFinite(mx)){
+    panelFrame(g, p);
+    g.fillStyle = C.ink3;
+    g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillText('この期間の金利がまだありません。下の「金利」で取得してください',
+               p.x + 6, p.y + p.h / 2);
+    return;
+  }
+  const pad = Math.max((mx - mn) * 0.12, 0.05);
+  const y = makeY(p, mn - pad, mx + pad, 14, 6);
+  resetSlots();
+
+  const tk = ticks(mn - pad, mx + pad, 2);
+  const step = tk.length > 1 ? Math.abs(tk[1] - tk[0]) : 0.5;
+  for(const t of tk){ gridline(g, p, y(t)); yLabel(g, p, y(t), fmtTick(t, step, '%')); }
+  /* ゼロは「どちらの金利が高いか」が入れ替わる線なので、目盛りとは別に引きます */
+  if(mn - pad < 0 && mx + pad > 0){
+    g.save(); g.strokeStyle = C.axis; g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(p.x, Math.round(y(0))+.5); g.lineTo(p.x+p.w, Math.round(y(0))+.5);
+    g.stroke(); g.restore();
+  }
+
+  /* 2本のあいだの塗り = 金利差。米が上なら暖色、日が上なら寒色。 */
+  if(r.hasSpread){
+    g.save(); clipPanel(g, p);
+    for(let i = Math.max(i0, 1); i <= i1; i++){
+      const u0 = r.us[i-1], u1 = r.us[i], j0 = r.jp[i-1], j1 = r.jp[i];
+      if(!isNum(u0) || !isNum(u1) || !isNum(j0) || !isNum(j1)) continue;
+      g.fillStyle = (u1 >= j1) ? C.up : C.down;
+      g.globalAlpha = .10;
+      g.beginPath();
+      g.moveTo(xAt(p,i-1), y(u0)); g.lineTo(xAt(p,i), y(u1));
+      g.lineTo(xAt(p,i),   y(j1)); g.lineTo(xAt(p,i-1), y(j0));
+      g.closePath(); g.fill();
+    }
+    g.restore();
+  }
+
+  line(g, p, r.us, y, C.rateUs || C.up, 1.6);
+  line(g, p, r.jp, y, C.ich[0], 1.6);
+  if(r.hasSpread) line(g, p, r.sp, y, C.ink1, 2.4);
+  endLabel(g, p, r.us, y, C.rateUs || C.up, '米10年');
+  endLabel(g, p, r.jp, y, C.ich[0], '日10年');
+  if(r.hasSpread) endLabel(g, p, r.sp, y, C.ink1, '金利差');
+  panelFrame(g, p);
+  state._ratesY = y;
+}
+
+
+/* 円の建玉。ゼロより上=円買い越し、下=円売り越し。株の信用残と同じで、
+   極端に傾いているほど「巻き戻し」の燃料が多い状態です。 */
+function drawCot(g){
+  const p = panel('cot'); if(!p) return;
+  const c = state.ind && state.ind.cot;
+  if(!c){ panelFrame(g, p); return; }
+  const nb = state.raw.bars.length;
+  const i0 = Math.max(0, state.i0), i1 = Math.min(state.i1, nb - 1);
+  let mn = Infinity, mx = -Infinity;
+  for(let i = i0; i <= i1; i++){
+    for(const a of [c.lev, c.amg]){
+      const v = a[i];
+      if(isNum(v)){ if(v < mn) mn = v; if(v > mx) mx = v; }
+    }
+  }
+  if(!isFinite(mn) || !isFinite(mx)){
+    panelFrame(g, p);
+    g.fillStyle = C.ink3;
+    g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillText('この期間の建玉がありません', p.x + 6, p.y + p.h / 2);
+    return;
+  }
+  /* ゼロを必ず入れます。「買い越しか売り越しか」がこの図の全部なので、
+     ゼロが画面の外にあると、傾きだけ見えて向きが読めません。 */
+  if(mn > 0) mn = 0;
+  if(mx < 0) mx = 0;
+  const pad = Math.max((mx - mn) * 0.12, 1);
+  const y = makeY(p, mn - pad, mx + pad, 14, 6);
+  resetSlots();
+  for(const t of ticks(mn - pad, mx + pad, 2)){
+    gridline(g, p, y(t));
+    yLabel(g, p, y(t), (t >= 0 ? '' : '−') + fmtVol(Math.abs(t)) + '枚');
+  }
+  g.save(); g.strokeStyle = C.axis; g.lineWidth = 1.2;
+  g.beginPath(); g.moveTo(p.x, Math.round(y(0))+.5); g.lineTo(p.x+p.w, Math.round(y(0))+.5);
+  g.stroke(); g.restore();
+
+  /* ゼロとの間を塗ります。買い越しなら上に、売り越しなら下に伸びます */
+  g.save(); clipPanel(g, p);
+  const Y0 = y(0);
+  for(let i = Math.max(i0, 1); i <= i1; i++){
+    const a = c.lev[i-1], b2 = c.lev[i];
+    if(!isNum(a) || !isNum(b2)) continue;
+    g.fillStyle = b2 >= 0 ? C.up : C.down;
+    g.globalAlpha = .16;
+    g.beginPath();
+    g.moveTo(xAt(p,i-1), Y0); g.lineTo(xAt(p,i-1), y(a));
+    g.lineTo(xAt(p,i), y(b2)); g.lineTo(xAt(p,i), Y0);
+    g.closePath(); g.fill();
+  }
+  g.restore();
+  if(c.amg.some(isNum)) line(g, p, c.amg, y, C.ink3, 1.2, [4,3]);
+  line(g, p, c.lev, y, C.ink1, 2);
+  if(c.amg.some(isNum)) endLabel(g, p, c.amg, y, C.ink3, '資産運用');
+  endLabel(g, p, c.lev, y, C.ink1, '投機筋');
+  panelFrame(g, p);
+  state._cotY = y;
+}
+
 function drawValuation(g){
   const p = panel('valuation'); if(!p) return;
   const f = state.ind && state.ind.fund;
@@ -11182,7 +12292,7 @@ function renderWatch(){
     if(r.error) return `<td colspan="5" class="werr">${esc(r.error, 40)}</td>`;
     const cls = v => !isNum(v) ? '' : v > 0 ? 'wup' : v < 0 ? 'wdn' : '';
     const rsiTone = !isNum(r.rsi) ? '' : r.rsi >= 70 ? 'whot' : r.rsi <= 30 ? 'wcold' : '';
-    return `<td class="wnum">${esc(fmtNum(r.price, r.currency), 16)}</td>`
+    return `<td class="wnum">${esc(fmtNum(r.price, r.currency, r.code), 16)}</td>`
       + `<td class="wnum ${cls(r.chg)}">${isNum(r.chg) ? (r.chg >= 0 ? '+' : '') + r.chg.toFixed(2) : '—'}</td>`
       + `<td class="wnum ${rsiTone}">${isNum(r.rsi) ? r.rsi.toFixed(0) : '—'}</td>`
       + `<td class="wnum ${cls(r.gap25)}">${isNum(r.gap25) ? (r.gap25 >= 0 ? '+' : '') + r.gap25.toFixed(1) : '—'}</td>`
@@ -11277,8 +12387,8 @@ function alertFires(a, r){
     case 'dc': return r.cross && r.cross.dir < 0 && r.cross.ago === 0 ? 'デッドクロスが出ました' : null;
     case 'rsiHi': return isNum(r.rsi) && isNum(a.v) && r.rsi >= a.v ? `RSI ${r.rsi.toFixed(0)}(${a.v}以上)` : null;
     case 'rsiLo': return isNum(r.rsi) && isNum(a.v) && r.rsi <= a.v ? `RSI ${r.rsi.toFixed(0)}(${a.v}以下)` : null;
-    case 'above': return isNum(r.price) && isNum(a.v) && r.price >= a.v ? `${fmtNum(r.price, r.currency)}(${a.v}以上)` : null;
-    case 'below': return isNum(r.price) && isNum(a.v) && r.price <= a.v ? `${fmtNum(r.price, r.currency)}(${a.v}以下)` : null;
+    case 'above': return isNum(r.price) && isNum(a.v) && r.price >= a.v ? `${fmtNum(r.price, r.currency, r.code)}(${a.v}以上)` : null;
+    case 'below': return isNum(r.price) && isNum(a.v) && r.price <= a.v ? `${fmtNum(r.price, r.currency, r.code)}(${a.v}以下)` : null;
   }
   return null;
 }
@@ -11644,6 +12754,9 @@ const ALLOW = [
   'www.jpx.co.jp',
   'jpx.co.jp',
   'www.taisyaku.jp',
+  'www.mof.go.jp',
+  'mof.go.jp',
+  'publicreporting.cftc.gov',
   /* 米国株の空売り比率(FINRA Reg SHO 日次ファイル) */
   'cdn.finra.org',
   /* 米国株の決算数値(SEC EDGAR の XBRL API・無料・APIキー不要) */
@@ -13665,6 +14778,23 @@ async function runSelfTests(){
     return /マイナスです/.test(t) && !/増やせている割合としては低め/.test(t)
       ? true : '出た文: ' + t.slice(0, 120);
   });
+  test('PBR0.996を「1.00倍」と出して1倍割れと書かない', () => {
+    /* カードは丸めた値、式の行は生の値、で判定していました。
+       同じ段落の中に「= 1.00倍。」と「1倍割れは…」が並びます。 */
+    const bars = [{t:new Date(2026,0,5),o:996,h:996,l:996,c:996,v:1}];
+    stampBars(bars, 'Asia/Tokyo');
+    const keep = {raw: state.raw, ind: state.ind, fund: Ext.fund, code: Ext.code};
+    state.raw = {bars, name:'x', code:'9999.T', tz:'Asia/Tokyo', currency:'JPY', source:'t', events:[]};
+    Ext.fund = {points:[{d: barKey(bars[0]), eps:79.6, bps:1000}], src:'t'};
+    Ext.code = Ext.codeKey();
+    state.ind = {c:[996], fund: buildFundSeries(bars)};
+    renderFundCard();
+    const t = document.querySelector('#fundBox').textContent;
+    state.raw = keep.raw; state.ind = keep.ind; Ext.fund = keep.fund; Ext.code = keep.code;
+    renderFundCard();
+    return /1\.00倍/.test(t) && !/1倍割れ/.test(t)
+      ? true : '出た文: ' + t.slice(-140);
+  });
   test('7.96%を「8.0%」と出して「下回る」と書かない', () => {
     /* 表示は丸めた値、判定は生の値、で食い違っていました */
     const bars = [{t:new Date(2026,0,5),o:796,h:796,l:796,c:796,v:1}];
@@ -13681,6 +14811,236 @@ async function runSelfTests(){
     return /8\.0%/.test(t) && !/8%を下回っています/.test(t)
       ? true : '出た文: ' + t.slice(0, 140);
   });
+
+  await new Promise(r => setTimeout(r, 60));
+  tgroup('チャートの見やすさ');
+  test('系統ごとに色が違う', () => {
+    const all = [C.ma[0], C.ma[1], C.ma[2], C.ich[0], C.ich[1],
+                 C.mtf, C.smooth, C.band, C.up, C.down];
+    const u = new Set(all.map(x => String(x).toLowerCase().replace(/\s/g, '')));
+    return u.size === all.length ? true : '重複あり ' + all.join(' ');
+  });
+  test('一目と移動平均が別の色', () =>
+    C.ich[0] !== C.ma[0] && C.ich[1] !== C.ma[2] && C.ich[0] !== C.ma[1]);
+  test('上位足・VWAP・カーネルが移動平均の色でない', () =>
+    C.ma.indexOf(C.mtf) < 0 && C.ma.indexOf(C.smooth) < 0);
+  test('軸はローソク足が3分の2を保つ幅までしか広げない', () => {
+    const c = axisCap(1400, 1600);
+    return eq(c.lo, 1350, '下') && eq(c.hi, 1650, '上')
+        && (200 / (c.hi - c.lo)) >= 0.66;
+  });
+  test('値幅ゼロの足でも軸が壊れない', () => {
+    const c = axisCap(100, 100);
+    return isNum(c.lo) && isNum(c.hi) && c.hi > c.lo;
+  });
+  test('軸が雲やMA75で引き伸ばされない', () => {
+    /* 下降トレンドで雲が株価のはるか上に居る形。以前はここで
+       ローソク足が高さの3割まで潰れていました。 */
+    const c = axisCap(1400, 1620);
+    return c.hi < 2100 ? true : '上限 ' + c.hi;
+  });
+  test('右端のラベルが重ならない', () => {
+    const cv = document.createElement('canvas');
+    cv.width = 400; cv.height = 400;
+    const g2 = cv.getContext('2d');
+    const p2 = {x:0, y:0, w:360, h:300};
+    resetSlots();
+    for(let k = 0; k < 10; k++) LBLQ.push({y: 150 + k * 0.5, x: 350, color:'#000', text:'L' + k});
+    const out = flushLabels(g2, p2) || [];
+    if(out.length !== 10) return '出た本数 ' + out.length + ' (10が正)';
+    const so = out.slice().sort((a, b) => a.c - b.c);
+    for(let k = 1; k < so.length; k++)
+      if(so[k].c - so[k-1].c < 14.99) return '重なり ' + so[k-1].text + '/' + so[k].text;
+    return so[0].c >= p2.y + 2 && so[so.length-1].c <= p2.y + p2.h - 2
+      ? true : '枠からはみ出し';
+  });
+  test('9本のラベルが1本も消えない', () => {
+    /* いただいた画面がこれです。7本で打ち止めになり2本が黙って消えていました */
+    const cv = document.createElement('canvas'); cv.width = 400; cv.height = 500;
+    const g2 = cv.getContext('2d');
+    const p2 = {x:0, y:0, w:360, h:420};
+    resetSlots();
+    const names = ['MA75','週足MA13','+2σ','基準','ST','OSGFC','転換','MA5','−2σ'];
+    names.forEach((t, k) => LBLQ.push({y: 200 + k * 1.2, x: 350, color:'#000', text:t}));
+    const out = flushLabels(g2, p2) || [];
+    return out.length === 9 ? true : '出た本数 ' + out.length;
+  });
+  test('入りきらないときは端を残して間引く', () => {
+    const cv = document.createElement('canvas'); cv.width = 400; cv.height = 200;
+    const g2 = cv.getContext('2d');
+    const p2 = {x:0, y:0, w:360, h:100};       /* 6本ぶんしか入らない */
+    resetSlots();
+    for(let k = 0; k < 40; k++) LBLQ.push({y: 10 + k * 2, x: 350, color:'#000', text:'L' + k});
+    const out = flushLabels(g2, p2) || [];
+    if(!out.length || out.length > 6) return '出た本数 ' + out.length;
+    return out[0].text === 'L0' && out[out.length-1].text === 'L39'
+      ? true : '端が落ちた ' + out[0].text + '..' + out[out.length-1].text;
+  });
+  test('線がパネルの外へ描かれない', () => /clipPanel/.test(line.toString()));
+  test('ローソク足も上位足も枠で切る', () =>
+    (drawMain.toString().match(/clipPanel/g) || []).length >= 9);
+  test('目標位置がNaNでもラベルが全滅しない', () => {
+    /* NaN は < も > も false なので素通りし、詰め直しを丸ごと汚染して
+       そのパネルのラベルを1枚残らず消していました。 */
+    const cv = document.createElement('canvas'); cv.width = 400; cv.height = 400;
+    const g2 = cv.getContext('2d');
+    const p2 = {x:0, y:0, w:360, h:300};
+    const k0 = state.i0, k1 = state.i1;
+    state.i0 = 0; state.i1 = 2;
+    resetSlots();
+    endLabel(g2, p2, [1,2,3], () => 50,  '#000', 'A');
+    endLabel(g2, p2, [1,2,3], () => NaN, '#000', 'こわれ');
+    endLabel(g2, p2, [1,2,3], () => 150, '#000', 'B');
+    state.i0 = k0; state.i1 = k1;
+    const out = flushLabels(g2, p2) || [];
+    return out.length === 2 && out.every(L => isNum(L.c))
+      ? true : '出た本数 ' + out.length + ' / ' + out.map(L => L.c).join(',');
+  });
+  test('「ほかN本」が最後のラベルに重ならない', () => {
+    const cv = document.createElement('canvas'); cv.width = 400; cv.height = 200;
+    const g2 = cv.getContext('2d');
+    const p2 = {x:0, y:0, w:360, h:100};
+    resetSlots();
+    for(let k = 0; k < 40; k++) LBLQ.push({y: 10 + k * 2, x: 350, color:'#000', text:'L' + k});
+    const out = flushLabels(g2, p2) || [];
+    if(!out.length) return 'ラベルが0本';
+    const lowestBottom = out[out.length - 1].c + 7.5;
+    /* 「ほかN本」は下端から上へ約11px。そこに食い込んでいないこと */
+    return lowestBottom <= (p2.y + p2.h - 2) - 11 + 0.01
+      ? true : 'ラベル下端 ' + lowestBottom;
+  });
+
+  await new Promise(r => setTimeout(r, 60));
+  tgroup('為替の桁');
+  test('ドル円は小数3桁', () => {
+    const k = state.raw;
+    state.raw = {code:'USDJPY=X', currency:'JPY', bars:[]};
+    const a = fmtNum(159.635, 'JPY'), b2 = fmtDelta(0.245, 159.635, 'JPY');
+    state.raw = k;
+    return (a === '¥159.635' && b2 === '¥0.245') ? true : a + ' / ' + b2;
+  });
+  test('ユーロドルは小数5桁', () => {
+    const k = state.raw;
+    state.raw = {code:'EURUSD=X', currency:'USD', bars:[]};
+    const a = fmtNum(1.082345, 'USD');
+    state.raw = k;
+    return a === '$1.08235' ? true : a;
+  });
+  test('1を割る通貨は桁を足す', () => {
+    const k = state.raw;
+    state.raw = {code:'KRWJPY=X', currency:'JPY', bars:[]};
+    const a = fmtNum(0.107234, 'JPY');
+    state.raw = k;
+    return a === '¥0.10723' ? true : a;
+  });
+  test('株と指数の桁は変わっていない', () => {
+    const k = state.raw;
+    state.raw = {code:'7203.T', currency:'JPY', bars:[]};
+    const a = fmtNum(2647.5, 'JPY'), b2 = fmtNum(1393.5, 'JPY');
+    state.raw = k;
+    return (a === '¥2,647.5' && b2 === '¥1,393.5') ? true : a + ' / ' + b2;
+  });
+  test('価格軸は刻みに合わせる', () => {
+    const k = state.raw;
+    state.raw = {code:'USDJPY=X', currency:'JPY', bars:[]};
+    const a = fmtAxis(159.5, 0.5), b2 = fmtAxis(159.55, 0.05), c2 = fmtAxis(160, 1);
+    state.raw = k;
+    return (a === '159.5' && b2 === '159.55' && c2 === '160') ? true : [a,b2,c2].join(' / ');
+  });
+
+  await new Promise(r => setTimeout(r, 60));
+  tgroup('金利・建玉・会合');
+  test('財務省CSVの和暦を西暦に直す', () => {
+    const csv = ['国債金利情報 (令和8年8月),,,,,,,,,,,,,,,(単位 : %)',
+      '基準日,1年,2年,3年,4年,5年,6年,7年,8年,9年,10年,15年,20年,25年,30年,40年',
+      'S49.9.24,-,-,-,-,-,-,-,-,-,9.14,-,-,-,-,-',
+      'H31.4.26,-0.155,-0.16,-0.161,-0.16,-0.164,-0.15,-0.13,-0.11,-0.08,-0.04,0.19,0.36,0.5,0.55,0.6',
+      'R8.8.17,1.439,1.696,1.852,2.043,2.177,2.332,2.471,2.639,2.777,2.919,3.478,3.8,4.067,4.05,4.05'
+    ].join('\n');
+    const pts = parseJgbCsv(csv, 10);
+    return eq(pts.length, 3, '件数')
+      && eq(pts[0].d, '19740924', '昭和49') && eq(pts[0].v, 9.14)
+      && eq(pts[1].d, '20190426', '平成31') && eq(pts[1].v, -0.04)
+      && eq(pts[2].d, '20260817', '令和8')  && eq(pts[2].v, 2.919);
+  });
+  test('見出しとこわれた行は読み飛ばす', () => {
+    const pts = parseJgbCsv('基準日,1年\nこわれ,1,2\nR8.13.99,1,2\n,,,\nR8.8.17,' + Array(15).fill('1.5').join(','), 10);
+    return eq(pts.length, 1) && eq(pts[0].v, 1.5);
+  });
+  test('ありえない利回りは捨てる', () => {
+    const row = c => 'R8.8.17,' + Array(9).fill('1').join(',') + ',' + c + ',1,1,1,1,1';
+    return eq(parseJgbCsv(row('99'), 10).length, 0, '99%')
+        && eq(parseJgbCsv(row('-'), 10).length, 0, '空欄')
+        && eq(parseJgbCsv(row('2.9'), 10).length, 1, '正常');
+  });
+  test('^TNXが10倍で届いたら直す', () =>
+    eq(tnxScale(4.25), 4.25) && eq(tnxScale(42.5), 4.25) && eq(tnxScale(0.6), 0.6));
+  test('金利差は両方そろった日だけ', () => {
+    const keep = {u: Macro.us10, j: Macro.jp10};
+    Macro.us10 = {points:[{d:'20260101', v:4.2}, {d:'20260105', v:4.3}]};
+    Macro.jp10 = {points:[{d:'20260103', v:2.9}]};
+    const a = Macro.spreadAt('20260102');     /* 日がまだ無い */
+    const b2 = Macro.spreadAt('20260105');
+    Macro.us10 = keep.u; Macro.jp10 = keep.j;
+    return (a === null && Math.abs(b2 - 1.4) < 1e-9) ? true : a + ' / ' + b2;
+  });
+  test('CFTCの建玉を差し引きする', () => {
+    const out = parseCot([
+      {report_date_as_yyyy_mm_dd:'2026-08-11T00:00:00.000',
+       lev_money_positions_long:'74973', lev_money_positions_short:'128043',
+       asset_mgr_positions_long:'40000', asset_mgr_positions_short:'12000'},
+      {report_date_as_yyyy_mm_dd:'こわれ', lev_money_positions_long:'1', lev_money_positions_short:'2'},
+      {report_date_as_yyyy_mm_dd:'2026-08-04T00:00:00.000',
+       lev_money_positions_long:'9000000', lev_money_positions_short:'1'}]);
+    return eq(out.length, 1, '件数') && eq(out[0].d, '20260811')
+        && eq(out[0].lev, -53070, 'ネット') && eq(out[0].amg, 28000, '運用勢');
+  });
+  test('会合の表が形として正しい', () => {
+    const all = cbMeetings();
+    if(all.length !== 48) return '件数 ' + all.length;
+    if(!all.every(m => /^\d{8}$/.test(m.d) && (m.w === 'F' || m.w === 'B'))) return '形がおかしい';
+    for(let i = 1; i < all.length; i++)
+      if(all[i].d < all[i-1].d) return '順番 ' + all[i-1].d + '>' + all[i].d;
+    const f = all.filter(m => m.w === 'F').length;
+    return (f === 24 && all.length - f === 24) ? true : `FOMC${f}件`;
+  });
+  test('次の会合を正しく選ぶ', () => {
+    const a = nextCbMeeting('20260818'), b2 = nextCbMeeting('20260916');
+    const c2 = nextCbMeeting('29991231');
+    return eq(a && a.d, '20260916', '次') && eq(a && a.w, 'F')
+        && eq(b2 && b2.d, '20260916', '当日は当日') && eq(c2, null, '表の外');
+  });
+  test('日数の引き算', () =>
+    eq(daysBetweenKeys('20260818','20260916'), 29)
+    && eq(daysBetweenKeys('20260228','20260301'), 1, 'うるう年でない2月')
+    && eq(daysBetweenKeys('こわれ','20260301'), 0));
+  test('ピボットは前の1日から', () => {
+    const lv = pivotLevels({h:159.933, l:159.257, c:159.5});
+    if(!lv) return 'null';
+    const P0 = (159.933 + 159.257 + 159.5) / 3;
+    return Math.abs(lv[2].v - P0) < 1e-9 && lv[2].k === 'P'
+      && Math.abs(lv[1].v - (2*P0 - 159.257)) < 1e-9 ? true : JSON.stringify(lv);
+  });
+  test('節目の刻みが値幅に合う', () =>
+    eq(roundStep(1.2), 0.2) && eq(roundStep(25), 5) && eq(roundStep(0.04), 0.01)
+    && eq(roundStep(0), null));
+  test('市場の時間帯は現地時刻で判定する', () => {
+    /* 夏時間があるので日本時間の決め打ちにはできません。
+       2026/8/12 17:00 JST = ロンドン 9:00(夏時間) */
+    const t = Date.UTC(2026, 7, 12, 8, 0);
+    const lon = localHour(t, 'Europe/London'), ny = localHour(t, 'America/New_York');
+    const tok = localHour(t, 'Asia/Tokyo');
+    return (Math.abs(tok - 17) < .01 && Math.abs(lon - 9) < .01 && Math.abs(ny - 4) < .01)
+      ? true : `東京${tok} 倫${lon} 紐${ny}`;
+  });
+  test('冬時間でもずれない', () => {
+    /* 2026/1/12 17:00 JST = ロンドン 8:00(冬時間) */
+    const t = Date.UTC(2026, 0, 12, 8, 0);
+    const lon = localHour(t, 'Europe/London');
+    return Math.abs(lon - 8) < .01 ? true : '倫' + lon;
+  });
+  test('中継先に財務省とCFTCが入っている', () =>
+    /www\.mof\.go\.jp/.test(WORKER_SRC) && /publicreporting\.cftc\.gov/.test(WORKER_SRC));
 
   await new Promise(r => setTimeout(r, 60));
   tgroup('XSS(表示部への注入)');
@@ -14410,6 +15770,8 @@ $$('.chip[data-t]').forEach(btn => {
     /* PER/PBRのカードにも同じ切り替えボタンを置いてあるので、
        文言をそろえます。放っておくと片方だけ「出す」のまま残ります。 */
     if(k === 'valuation') renderFundCard();
+    /* 金利と建玉のカードにも同じ切り替えボタンがあります */
+    if(k === 'rates' || k === 'cot') renderRateCard();
     /* the verdict list is toggle-dependent too — スーパートレンド, VWAP,
        一目・三役, 資金フロー and 価格帯別出来高 all appear only when their
        chip is on, and the score is weighted by them. redraw() alone left the
@@ -14935,6 +16297,9 @@ function prevCloseFor(){
    formatter saw a number below 1. */
 function fmtDelta(v, price, cur){
   if(!isNum(v)) return '—';
+  /* 差も建値と同じ桁で。0.245 を「0.2」と出すと、動いた量が3分の1に
+     見えます(建値の桁からもらうので、値の小ささでは決めません)。 */
+  if(isFxNow()) return fmtCur(v, fxDecimals(isNum(price) ? price : v, cur), cur);
   return fmtCur(v, decimalsFor(v, isNum(price) ? price : v), cur);
 }
 
@@ -15078,6 +16443,7 @@ function apply(data){
   /* カードも先に空にします。読み込みが返るまでの数十ミリ秒、前の銘柄の
      PERやBPSが新しい銘柄の名前で出たままになっていました。 */
   renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
+  renderRateCard();
   Ext.loadCache().then(() => {
     if(!state.raw || Ext.codeKey() !== key) return;   /* moved on while reading */
     state.ind = alignExt(state.ind);
@@ -15602,6 +16968,29 @@ $('#fundSave').addEventListener('click', fundSaveManual);
 $('#fundFill').addEventListener('click', fundFillForm);
 $('#fundSec').addEventListener('click', loadUsFund);
 $('#fundClear').addEventListener('click', () => Ext.clear('fund'));
+$('#rateGet').addEventListener('click', () => loadRates(false));
+$('#rateClear').addEventListener('click', () => {
+  Macro.clear();
+  state.ind = alignExt(state.ind);
+  renderRateCard(); redraw(); renderSignals();
+});
+$('#ratePanelBtn').addEventListener('click', () => {
+  const on = !state.toggles.rates;
+  state.toggles.rates = on;
+  const b = document.querySelector('.chip[data-t="rates"]');
+  if(b) b.setAttribute('aria-pressed', String(on));
+  renderRateCard();
+  redraw(); renderSignals();
+});
+$('#cotPanelBtn').addEventListener('click', () => {
+  const on = !state.toggles.cot;
+  state.toggles.cot = on;
+  const b = document.querySelector('.chip[data-t="cot"]');
+  if(b) b.setAttribute('aria-pressed', String(on));
+  state.ind = alignExt(state.ind);
+  renderRateCard();
+  redraw(); renderSignals();
+});
 /* パネルのオン/オフはチップと同じ動きをさせます。カードの中から
    触れたほうが自然な流れなので、両方に置いてあります。 */
 $('#fundPanelBtn').addEventListener('click', () => {
@@ -15848,6 +17237,9 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
      immediately from cache, then the active tab refreshes in the background
      if it came from a live source and we are online. */
   (async () => {
+    /* 金利は銘柄に紐づかないので、復元より前に一度だけ読みます。
+       読むだけで、取りにはいきません(通信は押されたときだけ)。 */
+    try { await Macro.load(); renderRateCard(); } catch(e){}
     let restored = false;
     try { restored = await restoreWorkspace(); }
     catch(e){ restored = false; }
