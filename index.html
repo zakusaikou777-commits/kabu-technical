@@ -537,6 +537,12 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <option value="two">2カラム(横)</option>
       <option value="full">チャート全画面</option>
     </select>
+    <label for="curSel" class="sr">表示する通貨</label>
+    <select class="mini" id="curSel" title="表示する通貨">
+      <option value="">通貨: そのまま</option>
+      <option value="JPY">円建てで見る</option>
+      <option value="USD">ドル建てで見る</option>
+    </select>
     <button class="icon" id="selfBtn" title="セルフテストを実行" aria-label="セルフテストを実行">✓</button>
     <button class="icon" id="theme" title="表示テーマを切り替え" aria-label="表示テーマを切り替え">◐</button>
   </div>
@@ -906,10 +912,12 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <p class="qsrc" style="margin:0 0 10px">株価はこのツールが持っているので、
       <b>決算の数値を4つ</b>入れておけば、あとは株価が動くたびに自動で計算し直します。
       入れ替えるのは決算のたび、年に4回だけです。
-      <b>米国株はSEC(米国証券取引委員会)から自動で取れます</b>。</p>
+      <b>米国株はSEC(米国証券取引委員会)から自動で取れます</b>。
+      <b>日経平均(^N225)は日経平均プロフィルから取れます</b>。</p>
 
     <div class="filters" style="margin-bottom:8px">
       <button class="chip hide" id="fundSec">SECから自動取得</button>
+      <button class="chip hide" id="fundNk">日経平均の指標を取得</button>
       <button class="chip" id="fundPanelBtn" style="border-style:dashed">チャートにPERの推移を出す</button>
       <button class="chip hide" id="fundClear" style="border-style:dashed">保有データを消す</button>
     </div>
@@ -1328,7 +1336,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v45';
+const APP_VER = 'v46';
 const APP_DATE = '2026-08-19';
 
 /* ============================================================
@@ -4626,7 +4634,7 @@ function fmtStamp(b, withYear){
 function hideTip(){ tip.style.opacity = 0; }
 
 function showTip(i, X, Y){
-  const b = state.raw.bars[i], d = state.ind, cur = state.raw.currency, T = state.toggles;
+  const b = state.raw.bars[i], d = state.ind, cur = shownCurrency(), T = state.toggles;
   /* The comparison rows are ADDED to the readout, not put in place of it.
      Replacing it threw away the open/high/low/close and every indicator the
      moment a comparison line was switched on — the same complaint as the
@@ -4913,7 +4921,7 @@ function crossedAt(a, b, n, upto){
 }
 
 function buildSignals(){
-  const d = state.ind, n = state.raw.bars.length - 1, cur = state.raw.currency;
+  const d = state.ind, n = state.raw.bars.length - 1, cur = shownCurrency();
   const out = [];
   let score = 0;
   const add = (tag, ttl, txt, tone, w) => { out.push({tag, ttl, txt, tone}); if(w) score += w; };
@@ -5268,7 +5276,7 @@ function renderSignals(){
 
 /* ---- table view (the WCAG-clean twin of the chart) ------------------ */
 function renderTable(){
-  const d = state.ind, bars = state.raw.bars, cur = state.raw.currency;
+  const d = state.ind, bars = state.raw.bars, cur = shownCurrency();
   const cols = ['日時','始値','高値','安値','終値','出来高',
                 'MA'+P.ma[0],'MA'+P.ma[1],'MA'+P.ma[2],'RSI','MACD','%B'];
   $('#tbl thead').innerHTML = '<tr>' + cols.map(c=>`<th scope="col">${c}</th>`).join('') + '</tr>';
@@ -5405,6 +5413,7 @@ function sanitizeView(v){
   const out = {};
   if(owns(IV_LABEL, v.iv)) out.iv = v.iv;
   if(owns(RANGE_LABEL, v.range)) out.range = v.range;
+  if(v.cur === '' || v.cur === 'JPY' || v.cur === 'USD') out.cur = v.cur;
   if(v.toggles && typeof v.toggles === 'object'){
     const t = {};
     for(const k of VIEW_TOGGLE_KEYS) if(typeof v.toggles[k] === 'boolean') t[k] = v.toggles[k];
@@ -6993,8 +7002,11 @@ const dkey = t => `${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${
    card beside the chart kept showing it — which is what made it look like a
    drawing bug rather than a missing line of code. */
 function recompute(bars, toggles, interval){
-  return alignExt(computeAll(bars || state.raw.bars,
-                             toggles || state.toggles,
+  const src = bars || (state.raw && state.raw.bars) || [];
+  const shown = displayBars(src);
+  convFac = shown.fac;
+  dispCur = shown.cur;
+  return alignExt(computeAll(shown.bars, toggles || state.toggles,
                              interval || state.interval));
 }
 
@@ -7075,6 +7087,7 @@ function buildFundSeries(bars){
   const mk = () => new Array(n).fill(null);
   const eps = mk(), bps = mk(), dps = mk(), eqr = mk();
   const per = mk(), pbr = mk(), dy = mk(), roe = mk();
+  const fac = (Array.isArray(convFac) && convFac.length === n) ? convFac : null;
   /* 引き継ぎは点まるごとではなく<b>項目ごと</b>。四半期に1回、分かるものだけ
      入れる使い方を勧めている以上、「自己資本比率だけ更新した」点はふつうに
      出てきます。点ごと差し替えると、その日から先のEPSとBPSが空になり、
@@ -7101,11 +7114,18 @@ function buildFundSeries(bars){
     if(started && firstReal < 0) firstReal = i;
     /* 最初の決算より前は、いちばん古い「その項目の」値を当てます */
     const u = started ? cur : seed;
-    const c = bars[i] && isNum(bars[i].c) ? bars[i].c : null;
-    eps[i] = isNum(u.eps) ? u.eps : null;
-    bps[i] = isNum(u.bps) ? u.bps : null;
-    dps[i] = isNum(u.dps) ? u.dps : null;
-    eqr[i] = isNum(u.eqr) ? u.eqr : null;
+    /* 終値も1株あたりの金額も<b>同じ率で</b>換算します。PERは単位が
+       消えるので倍率は変わらず、EPSの欄だけがドル表示になります。 */
+    const f = fac ? fac[i] : 1;
+    const c = bars[i] && isNum(bars[i].c) ? bars[i].c * f : null;
+    /* ドル建てで見ているなら、1株あたりの金額も同じ率で換算します。
+       PER は「株価 ÷ 1株利益」で単位が消えるので、両方そろえて初めて
+       換算前と同じ倍率になります。株価だけ割ると、PERが為替のぶんだけ
+       動く<b>まったくの嘘</b>になります(円安でPERが下がって見える)。 */
+    eps[i] = isNum(u.eps) ? u.eps * f : null;
+    bps[i] = isNum(u.bps) ? u.bps * f : null;
+    dps[i] = isNum(u.dps) ? u.dps * f : null;
+    eqr[i] = isNum(u.eqr) ? u.eqr : null;      /* 比率なので換算しません */
     /* 赤字(eps<=0)にPERは無い。無理に負の倍率を描くと、下に突き抜けた線が
        「割安」に見えてしまうので、その区間は素直に空けます。
        債務超過(bps<=0)のPBR・ROEも同じ理由で出しません。 */
@@ -7259,7 +7279,7 @@ function currentView(){
   const sc = {};
   for(const k of Object.keys(panelScale)) sc[k] = panelScale[k];
   return {iv: state.interval, range: state.range, toggles: t,
-          scale: sc, order: fullPanelOrder()};
+          cur: wantCurrency(), scale: sc, order: fullPanelOrder()};
 }
 
 Object.assign(Book, {
@@ -7308,6 +7328,12 @@ Object.assign(Book, {
      もう一度取りにいくことになり、通信が2回になります。 */
   applyViewPre(code){
     const v = this.viewFor(code);
+    /* 通貨は<b>取りにいく前</b>に決めます(apply() のなかで換算するため)。
+       見かたが無い銘柄では null に戻して、端末の既定に従わせます。 */
+    if(pendingCur !== null){ viewCur = (viewCur === null) ? null : pendingCur; pendingCur = null; }
+    else viewCur = (v && typeof v.cur === 'string') ? v.cur : null;
+    const sel = $('#curSel');
+    if(sel) sel.value = wantCurrency();
     if(!v) return false;
     let hit = false;
     if(v.iv && v.iv !== state.interval){ state.interval = v.iv; hit = true; }
@@ -7750,11 +7776,13 @@ const Macro = {
   us10: null,      /* {points:[{d,v}], at, src} */
   jp10: null,      /* {points:[{d,v}], at, src, full} */
   cot:  null,      /* {points:[{d,lev,amg,oi}], at, src} */
+  nk225: null,     /* {points:[{d,perW,perI,pbrW,pbrI,dyW,dyI}], at, src} */
+  fx:    null,     /* ドル円の日足終値。表示通貨の換算に使います */
   busy: false,
   note: '',
 
   async load(){
-    for(const k of ['us10', 'jp10']){
+    for(const k of ['us10', 'jp10', 'fx']){
       try{
         const rec = await DB.get('macro.' + k);
         if(rec && Array.isArray(rec.points) && rec.points.length){
@@ -7763,6 +7791,12 @@ const Macro = {
         }
       }catch(e){}
     }
+    try{
+      const rec = await DB.get('macro.nk225');
+      if(rec && Array.isArray(rec.points) && rec.points.length)
+        this.nk225 = {points: rec.points.filter(p => p && /^\d{8}$/.test(p.d) && isNum(p.perI)),
+                      at: +rec.at || 0, src: cleanText(rec.src, 40)};
+    }catch(e){}
     try{
       const rec = await DB.get('macro.cot');
       if(rec && Array.isArray(rec.points) && rec.points.length){
@@ -7821,12 +7855,17 @@ const Macro = {
     return (isNum(u) && isNum(j)) ? u - j : null;
   },
   valueAt(key, d){
+    const p = this.pointAt(key, d);
+    return p ? p.v : null;
+  },
+  /* その日以前でいちばん新しい点。日付も要るので点ごと返します。 */
+  pointAt(key, d){
     const pts = this[key] && this[key].points;
     if(!pts || !pts.length) return null;
     let lo = 0, hi = pts.length - 1, out = null;
     while(lo <= hi){
       const mid = (lo + hi) >> 1;
-      if(pts[mid].d <= d){ out = pts[mid].v; lo = mid + 1; } else hi = mid - 1;
+      if(pts[mid].d <= d){ out = pts[mid]; lo = mid + 1; } else hi = mid - 1;
     }
     return out;
   },
@@ -7865,6 +7904,16 @@ const Macro = {
         msgs.push(`日10年債 ${pts.length}日ぶん(新規${n})`);
       }catch(e){ msgs.push('日10年債は取得できませんでした: ' + cleanText(e && e.message, 40)); }
 
+      /* --- ドル円(表示通貨の換算用) ------------------------------------ */
+      try{
+        const first = !this.fx || !this.fx.points.length;
+        const y = await fetchYahoo('USDJPY=X', first || force ? 'max' : '3mo', '1d');
+        const pts = [];
+        for(const b of y.bars) if(isNum(b.c) && b.c > 0 && b.c < 1000) pts.push({d: barKey(b), v: b.c});
+        const n = this.merge('fx', pts, 'USDJPY=X (Yahoo)');
+        msgs.push(`ドル円 ${pts.length}日ぶん(新規${n})`);
+      }catch(e){ msgs.push('ドル円は取得できませんでした: ' + cleanText(e && e.message, 40)); }
+
       /* --- CFTC 円の建玉 ---------------------------------------------- */
       try{
         const first = !this.cot || !this.cot.points.length;
@@ -7882,9 +7931,9 @@ const Macro = {
   },
 
   clear(){
-    this.us10 = this.jp10 = this.cot = null;
+    this.us10 = this.jp10 = this.cot = this.nk225 = this.fx = null;
     this.note = '';
-    for(const k of ['us10', 'jp10', 'cot'])
+    for(const k of ['us10', 'jp10', 'cot', 'nk225', 'fx'])
       withKey('macro.' + k, async () => { try { await DB.del('macro.' + k); } catch(e){} });
   }
 };
@@ -8938,6 +8987,306 @@ function pbrStory(per, pbr, roe){
 
 
 /* ---- 金利カード ------------------------------------------------------- */
+
+/* --- 日経平均そのものの PER・PBR・配当利回り ---------------------------
+   日経平均を開いても、指標カードに入れる数字がありませんでした。個別株の
+   ように「決算」があるわけではないので、指数の値を出しているところから
+   もらうしかありません。
+
+   出典は<b>日経平均プロフィル</b>(日本経済新聞社)の公式ページです。
+   https://indexes.nikkei.co.jp/nkave/archives/data?list=per / pbr / dividend
+
+   どのページも<b>当月ぶんしか出ません</b>(年月を指定しても当月が返ります)。
+   なので空売り残高と同じで、開くたびに読んで貯めていきます。
+
+   数字が2列あります。
+   ・加重平均(単純平均) … 225社の時価総額合計 ÷ 利益合計。報道で
+     「日経平均のPERは17倍台」と言うときの数字です
+   ・指数ベース … 日経平均 ÷ 一株利益(指数ベース)。日経平均という
+     「1つの株」として見たときの数字
+
+   このツールは<b>指数ベース</b>を使います。カードもチャートも
+   「株価 ÷ 一株あたりの数字」で組んであるので、そちらでないと
+   EPSの欄に何の意味もない数が出るからです。加重平均のほうは
+   カードに併記します。 */
+const NK_LISTS = {per:'per', pbr:'pbr', dy:'dividend'};
+const NK_URL = 'https://indexes.nikkei.co.jp/nkave/archives/data?list=';
+/* 現実にありうる幅。ページ番号や順位を拾わないよう、下限は
+   「指標としてはありえるが、ページ番号ではない」ところに置きます。 */
+const NK_RANGE = {per:[3, 300], pbr:[0.3, 30], dy:[0.05, 20]};
+
+/* 表の読み取り。タグの形に頼らず、<b>日付とその後ろの2つの数</b>だけを
+   拾います。「2026.08.18 17.43 22.44」の並びが見つかれば、途中の
+   マークアップがどう変わっても読めます。「-」の日(値なし)は飛ばします。 */
+function parseNkTable(html, kind){
+  const lim = NK_RANGE[kind] || [0, 1e6];
+  const txt = String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
+  const re = /(20\d{2})\.(\d{1,2})\.(\d{1,2})\s+(-|[\d,]+(?:\.\d+)?)\s+(-|[\d,]+(?:\.\d+)?)/g;
+  const out = [];
+  const seen = new Set();
+  let m;
+  while((m = re.exec(txt))){
+    const y = +m[1], mo = +m[2], d = +m[3];
+    if(!(mo >= 1 && mo <= 12) || !(d >= 1 && d <= 31)) continue;
+    const key = `${y}${String(mo).padStart(2,'0')}${String(d).padStart(2,'0')}`;
+    const w = pasteNum(m[4]), i = pasteNum(m[5]);
+    /* 2つとも範囲内でなければ、その行は指標の行ではありません
+       (「最終更新 2026.08.18」のうしろの数字やページ番号を拾わないため)。
+
+       範囲を見る<b>前に</b>「もう拾った日」として登録していたので、
+       ページ番号のような偽の一致が先に来ると、本物の行が捨てられて
+       PER 2倍が保存されていました。確かめてから登録します。 */
+    if(!isNum(w) || !isNum(i)) continue;
+    if(w < lim[0] || w > lim[1] || i < lim[0] || i > lim[1]) continue;
+    if(seen.has(key)){ continue; }
+    seen.add(key);
+    out.push({d: key, w, i});
+  }
+  out.sort((a, b) => a.d.localeCompare(b.d));
+  return out;
+}
+
+/* 3ページぶんを日付でそろえます。3つとも揃った日だけを返します
+   (片方だけの日を入れると、PERだけ動いてPBRが止まった線になります)。 */
+function mergeNkRows(per, pbr, dy){
+  const by = new Map();
+  const put = (rows, k) => { for(const r of rows){
+    const o = by.get(r.d) || {d: r.d};
+    o[k + 'W'] = r.w; o[k + 'I'] = r.i;
+    by.set(r.d, o);
+  } };
+  put(per, 'per'); put(pbr, 'pbr'); put(dy, 'dy');
+  /* PERかPBRのどちらかがあれば残します。3ページのうち1つが落ちたときに
+     残り2つまで捨てていたので、取れたぶんが全部無駄になっていました。 */
+  return [...by.values()]
+    .filter(o => isNum(o.perI) || isNum(o.pbrI))
+    .sort((a, b) => a.d.localeCompare(b.d));
+}
+
+
+/* --- 表示通貨の換算 ---------------------------------------------------
+   日経平均は円建ての指数ですが、<b>海外の投資家が見ているのはドル建て</b>
+   です。円安が進んでいる局面では、円建てが史上最高値を更新していても
+   ドル建てでは何年も前の水準を抜けていない、ということが起こります。
+   同じ指数の同じ日の話なのに、話が噛み合わない原因はたいていここです。
+
+   やっていることは割り算1つで、日経平均 ÷ ドル円 = ドル建て日経平均。
+   日経平均プロフィルが公表している「ドル建て日経平均株価」と同じ定義です。
+
+   換算は<b>その日の終値</b>で行います。分足の中では1日ぶん同じ値です
+   (為替は24時間動くので、そこまで合わせると別の話になります)。 */
+/* その日のドル円。<b>古すぎるレートは使いません。</b>
+
+   利回りは「次に出るまでその値」なので何日でも引き伸ばして構いませんが、
+   為替でそれをやると、手元に2020年のレートしか無いのに2026年の指数を
+   それで割った数字が、何食わぬ顔で「ドル建て」として出ます。連休を
+   またげるだけの幅(7日)を上限にします。 */
+const FX_STALE_DAYS = 7;
+/* レートが古くなってきたら、黙って取り直します。取りにいくのを
+   利用者の操作だけに任せていると、1週間後に何の説明もなく換算が
+   止まります(古いレートで割り続けるよりはましですが、それでも
+   「昨日は出たのに」になります)。多くても1日1回。 */
+let fxTopAt = 0;
+function fxTopUp(){
+  if(Macro.busy || navigator.onLine === false) return;
+  const now = Date.now();
+  if(now - fxTopAt < 6 * 3600 * 1000) return;
+  const last = Macro.fx && Macro.fx.points.length
+    ? Macro.fx.points[Macro.fx.points.length - 1].d : '';
+  if(last && daysBetweenKeys(last, dkey(new Date())) <= 3) return;
+  fxTopAt = now;
+  setTimeout(() => { loadRates(false).catch(() => {}); }, 50);
+}
+function fxRateAt(d){
+  const p = Macro.pointAt('fx', d);
+  if(!p || !isNum(p.v)) return null;
+  if(daysBetweenKeys(p.d, d) > FX_STALE_DAYS) return null;
+  return p.v;
+}
+/* 足を丸ごと換算した写しを返します。元の足はいじりません。
+   出来高は株数(口数)なので、換算しません。 */
+function convertBars(bars, from, to){
+  if(!bars || !bars.length || from === to) return null;
+  const out = [];
+  const fac = [];
+  for(const b of bars){
+    const r = fxRateAt(barKey(b));
+    if(!isNum(r) || !(r > 0)) return null;          /* 1本でも欠けたらやりません */
+    /* JPY→USD は割る、USD→JPY は掛ける。それ以外の通貨は扱いません。 */
+    const f = (from === 'JPY' && to === 'USD') ? 1 / r
+            : (from === 'USD' && to === 'JPY') ? r : null;
+    if(f === null) return null;
+    fac.push(f);
+    out.push({t: b.t, y: b.y, mo: b.mo, d: b.d, hh: b.hh, mi: b.mi, k: b.k,
+              o: b.o * f, h: b.h * f, l: b.l * f, c: b.c * f, v: b.v});
+  }
+  return {bars: out, fac};
+}
+/* いま効いている表示通貨。'' は「元のまま」。
+
+   高さや並びと同じで、<b>端末の既定</b>と<b>その銘柄の見かた</b>を
+   分けます。日経平均だけドル建て、ほかはそのまま、という持ち方が
+   できて、しかも既定が勝手に書き換わりません。 */
+let viewCur = null;                 /* 見かたで指定されているとき、その値 */
+let pendingCur = null;              /* セレクタで選んだ直後の1回だけ効く上書き */
+function okCur(v){ return (v === 'JPY' || v === 'USD') ? v : ''; }
+function baseCurrency(){ return okCur(String(Store.get('showCur', '') || '')); }
+function wantCurrency(){ return viewCur === null ? baseCurrency() : okCur(viewCur); }
+/* 換算できる組み合わせか(いまは円とドルのあいだだけ) */
+function canConvert(from, to){
+  return (from === 'JPY' && to === 'USD') || (from === 'USD' && to === 'JPY');
+}
+
+
+
+
+/* 表示通貨は<b>描くときだけ</b>効かせます。
+
+   はじめは読み込んだ足そのものを換算していました。そうすると換算後の
+   足が保存され、タブに入り、自動更新やストリームが円の値をそこへ書き、
+   決算の逆算も換算後の終値を使う ── と、足を触るすべての経路が
+   通貨を知っていなければならなくなります。実際に穴が5つ空きました。
+
+   なので<b>state.raw.bars は常に元の通貨のまま</b>にして、
+   指標を組むときに写しを作ります。保存も更新も逆算も、元の値だけを
+   見ていれば済みます。 */
+/* 画面に出している通貨。換算していなければ元の通貨。表示に使う側は
+   state.raw.currency ではなく必ずこちらを見ます(数字と単位がずれるので)。 */
+function shownCurrency(){
+  return dispCur || (state.raw ? state.raw.currency : null);
+}
+/* 換算後の値。元の通貨で持っている単発の値(前日終値など)に使います。 */
+function toShown(v, i){
+  if(!isNum(v) || !convFac || !convFac.length) return v;
+  const f = convFac[isNum(i) && i >= 0 && i < convFac.length ? i : convFac.length - 1];
+  return isNum(f) ? v * f : v;
+}
+let convFac = null;          /* 足ごとの換算率。換算していなければ null */
+let dispCur = null;          /* いま画面に出している通貨 */
+let curNote = '';
+function displayBars(bars){
+  curNote = '';
+  const src = state.raw ? state.raw.currency : null;
+  const want = wantCurrency();
+  const plain = {bars, fac: null, cur: src};
+  if(!bars || !bars.length || !want || want === src) return plain;
+  /* 為替そのものは換算しません。ドル円をドル建てにすると 1.0000 の
+     まっすぐな線になり、しかも「ドル建てに換算」と書かれます。 */
+  if(isFxCode(state.raw && state.raw.code)) return plain;
+  if(!canConvert(src, want)){
+    curNote = '円とドルのあいだでしか換算できません。そのまま出しています。';
+    return plain;
+  }
+  if(!Macro.fx || !Macro.fx.points.length){
+    curNote = 'ドル円のレートがまだありません。下の「金利」で取得すると換算できます。';
+    fxTopUp();
+    return plain;
+  }
+  fxTopUp();
+  const conv = convertBars(bars, src, want);
+  if(!conv){
+    const first = Macro.fx.points[0].d, last = Macro.fx.points[Macro.fx.points.length-1].d;
+    const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+    curNote = `この期間のドル円がありません(手元にあるのは ${fm(first)}〜${fm(last)})。`
+            + `期間をその中に収めるか、下の「金利」で取り直してください。`;
+    return plain;
+  }
+  return {bars: conv.bars, fac: conv.fac, cur: want};
+}
+
+function isNikkei(code){ return String(code || '') === '^N225'; }
+
+/* 指数ベースの倍率から、1株あたりの数字に戻します。
+   日経平均 ÷ PER = EPS、÷ PBR = BPS、× 利回り = 1株配当。
+   終値はこのツールが持っているので、掛かるのは割り算だけです。 */
+async function loadNikkeiFund(){
+  const stat = $('#fundStat');
+  if(!isNikkei(state.raw && state.raw.code)){
+    notice('この取得は日経平均(^N225)を開いているときだけ使えます。', true);
+    return false;
+  }
+  const code = Ext.codeKey();
+  if(stat) stat.textContent = '日経平均プロフィルから取得しています…';
+  try{
+    const [per, pbr, dy] = await Promise.all(
+      ['per','pbr','dy'].map(k =>
+        relayFetch(NK_URL + NK_LISTS[k], {text: true, timeout: 12000})
+          .then(h => parseNkTable(h, k))
+          .catch(() => [])));
+    const rows = mergeNkRows(per, pbr, dy);
+    if(!rows.length) throw new Error(
+      (per.length || pbr.length || dy.length)
+        ? '数字は取れましたが、日付とそろいませんでした(ページの作りが変わった可能性)'
+        : 'ページから表を読み取れませんでした(作りが変わったか、中継が別のものを返しています)');
+    if(Ext.codeKey() !== code){ renderFundCard(); return false; }
+
+    /* 加重平均は「報道の数字」としてカードに併記するだけなので、
+       指標そのものとは別に持ちます。 */
+    /* 当月ぶんしか公表されないので<b>貯めます</b>。毎回入れ替えていたら
+       「開くたびに少しずつ貯まります」と書いてあることが嘘になります。 */
+    const by = new Map();
+    for(const o of (Macro.nk225 && Macro.nk225.points) || []) by.set(o.d, o);
+    for(const o of rows) by.set(o.d, Object.assign(by.get(o.d) || {}, o));
+    const merged = [...by.values()].sort((a, b) => a.d.localeCompare(b.d)).slice(-1200);
+    const rec = {points: merged, at: Date.now(), src: '日経平均プロフィル'};
+    Macro.nk225 = rec;
+    withKey('macro.nk225', async () => { try { await DB.set('macro.nk225', rec); } catch(e){} });
+
+    /* 足のある日だけ、その日の終値から1株あたりに戻します。
+
+       state.raw.bars は<b>常に元の通貨(円)</b>です(換算は描くときだけ)。
+       ここで換算後の終値を使うと、円ベースのPERでドルの終値を割ることに
+       なり、150倍ずれた「EPS」がそのまま保存されます。
+
+       週足・月足はやりません。日付キーが週や月の頭になるので、
+       その週の終値をその日のPERで割ることになります。 */
+    if(state.interval !== '1d'){
+      if(stat) stat.textContent = '日足に切り替えてから押してください。'
+        + '週足・月足・分足だと、その期間の終値をその日のPERで割ることになります。';
+      return false;
+    }
+    const bars = state.raw.bars;
+    const close = new Map();
+    for(const b of bars) if(isNum(b.c)) close.set(barKey(b), b.c);
+    const pts = [];
+    for(const r of rows){
+      const c = close.get(r.d);
+      if(!isNum(c) || !(c > 0)) continue;
+      const p = {d: r.d};
+      if(r.perI > 0) p.eps = c / r.perI;
+      if(r.pbrI > 0) p.bps = c / r.pbrI;
+      if(isNum(r.dyI))  p.dps = c * r.dyI / 100;
+      if(isNum(p.eps) || isNum(p.bps)) pts.push(p);
+    }
+    if(!pts.length){
+      if(stat) stat.textContent = '指標は取れましたが、同じ日の日経平均の足がありません。'
+        + '期間を「1ヶ月」以上にしてからもう一度押してください。';
+      return false;
+    }
+    const n = Ext.mergeFund(pts, '日経平均プロフィル', code, true);
+    if(!state.toggles.valuation){
+      state.toggles.valuation = true;
+      const b = document.querySelector('.chip[data-t="valuation"]');
+      if(b) b.setAttribute('aria-pressed', 'true');
+    }
+    state.ind = alignExt(state.ind);
+    renderFundCard();
+    redraw(); renderSignals();
+    notice(`日経平均の指標を${pts.length}日ぶん取り込みました(新規 ${n}件)。`
+         + `当月ぶんしか公表されないので、開くたびに少しずつ貯まります。`);
+    return true;
+  }catch(err){
+    renderFundCard();
+    if(Ext.codeKey() !== code) return false;
+    if(stat) stat.innerHTML = '日経平均プロフィルから取得できませんでした: '
+      + esc((err && err.message) || '', 90)
+      + '<br>自分の中継サーバーをお使いなら、中継先に indexes.nikkei.co.jp が'
+      + '入っているか確認してください(v46 で追加しています)。'
+      + '<br>取れないあいだは「株価サイトからコピーして貼り付ける」でも入ります。';
+    return false;
+  }
+}
+
 function renderRateCard(){
   const stat = $('#rateStat'), box = $('#rateBox');
   if(!stat || !box) return;
@@ -9037,6 +9386,8 @@ function renderFundCard(){
   /* SECは米国上場株だけ。指数・為替・暗号資産には決算がありません。 */
   const secBtn = $('#fundSec');
   if(secBtn) secBtn.classList.toggle('hide', !(live && isUsEquity(code)));
+  const nkBtn = $('#fundNk');
+  if(nkBtn) nkBtn.classList.toggle('hide', !(live && isNikkei(state.raw && state.raw.code)));
   const clr = $('#fundClear');
   if(clr) clr.classList.toggle('hide', !Ext.fund);
   const pb = $('#fundPanelBtn');
@@ -9087,6 +9438,12 @@ function renderFundCard(){
      : `この銘柄の平常の範囲内(中央${q[1].toFixed(1)}倍)`)
     : '同業他社と、この銘柄自身の過去と比べてください';
 
+  /* 日経平均だけは<b>2つの数字</b>が公表されています。このツールが使って
+     いるのは指数ベースのほうなので、報道で聞く「加重平均」も併記します。
+     どちらか一方だけ出すと、必ず「ニュースと違う」と言われる数字です。 */
+  const nk = (isNikkei(state.raw && state.raw.code) && Macro.nk225
+              && Macro.nk225.points.length) ? Macro.nk225.points[Macro.nk225.points.length-1] : null;
+
   /* 判定は<b>画面に出す桁に丸めてから</b>。生の値で比べていたので、
      7.96% は「8.0%」と表示されながら注記は「8%を下回っています」、
      0.996倍は「1.00倍」と表示されながら「1倍割れ」と赤くなっていました。
@@ -9096,9 +9453,14 @@ function renderFundCard(){
   const lowPbr = isNum(pbrS) && pbrS < 1;
 
   box.innerHTML = '<div class="fgrid">'
-    + fundCell('PER 株価収益率', '倍', x.per, 1, perNote)
+    + fundCell('PER 株価収益率', '倍', x.per, 1,
+        nk && isNum(nk.perW)
+          ? `指数ベース。報道で使われる<b>加重平均は ${nk.perW.toFixed(2)}倍</b>です`
+          : perNote)
     + fundCell('PBR 株価純資産倍率', '倍', x.pbr, 2,
-        !lowPbr
+        nk && isNum(nk.pbrW)
+          ? `指数ベース。報道で使われる<b>加重平均は ${nk.pbrW.toFixed(2)}倍</b>です`
+        : !lowPbr
           ? (isNum(roeS) && roeS < ROE_LOW && isNum(pbrS) && pbrS >= 1.5
               ? `ROEは${roeS.toFixed(1)}%です。この倍率は資産の効率ではなくPERの高さから来ています`
               : '資産に対する評価。ROEと合わせて見る指標です')
@@ -9454,7 +9816,7 @@ function renderFundPastePreview(res, done){
       + `<b>見出しと数字が1行ずつ並んでいる部分</b>を選んでコピーすると確実です。</div>`;
     return;
   }
-  const cur = state.raw && state.raw.currency === 'USD' ? 'ドル' : '円';
+  const cur = shownCurrency() === 'USD' ? 'ドル' : '円';
   const row = (k, label, v, u) => isNum(v)
     ? `<tr><td class="wl">${label}</td><td class="wnum">${v.toFixed(2)}${u}</td></tr>` : '';
   const fmD = d => /^\d{8}$/.test(String(d)) ? `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}` : '';
@@ -12249,7 +12611,7 @@ function rptNum(v, digits){
    than a table — it survives copy-paste and PDF text extraction, which
    reorder table cells. */
 function reportFacts(){
-  const d = state.ind, b = state.raw.bars, n = b.length - 1, cur = state.raw.currency;
+  const d = state.ind, b = state.raw.bars, n = b.length - 1, cur = shownCurrency();
   const L = [];
   const put = (k, v) => L.push(k + ': ' + v);
   put('銘柄', `${state.raw.name}(${state.raw.code})`);
@@ -13136,6 +13498,7 @@ const ALLOW = [
   'jpx.co.jp',
   'www.taisyaku.jp',
   'www.mof.go.jp',
+  'indexes.nikkei.co.jp',
   'mof.go.jp',
   'publicreporting.cftc.gov',
   /* 米国株の空売り比率(FINRA Reg SHO 日次ファイル) */
@@ -15575,6 +15938,120 @@ async function runSelfTests(){
   });
 
   await new Promise(r => setTimeout(r, 60));
+  tgroup('日経平均の指標と、表示通貨');
+  test('日経平均プロフィルの表を読む', () => {
+    const html = '<table><tr><th>日付</th><th>加重平均(倍)</th><th>指数ベース(倍)</th></tr>'
+      + '<tr><td>2026.08.18</td><td>17.43</td><td>22.44</td></tr>'
+      + '<tr><td>2026.08.19</td><td>17.51</td><td>22.60</td></tr></table>';
+    const out = parseNkTable(html, 'per');
+    return eq(out.length, 2) && eq(out[0].d, '20260818') && eq(out[0].w, 17.43)
+        && eq(out[0].i, 22.44) && eq(out[1].d, '20260819');
+  });
+  test('「-」の日と関係ない数字を拾わない', () => {
+    /* 更新時刻や電話番号のうしろの数字を指標として読まないこと */
+    const html = '最終更新 2026.08.19 15:30 お問い合わせ 03-1234-5678'
+      + '<tr><td>2026.08.19</td><td>-</td><td>-</td></tr>'
+      + '<tr><td>2026.08.18</td><td>1.64</td><td>1.41</td></tr>';
+    const out = parseNkTable(html, 'dy');
+    return eq(out.length, 1) && eq(out[0].d, '20260818') && eq(out[0].i, 1.41);
+  });
+  test('ありえない倍率は捨てる', () =>
+    eq(parseNkTable('<td>2026.08.18</td><td>999</td><td>888</td>', 'per').length, 0)
+    && eq(parseNkTable('<td>2026.08.18</td><td>17.4</td><td>22.4</td>', 'per').length, 1));
+  test('3ページを日付でそろえる', () => {
+    /* PERかPBRのどちらかがある日は残します。配当だけ無い日は
+       PERとPBRが出て、配当の欄が空になるだけです。 */
+    const per = [{d:'20260817', w:17.6, i:23.0}, {d:'20260818', w:17.4, i:22.4}];
+    const pbr = [{d:'20260818', w:1.91, i:2.79}];
+    const dy  = [{d:'20260818', w:1.64, i:1.41}];
+    const m = mergeNkRows(per, pbr, dy);
+    if(m.length !== 2) return '件数 ' + m.length;
+    return eq(m[0].d, '20260817') && eq(m[0].perI, 23.0)
+        && eq(m[0].pbrI, undefined, '17日はPBRなし')
+        && eq(m[1].d, '20260818') && eq(m[1].pbrI, 2.79) && eq(m[1].dyI, 1.41);
+  });
+  test('日経平均だけボタンを出す', () =>
+    eq(isNikkei('^N225'), true) && eq(isNikkei('7203.T'), false) && eq(isNikkei(''), false));
+  test('中継先に日経平均プロフィルが入っている', () =>
+    /indexes\.nikkei\.co\.jp/.test(WORKER_SRC));
+
+  test('ドル建ては「指数 ÷ ドル円」', () => {
+    const keep = Macro.fx;
+    Macro.fx = {points:[{d:'20260817', v:150}, {d:'20260818', v:160}], at:1, src:'t'};
+    const bars = [{t:new Date(2026,7,17),o:60000,h:60000,l:60000,c:60000,v:0,k:'20260817'},
+                  {t:new Date(2026,7,18),o:64000,h:64000,l:64000,c:64000,v:9,k:'20260818'}];
+    const c = convertBars(bars, 'JPY', 'USD');
+    Macro.fx = keep;
+    if(!c) return '換算できなかった';
+    return eq(+c.bars[0].c.toFixed(4), 400) && eq(+c.bars[1].c.toFixed(4), 400)
+        && eq(c.bars[1].v, 9, '出来高は換算しない')
+        && eq(bars[1].c, 64000, '元の足を書き換えない');
+  });
+  test('古すぎるレートで換算しない', () => {
+    /* 2020年のレートしか無いのに2026年の指数をそれで割ると、
+       もっともらしい嘘の「ドル建て」が出ます。 */
+    const keep = Macro.fx;
+    Macro.fx = {points:[{d:'20200101', v:110}], at:1, src:'t'};
+    const stale = fxRateAt('20260818');
+    Macro.fx = {points:[{d:'20260814', v:160}], at:1, src:'t'};
+    const ok = fxRateAt('20260818');      /* 4日前なら使う */
+    Macro.fx = keep;
+    return eq(stale, null, '6年前') && eq(ok, 160, '4日前');
+  });
+  test('円とドル以外は換算しない', () =>
+    eq(canConvert('JPY','USD'), true) && eq(canConvert('USD','JPY'), true)
+    && eq(canConvert('EUR','USD'), false) && eq(canConvert('JPY','JPY'), false));
+  test('1本でも欠けたら換算しない', () => {
+    const keep = Macro.fx;
+    Macro.fx = {points:[{d:'20260817', v:150}], at:1, src:'t'};
+    const bars = [{t:new Date(2026,7,17),o:1,h:1,l:1,c:1,v:0,k:'20260817'},
+                  {t:new Date(2026,8,30),o:1,h:1,l:1,c:1,v:0,k:'20260930'}];
+    const c = convertBars(bars, 'JPY', 'USD');
+    Macro.fx = keep;
+    return eq(c, null);
+  });
+  test('換算は描くときだけ。保存する足は元のまま', () => {
+    /* はじめは読み込んだ足そのものを換算していました。そのせいで
+       換算後の足が保存され、自動更新やストリームが円の値をそこへ書き、
+       決算の逆算まで狂いました。元の足は触らない作りに変えてあります。 */
+    const src = /let convFac/.test(String(displayBars))
+      || /state\.raw\.bars\s*=/.test(String(displayBars));
+    return !/state\.raw\.bars\s*=/.test(String(displayBars))
+        && /convertBars/.test(String(displayBars))
+        && /displayBars/.test(String(recompute)) ? true : '作りが違う ' + src;
+  });
+  test('ドル円自身は換算しない', () => {
+    const kR = state.raw, kF = Macro.fx, kV = viewCur;
+    Macro.fx = {points:[{d:'20260818', v:160}], at:1, src:'t'};
+    viewCur = 'USD';
+    state.raw = {code:'USDJPY=X', currency:'JPY', bars:[]};
+    const a = displayBars([{t:new Date(2026,7,18),c:160,o:160,h:160,l:160,v:0,k:'20260818'}]);
+    state.raw = {code:'^N225', currency:'JPY', bars:[]};
+    const b2 = displayBars([{t:new Date(2026,7,18),c:64000,o:64000,h:64000,l:64000,v:0,k:'20260818'}]);
+    state.raw = kR; Macro.fx = kF; viewCur = kV;
+    return eq(a.cur, 'JPY', '為替は素通し') && eq(a.fac, null)
+        && eq(b2.cur, 'USD', '指数は換算') && eq(+b2.bars[0].c.toFixed(2), 400);
+  });
+  test('ページ番号をPERとして拾わない', () => {
+    /* 範囲を確かめる前に「この日は拾った」と登録していたので、
+       ページ番号のような偽の一致が本物の行を締め出していました。 */
+    const html = '<p>最終更新 2026.08.19</p><div class="pager">1 2</div>'
+      + '<tr><td>2026.08.19</td><td>17.43</td><td>22.44</td></tr>';
+    const out = parseNkTable(html, 'per');
+    return eq(out.length, 1) && eq(out[0].w, 17.43) && eq(out[0].i, 22.44);
+  });
+  test('PERかPBRの片方でも残す', () => {
+    /* 3ページのうち1つが落ちたとき、取れた2つまで捨てていました */
+    const m = mergeNkRows([{d:'20260818', w:17.4, i:22.4}], [], []);
+    return eq(m.length, 1) && eq(m[0].perI, 22.4) && eq(m[0].pbrI, undefined);
+  });
+  test('見かたに通貨が入る', () => {
+    const v = sanitizeView({iv:'1d', cur:'USD', toggles:{rsi:true}});
+    return eq(v && v.cur, 'USD')
+        && eq((sanitizeView({iv:'1d', cur:'ダメ', toggles:{rsi:true}}) || {}).cur, undefined);
+  });
+
+  await new Promise(r => setTimeout(r, 60));
   tgroup('XSS(表示部への注入)');
   test('注入コードが一度も実行されていない', () => eq(window.__xssFired, 0));
   return T.list;
@@ -16752,7 +17229,7 @@ function setBusy(on){
 }
 
 function applyQuoteStrip(){
-  const d = state.ind, n = state.raw.bars.length - 1, cur = state.raw.currency;
+  const d = state.ind, n = state.raw.bars.length - 1, cur = shownCurrency();
   $('#qName').textContent = state.raw.name;
   $('#qCode').textContent = state.raw.code && state.raw.code !== state.raw.name ? state.raw.code : '';
   $('#qPrice').textContent = fmtNum(d.c[n], cur);
@@ -16760,7 +17237,7 @@ function applyQuoteStrip(){
      previous BAR is the same thing on a daily chart and nothing like it on
      an intraday one — a 15-minute chart was reporting the last quarter of an
      hour and calling it 前日比. */
-  const base = prevCloseFor();
+  const base = prevCloseFor();     /* 換算後の値でそろえて返ってきます */
   const ch = isNum(base) ? d.c[n] - base : (n > 0 ? d.c[n] - d.c[n-1] : 0);
   const pc = isNum(base) && base ? ch / base * 100
            : (n > 0 && d.c[n-1] ? ch / d.c[n-1] * 100 : 0);
@@ -16778,10 +17255,18 @@ function applyQuoteStrip(){
   /* 「終値」 is a claim, and it was being made about a bar that might be
      the session still in progress. Say which one this is. */
   const what = (m && m.open) ? '時点(取引中)' : '終値';
-  $('#qSrc').textContent = `${lastDate} ${what} ・ ${state.raw.source} ・ `
-    + `${IV_LABEL[state.interval] || ''} ${state.raw.bars.length}本`
-    + (state.raw.built ? '(' + state.raw.built + ')' : '')
-    + (mk ? ' ・ ' + mk : '');
+  /* 換算して出しているなら、必ずそう書きます。67,460円 と 456ドル が
+     同じ日の同じ指数だと分かるのは、書いてあるときだけです。 */
+  const conv = (dispCur && dispCur !== state.raw.currency)
+    ? ` ・ <b>${esc(dispCur === 'USD' ? 'ドル建て' : '円建て', 8)}に換算</b>`
+      + `(${esc(state.raw.currency || '', 4)} → ${esc(dispCur, 4)}・その日のドル円終値で)`
+    : '';
+  $('#qSrc').innerHTML = `${esc(lastDate, 40)} ${esc(what, 12)} ・ ${esc(state.raw.source, 30)} ・ `
+    + `${esc(IV_LABEL[state.interval] || '', 8)} ${state.raw.bars.length}本`
+    + (state.raw.built ? '(' + esc(state.raw.built, 40) + ')' : '')
+    + (mk ? ' ・ ' + esc(mk, 40) : '')
+    + conv
+    + (curNote ? `<br><span style="color:var(--warn)">${curNote}</span>` : '');
   renderFreshness();
 }
 
@@ -16823,7 +17308,10 @@ function prevCloseFor(){
     break;                       /* one bar per day — not really intraday */
   }
   /* the window holds a single market day: nothing here can answer it */
-  if(isNum(r.prevClose) && r.prevClose > 0) return r.prevClose;
+  /* d.c は換算後、r.prevClose は元の通貨。混ぜて返すと、呼ぶ側は
+     どちらが来たか分からないまま引き算します(ドル建てで前日比が
+     +17932% になりました)。ここでそろえて返します。 */
+  if(isNum(r.prevClose) && r.prevClose > 0) return toShown(r.prevClose, n);
   return sameDay ? null : (isNum(d.c[n-1]) ? d.c[n-1] : null);
 }
 
@@ -17535,6 +18023,33 @@ $('#fundPasteClear').addEventListener('click', () => {
 $('#fundSave').addEventListener('click', fundSaveManual);
 $('#fundFill').addEventListener('click', fundFillForm);
 $('#fundSec').addEventListener('click', loadUsFund);
+$('#fundNk').addEventListener('click', () => { loadNikkeiFund().catch(() => {}); });
+$('#curSel').value = wantCurrency();
+$('#curSel').addEventListener('change', async e => {
+  const v = okCur(e.target.value);
+  /* 見かたを当てているあいだは、その銘柄の指定を上書きします。
+     端末の既定を書き換えるのは、見かたを当てていないときだけです
+     (高さ・並びと同じ考え方)。
+
+     このあと run() を呼ぶと applyViewPre が viewCur を見かたの値へ
+     戻してしまうので、1回だけ効く上書きを置いておきます。これが無いと
+     「見かたを覚えた銘柄では通貨セレクタが一切効かない」状態でした。 */
+  if(viewCur !== null) viewCur = v;
+  else Store.set('showCur', v);
+  pendingCur = v;
+  if(v && (!Macro.fx || !Macro.fx.points.length)){
+    notice('ドル円のレートを取りにいきます…');
+    await loadRates(false);
+  }
+  /* すでに画面に出ている足を換算し直すには、取り直すのがいちばん確実です
+     (換算済みの足をもとに戻す道を作ると、二度換算の穴が増えます)。 */
+  if(state.raw && state.raw.code && state.raw.code !== 'DEMO' && state.raw.code !== 'CSV'){
+    $('#sym').value = state.raw.code;
+    run();
+  } else {
+    notice(v ? '銘柄を読み込むと、選んだ通貨で出ます。' : '');
+  }
+});
 $('#fundClear').addEventListener('click', () => Ext.clear('fund'));
 $('#rateGet').addEventListener('click', () => loadRates(false));
 $('#panelOrderBox').addEventListener('click', e => {

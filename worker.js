@@ -45,6 +45,7 @@ const ALLOW = [
   'jpx.co.jp',
   'www.taisyaku.jp',
   'www.mof.go.jp',
+  'indexes.nikkei.co.jp',
   'mof.go.jp',
   'publicreporting.cftc.gov',
   /* 米国株の空売り比率(FINRA Reg SHO 日次ファイル) */
