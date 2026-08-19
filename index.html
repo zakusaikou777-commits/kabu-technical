@@ -76,6 +76,17 @@
   --cmp1:#3987e5; --cmp2:#d95926; --cmp3:#199e70; --cmp4:#c98500; --cmp5:#d55181;
 }
 
+/* パネルの並び順の一覧 */
+.porder{margin:0;padding:0;list-style:none}
+.porder .pnum{flex:0 0 auto;color:var(--ink-3);font-variant-numeric:tabular-nums;
+  min-width:1.6em;font-size:13px}
+.porder .pname{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.porder li{display:flex;align-items:center;justify-content:space-between;
+  gap:8px;padding:4px 0;border-bottom:1px solid var(--hairline)}
+.porder li:last-child{border-bottom:0}
+.pobtns{display:flex;gap:4px;flex:0 0 auto}
+.pobtn{padding:2px 10px;min-width:38px;line-height:1.4}
+.pobtn[disabled]{opacity:.3;pointer-events:none}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
@@ -822,6 +833,30 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <p id="extNote"></p>
   </div>
 
+  <div class="card" id="viewCard">
+    <h2>表示の設定(パネルの並び・銘柄ごとの記憶)</h2>
+
+    <p class="qsrc" style="margin:0 0 6px"><b>下のパネルの並び順</b>。
+      いま出ているものだけが並びます。株価のパネルは常にいちばん上です。</p>
+    <div id="panelOrderBox"></div>
+    <div class="filters" style="margin:8px 0 16px">
+      <button class="chip" id="panelOrderReset" style="border-style:dashed">並び順を既定に戻す</button>
+      <button class="chip" id="panelScaleReset" style="border-style:dashed">高さを既定に戻す</button>
+    </div>
+
+    <p class="qsrc" style="margin:0 0 6px"><b>銘柄ごとに「この銘柄はこう見る」を覚えます。</b>
+      ドル円は15分足で金利差つき、長く持っている株は日足で移動平均だけ ——
+      という使い分けを、開くたびにやり直さずに済みます。</p>
+    <p class="qsrc" style="margin:0 0 10px">覚えるのは<b>見かたであって、データではありません</b>。
+      足種・期間・出している指標・パネルの高さ・パネルの並びの5つです。</p>
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="viewSave">いまの表示をこの銘柄に覚えさせる</button>
+      <button class="chip hide" id="viewClear" style="border-style:dashed">この銘柄の記憶を消す</button>
+    </div>
+    <p class="qsrc" id="viewStat" style="margin:0"></p>
+    <div id="viewList"></div>
+  </div>
+
   <div class="card" id="rateCard">
     <h2>金利(日米10年債)</h2>
     <p class="qsrc" style="margin:0 0 10px">為替は「どちらの通貨で持っていたほうが
@@ -1293,8 +1328,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v44';
-const APP_DATE = '2026-08-18';
+const APP_VER = 'v45';
+const APP_DATE = '2026-08-19';
 
 /* ============================================================
    1. Small helpers
@@ -3308,6 +3343,18 @@ let layoutMode = 'auto';
 
 /* per-panel height multipliers, keyed by panel name. Null prototype and
    re-validated on load: this comes back out of localStorage. */
+/* 高さと並びは2つ持ちます。
+
+   base… この端末の既定。何も覚えていない銘柄で使う値です。
+   panel… いま画面に出している値。見かたを覚えた銘柄を開くと、
+          そちらの値に差し替わります。
+
+   分けないと、見かたを覚えた1銘柄を開いただけで<b>その形が端末の
+   既定になり、以後どの銘柄を開いてもその高さで出ます</b>。しかも
+   ドラッグ1回で保存されるので、元の既定は消えて戻せません。 */
+let baseScale = Object.create(null);
+let baseOrder = [];
+let viewActive = null;              /* いま当てている見かたの銘柄コード */
 let panelScale = Object.create(null);
 function sanitizeScales(o){
   const out = Object.create(null);
@@ -3326,10 +3373,24 @@ function setPanelScale(key, v, dragging){
   if(Math.abs(n - 1) < 0.02) delete panelScale[k]; else panelScale[k] = +n.toFixed(3);
   /* while dragging, the write is deferred to the end: redraw()'s own rule is
      that a gesture must not hit storage on every frame */
-  if(!dragging) Store.set('panelScale', panelScale);
+  if(!dragging) persistLayoutPrefs();
   redraw();
 }
-function resetPanelScales(){ panelScale = Object.create(null); Store.set('panelScale', {}); redraw(); }
+function resetPanelScales(){
+  panelScale = Object.create(null);
+  persistLayoutPrefs();
+  redraw();
+}
+/* 端末の既定として保存してよいのは、<b>見かたを当てていないとき</b>だけ。
+   当てているあいだの操作は、その銘柄の見かたを「覚えさせる」ボタンで
+   保存するもので、端末の既定を書き換えるものではありません。 */
+function persistLayoutPrefs(){
+  if(viewActive) return;
+  baseScale = panelScale;
+  baseOrder = panelOrder;
+  Store.set('panelScale', panelScale);
+  Store.set('panelOrder', panelOrder);
+}
 
 function layout(){
   const host = $('#chartHost');
@@ -3393,6 +3454,13 @@ function layout(){
     subs.push({key:'rates',
       title: r.hasSpread ? '日米10年債の金利差(%)' : '10年債の利回り(%)'});
   }
+
+  /* 並び順。既定の順で組んでから、保存された順に並べ直します。
+     組み立ての条件(データがあるか、トグルが立っているか)は順番とは
+     別の話なので、ここで一度に混ぜないほうが読めます。 */
+  const subsOrdered = orderSubs(subs);
+  subs.length = 0;
+  for(const sp of subsOrdered) subs.push(sp);   /* orderSubs は別配列を返します */
 
   /* Each panel can be stretched or squashed on its own. The scale is a
      multiplier the user sets by dragging the divider under a panel, kept
@@ -5224,6 +5292,11 @@ function renderTable(){
 /* Storage that degrades instead of throwing. Opened as a saved file in a
    normal browser this persists; inside a sandboxed frame it quietly falls
    back to memory for the session. */
+/* 期間の名前。お気に入りの洗浄(sanitizeView)がこれを読むので、
+   Book を組み立てるより前に置いてあります。 */
+const RANGE_LABEL = {'1d':'1日','5d':'5日','1mo':'1ヶ月','3mo':'3ヶ月','6mo':'6ヶ月',
+                     '1y':'1年','2y':'2年','5y':'5年','max':'全期間'};
+
 const Store = {
   ok: (() => { try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true; }
                catch(e){ return false; } })(),
@@ -5295,12 +5368,77 @@ const Store = {
 /* ---- favourites & history ------------------------------------------- */
 /* localStorage is writable by anything that ever ran in this origin, so
    what comes back out is re-validated, not trusted because we wrote it. */
+/* ------------------------------------------------------------
+   ここから3つは、Book(お気に入り)を組み立てるより<b>前</b>に
+   置かなければいけません。sanitizeBook が sanitizeView を呼び、
+   sanitizeView が RANGE_LABEL と VIEW_TOGGLE_KEYS を読むためです。
+
+   関数の宣言は巻き上がりますが、const と let は巻き上がりません。
+   後ろに置いたまま「関数があるか」だけ typeof で見ていたので、
+   見かたを1件でも覚えると<b>次に開いたときスクリプト全体が止まり、
+   真っ白な画面になりました</b>(しかも記録は残るので、開き直しても
+   直りません)。順番で解決します。
+   ------------------------------------------------------------ */
+/* 下に積むパネルの既定の順番。ここに無いキーは並べ替えの対象外です
+   (株価パネルは常にいちばん上で、動かせません)。 */
+const PANEL_KEYS = ['vol','rsi','flow','sizeflow','macd','stoch','adx','lorentz',
+                    'shortPanel','marginPanel','cot','rates','valuation'];
+const PANEL_NAME = {
+  vol:'出来高', rsi:'RSI / MFI', flow:'資金フロー(CMF)', sizeflow:'大口 / 小口',
+  macd:'MACD', stoch:'ストキャスティクス', adx:'DMI / ADX', lorentz:'Lorentzian 予測',
+  shortPanel:'空売り', marginPanel:'信用残', cot:'円の建玉', rates:'日米金利差',
+  valuation:'PER / PBRの推移'
+};
+function sanitizeOrder(a){
+  const out = [];
+  if(!Array.isArray(a)) return out;
+  for(const k of a.slice(0, 40))
+    if(typeof k === 'string' && PANEL_KEYS.indexOf(k) >= 0 && out.indexOf(k) < 0) out.push(k);
+  return out;
+}
+let panelOrder = sanitizeOrder(Store.get('panelOrder', []));
+
+const VIEW_TOGGLE_KEYS = Object.keys(state.toggles);
+
+function sanitizeView(v){
+  if(!v || typeof v !== 'object') return null;
+  const out = {};
+  if(owns(IV_LABEL, v.iv)) out.iv = v.iv;
+  if(owns(RANGE_LABEL, v.range)) out.range = v.range;
+  if(v.toggles && typeof v.toggles === 'object'){
+    const t = {};
+    for(const k of VIEW_TOGGLE_KEYS) if(typeof v.toggles[k] === 'boolean') t[k] = v.toggles[k];
+    if(Object.keys(t).length) out.toggles = t;
+  }
+  const sc = sanitizeScales(v.scale);
+  if(Object.keys(sc).length) out.scale = sc;
+  const or = sanitizeOrder(v.order);
+  if(or.length) out.order = or;
+  /* いつ覚えたか。同期でぶつかったときに、どちらが新しいかを決めます。
+     これが無いと、先に持っていたほうが黙って勝ちます。 */
+  /* 読むたびに「いま」を押すと、時刻の無い(=古い)記録が同期で
+     必ず勝ちます。分からないものは 0 = いちばん古い、にします。 */
+  out.at = isNum(v.at) && v.at > 0 && v.at < Date.now() + 3e5 ? v.at : 0;
+  return Object.keys(out).length > 1 ? out : null;
+}
+
 function sanitizeBook(list){
   return (Array.isArray(list) ? list : []).filter(x => x && typeof x === 'object')
-    .map(x => ({code: cleanSymbol(x.code), name: cleanText(x.name, 60),
-                price: isNum(x.price) ? x.price : null,
-                cur: /^[A-Z]{3}$/.test(x.cur || '') ? x.cur : null,
-                at: isNum(x.at) ? x.at : 0}))
+    .map(x => {
+      const o = {code: cleanSymbol(x.code), name: cleanText(x.name, 60),
+                 price: isNum(x.price) ? x.price : null,
+                 cur: /^[A-Z]{3}$/.test(x.cur || '') ? x.cur : null,
+                 at: isNum(x.at) ? x.at : 0};
+      /* 銘柄ごとに覚えた「見かた」。同期や書き出しから戻ってくるので、
+         中身は必ず洗います。sanitizeView は後ろで定義されますが、
+         この関数が走るのは Book を作るときで、そこはもっと後です。 */
+      const v = sanitizeView(x.view);
+      if(v) o.view = v;
+      /* 「見かたを消した」時刻。同期で古い記録が戻ってこないように。 */
+      if(isNum(x.viewDel) && x.viewDel > 0 && x.viewDel < Date.now() + 3e5)
+        o.viewDel = x.viewDel;
+      return o;
+    })
     .filter(x => x.code).slice(0, 40);
 }
 /* Removals are remembered, not just applied. Without this a favourite
@@ -7036,6 +7174,208 @@ function pctlOf(arr, qs){
   });
 }
 
+
+
+/* ============================================================
+   15. パネルの並び順と、銘柄ごとの表示の記憶
+   ============================================================ */
+
+
+/* 保存されている順 + 既定の順(保存に無いぶん)。常に全キーが入ります。 */
+function fullPanelOrder(){
+  const out = panelOrder.slice();
+  for(const k of PANEL_KEYS) if(out.indexOf(k) < 0) out.push(k);
+  return out;
+}
+/* layout() が組んだパネルの配列を、保存された順に並べ直します。
+   順番の指定が無いキーは<b>もとの位置のまま</b>後ろに回ります
+   (安定ソート。指定していないものが勝手に動かないように)。 */
+function orderSubs(subs){
+  /* <b>必ず新しい配列を返します。</b>指定が無いときに引数をそのまま
+     返していたので、呼び出し側の「元を空にしてから詰め直す」で
+     戻り値ごと空になり、パネルが1枚も出なくなりました。 */
+  if(!panelOrder.length) return subs.slice();
+  const rank = k => { const i = panelOrder.indexOf(k); return i < 0 ? 1e6 : i; };
+  return subs.map((s, i) => ({s, i}))
+    .sort((a, b) => (rank(a.s.key) - rank(b.s.key)) || (a.i - b.i))
+    .map(x => x.s);
+}
+function visiblePanelKeys(){
+  return (LAY && LAY.panels ? LAY.panels : []).map(p => p.key).filter(k => k !== 'main');
+}
+/* 隣の<b>見えているパネル</b>と入れ替えます。あいだに隠れたパネルが
+   あっても、そちらは動かしません(押した結果が画面と食い違わないように)。 */
+function movePanel(key, dir){
+  const vis = visiblePanelKeys();
+  const vi = vis.indexOf(key), ti = vi + dir;
+  if(vi < 0 || ti < 0 || ti >= vis.length) return false;
+  const full = fullPanelOrder();
+  const a = full.indexOf(key), b = full.indexOf(vis[ti]);
+  if(a < 0 || b < 0) return false;
+  const t = full[a]; full[a] = full[b]; full[b] = t;
+  panelOrder = full;
+  persistLayoutPrefs();
+  redraw();
+  renderPanelOrder();
+  return true;
+}
+function resetPanelOrder(){
+  panelOrder = [];
+  persistLayoutPrefs();
+  redraw();
+  renderPanelOrder();
+}
+
+function renderPanelOrder(){
+  const box = $('#panelOrderBox');
+  if(!box) return;
+  const vis = visiblePanelKeys();
+  if(!vis.length){
+    box.innerHTML = '<p class="qsrc" style="margin:0">いま下に出ているパネルがありません。'
+      + '上のボタン(RSI・MACDなど)を押すと、ここに並びます。</p>';
+    return;
+  }
+  box.innerHTML = '<ol class="porder">' + vis.map((k, i) =>
+    `<li><span class="pnum">${i + 1}</span>`
+    + `<span class="pname">${esc(PANEL_NAME[k] || k, 24)}</span>`
+    + `<span class="pobtns">`
+    + `<button class="chip pobtn" data-move="up" data-k="${esc(k,20)}"`
+    + `${i === 0 ? ' disabled' : ''} aria-label="${esc(PANEL_NAME[k]||k,24)}を上へ">▲</button>`
+    + `<button class="chip pobtn" data-move="down" data-k="${esc(k,20)}"`
+    + `${i === vis.length-1 ? ' disabled' : ''} aria-label="${esc(PANEL_NAME[k]||k,24)}を下へ">▼</button>`
+    + `</span></li>`).join('') + '</ol>';
+}
+
+/* --- 銘柄ごとの表示の記憶 --------------------------------------------
+   お気に入りの1件ずつに「この銘柄はこう見る」を持たせます。ドル円は
+   15分足で金利差つき、長期で持っている株は日足で移動平均だけ、という
+   使い分けを毎回やり直さずに済みます。
+
+   覚えるのは<b>見かたであって、データではありません</b>。足種・期間・
+   出している指標・パネルの高さ・パネルの並びの5つです。 */
+function currentView(){
+  const t = {};
+  for(const k of VIEW_TOGGLE_KEYS) t[k] = !!state.toggles[k];
+  const sc = {};
+  for(const k of Object.keys(panelScale)) sc[k] = panelScale[k];
+  return {iv: state.interval, range: state.range, toggles: t,
+          scale: sc, order: fullPanelOrder()};
+}
+
+Object.assign(Book, {
+  viewFor(code){
+    const c = cleanSymbol(code);
+    if(!c) return null;
+    const f = this.favs.find(x => x.code === c);
+    return f && f.view ? f.view : null;
+  },
+  saveView(code, name){
+    const c = cleanSymbol(code);
+    if(!c) return false;
+    let f = this.favs.find(x => x.code === c);
+    if(!f){                                   /* まだ★でなければ、押した時点で入れます */
+      this.favs.unshift({code: c, name: cleanText(name || c, 60), at: Date.now()});
+      this.favs = this.favs.slice(0, 40);
+      delete this.tomb[c];
+    }
+    f = this.favs.find(x => x.code === c);
+    f.view = sanitizeView(Object.assign(currentView(), {at: Date.now()}));
+    delete f.viewDel;
+    viewActive = c;
+    Store.set('favs', this.favs);
+    Store.set('favdel', this.tomb);
+    renderBook(); renderViewCard();
+    this.changed();
+    return true;
+  },
+  clearView(code){
+    const f = this.favs.find(x => x.code === cleanSymbol(code));
+    if(!f || !f.view) return false;
+    delete f.view;
+    /* 「消した」も記録します。消したことが荷物に乗らないと、
+       もう一方の端末が持っている古い見かたが次の同期で戻ってきます
+       (★の削除に favdel があるのと同じ理由)。 */
+    f.viewDel = Date.now();
+    if(cleanSymbol(code) === viewActive){
+      panelScale = baseScale; panelOrder = baseOrder; viewActive = null;
+    }
+    Store.set('favs', this.favs);
+    renderBook(); renderViewCard();
+    this.changed();
+    return true;
+  },
+  /* 足種と期間だけは<b>取りにいく前</b>に効かせます。あとから変えると
+     もう一度取りにいくことになり、通信が2回になります。 */
+  applyViewPre(code){
+    const v = this.viewFor(code);
+    if(!v) return false;
+    let hit = false;
+    if(v.iv && v.iv !== state.interval){ state.interval = v.iv; hit = true; }
+    if(v.range && v.range !== state.range){ state.range = v.range; hit = true; }
+    if(hit){ setPreset(state.interval); buildRanges(); showPreset(); syncControls(); }
+    return hit;
+  },
+  /* 残りは足が届いてから。 */
+  applyViewPost(code){
+    const v = this.viewFor(code);
+    if(!v){
+      /* 覚えていない銘柄では<b>端末の既定に戻します</b>。戻さないと、
+         直前に開いた銘柄の高さと並びがそのまま残ります。 */
+      panelScale = baseScale; panelOrder = baseOrder; viewActive = null;
+      return false;
+    }
+    if(v.toggles){
+      for(const k of VIEW_TOGGLE_KEYS)
+        if(typeof v.toggles[k] === 'boolean') state.toggles[k] = v.toggles[k];
+      syncToggleChips();
+    }
+    panelScale = v.scale ? sanitizeScales(v.scale) : baseScale;
+    panelOrder = v.order ? sanitizeOrder(v.order) : baseOrder;
+    viewActive = cleanSymbol(code) || null;
+    return true;
+  }
+});
+
+function syncToggleChips(){
+  for(const b of document.querySelectorAll('.chip[data-t]')){
+    const k = b.dataset.t;
+    if(owns(state.toggles, k)) b.setAttribute('aria-pressed', String(!!state.toggles[k]));
+  }
+}
+
+function renderViewCard(){
+  const stat = $('#viewStat'), list = $('#viewList');
+  renderPanelOrder();
+  if(!stat || !list) return;
+  const code = state.raw && state.raw.code;
+  const live = code && code !== 'DEMO' && code !== 'CSV';
+  const save = $('#viewSave'), clr = $('#viewClear');
+  if(save) save.disabled = !live;
+  const has = live ? !!Book.viewFor(code) : false;
+  if(clr) clr.classList.toggle('hide', !has);
+  if(!live){
+    stat.textContent = '先に銘柄を読み込んでください。';
+  } else {
+    const v = Book.viewFor(code);
+    stat.innerHTML = has
+      ? `<b>${esc(code, 24)}</b> は覚えてあります —`
+        + ` ${esc(IV_LABEL[v.iv] || '', 8)} / ${esc(RANGE_LABEL[v.range] || '', 8)}`
+        + ` ・ 指標 ${v.toggles ? Object.keys(v.toggles).filter(k => v.toggles[k]).length : 0}個`
+        + `。次にこの銘柄を開いたとき、この形で出ます。`
+      : `<b>${esc(code, 24)}</b> はまだ覚えていません。`
+        + `いまの足種・期間・出している指標・パネルの高さと並びを、この銘柄に紐づけて覚えます`
+        + `(お気に入りに入っていなければ、そのとき一緒に入ります)。`;
+  }
+  const saved = Book.favs.filter(f => f.view);
+  list.innerHTML = saved.length
+    ? '<p class="qsrc" style="margin:10px 0 6px">覚えている銘柄</p>'
+      + '<div class="filters">' + saved.map(f =>
+        `<button class="chip" data-vcode="${esc(f.code, 24)}" title="${esc(f.name, 60)}">`
+        + `${esc(f.name || f.code, 18)}`
+        + `<span class="qsrc" style="margin-left:6px">${esc(IV_LABEL[f.view.iv] || '', 8)}</span></button>`).join('')
+      + '</div>'
+    : '';
+}
 
 /* ============================================================
    14. 為替まわり — 金融政策の日程・節目とピボット・取引時間帯
@@ -10056,6 +10396,9 @@ function unpackBars(p){
 /* ---- the workspace --------------------------------------------------- */
 const WS_KEY = 'workspace';
 let wsTimer = null, wsRestoring = false, wsCleared = false;
+/* run() が立て、apply() が使って落とす旗。「利用者がこの銘柄を開いた」
+   ことの目印で、自動更新やタブの復元と区別するために要ります。 */
+let pendingView = null;
 /* when this device's screen last changed — section 14 stamps the tab layout
    it uploads with this, so the other device can say how old it is */
 let wsSavedAt = +Store.get('wsAt', 0) || 0;
@@ -10288,7 +10631,21 @@ function buildBundle(opts){
     savedAt: Date.now(),
     theme: document.documentElement.getAttribute('data-theme') || 'auto',
     layout: ['auto','one','two','full'].includes(layoutMode) ? layoutMode : 'auto',
-    favs: Book.favs.map(f => ({code: f.code, name: f.name, at: f.at || 0})),
+    panelOrder: panelOrder.slice(),
+    /* 銘柄ごとに覚えた「見かた」も運びます。数十バイトで、
+       端末をまたいで使い分けを持ち歩けるほうが自然です。 */
+    favs: Book.favs.map(f => {
+      const o = {code: f.code, name: f.name, at: f.at || 0};
+      /* パネルの高さは端末ごとの好みです(画面の大きさが違います)。
+         カードにも「同期しないもの」と書いてあるので、見かたを運ぶときも
+         そこだけ外します。並びと指標と足種は運びます。 */
+      if(f.view){
+        const {scale, ...rest} = f.view;
+        o.view = rest;
+      }
+      if(f.viewDel) o.viewDel = f.viewDel;
+      return o;
+    }),
     favdel: Object.assign({}, Book.tomb),
     /* price and currency travel too: Drive sync carries them, so an import
        from a file was blanking values the device already had on screen */
@@ -10359,6 +10716,7 @@ function sanitizeBundle(raw){
     savedAt: isNum(raw.savedAt) ? raw.savedAt : Date.now(),
     theme: ['auto','light','dark'].includes(raw.theme) ? raw.theme : null,
     layout: ['auto','one','two','full'].includes(raw.layout) ? raw.layout : null,
+    panelOrder: sanitizeOrder(raw.panelOrder),
     favs: sanitizeBook(raw.favs),
     favdel: sanitizeTomb(raw.favdel),
     hist: sanitizeBook(raw.hist),
@@ -10455,6 +10813,23 @@ async function applyBundle(raw, mode){
       const cur = seen.get(x.code);
       /* for history the later visit wins; a star keeps whatever this device
          already recorded, so importing never renames or re-dates one */
+      /* 見かたは「あとから覚えたほう」を採ります。★そのものは
+         手元の記録を優先しますが(名前や日付を書き換えないため)、
+         見かたまで巻き添えにすると、スマホで覚えた形がPCに永久に
+         届きません。ここだけは新しいほうを取ります。 */
+      if(cur){
+        /* 消したほうが新しければ、こちらの記録も落とします */
+        if((x.viewDel || 0) > (cur.view ? (cur.view.at || 0) : 0)
+           && (x.viewDel || 0) > (cur.viewDel || 0)){
+          delete cur.view;
+          cur.viewDel = x.viewDel;
+        }
+        if(x.view && (x.view.at || 0) > (cur.viewDel || 0)
+           && (!cur.view || (x.view.at || 0) > (cur.view.at || 0))){
+          cur.view = x.view;
+          delete cur.viewDel;
+        }
+      }
       if(!cur) seen.set(x.code, x);
       /* the newer visit wins, but it must not blank a price the older entry
          carried and the newer one simply did not record */
@@ -10503,6 +10878,12 @@ async function applyBundle(raw, mode){
 
   if(b.theme) setTheme(b.theme, Date.now());
   if(b.layout) applyLayout(b.layout);
+  if(b.panelOrder && b.panelOrder.length){
+    baseOrder = b.panelOrder;
+    if(!viewActive) panelOrder = baseOrder;
+    Store.set('panelOrder', baseOrder);
+  }
+  try { renderViewCard(); } catch(e){}
 
   let added = 0;
   if(b.supply){
@@ -15043,6 +15424,157 @@ async function runSelfTests(){
     /www\.mof\.go\.jp/.test(WORKER_SRC) && /publicreporting\.cftc\.gov/.test(WORKER_SRC));
 
   await new Promise(r => setTimeout(r, 60));
+  tgroup('パネルの並びと銘柄ごとの記憶');
+  test('並べ替えは元の配列を壊さない', () => {
+    /* 指定が無いとき引数をそのまま返していたので、呼び出し側の
+       「空にして詰め直す」で戻り値ごと空になり、パネルが1枚も
+       出なくなりました。必ず別の配列を返します。 */
+    const keep = panelOrder;
+    panelOrder = [];
+    const src = [{key:'vol'},{key:'rsi'},{key:'macd'}];
+    const out = orderSubs(src);
+    const same = out === src;
+    src.length = 0;
+    const survived = out.length;
+    panelOrder = keep;
+    return (!same && survived === 3) ? true : `同一参照=${same} 残り=${survived}`;
+  });
+  test('指定した順に並べ替える', () => {
+    const keep = panelOrder;
+    panelOrder = ['macd','vol','rsi'];
+    const out = orderSubs([{key:'vol'},{key:'rsi'},{key:'macd'}]).map(x => x.key);
+    panelOrder = keep;
+    return eq(out.join(','), 'macd,vol,rsi');
+  });
+  test('指定に無いパネルは元の位置のまま後ろへ', () => {
+    const keep = panelOrder;
+    panelOrder = ['macd'];
+    const out = orderSubs([{key:'vol'},{key:'rsi'},{key:'macd'},{key:'adx'}]).map(x => x.key);
+    panelOrder = keep;
+    return eq(out.join(','), 'macd,vol,rsi,adx');
+  });
+  test('知らないキーは並び順に入れない', () => {
+    const out = sanitizeOrder(['rsi','__proto__','rsi','こわれ','macd', 42]);
+    return eq(JSON.stringify(out), '["rsi","macd"]');
+  });
+  test('全キーを埋めた並びを作る', () => {
+    const keep = panelOrder;
+    panelOrder = ['macd'];
+    const full = fullPanelOrder();
+    panelOrder = keep;
+    return eq(full[0], 'macd') && eq(full.length, PANEL_KEYS.length)
+      && eq(new Set(full).size, PANEL_KEYS.length, '重複なし');
+  });
+  test('パネルの名前が全部ある', () =>
+    PANEL_KEYS.every(k => typeof PANEL_NAME[k] === 'string' && PANEL_NAME[k].length)
+      ? true : PANEL_KEYS.filter(k => !PANEL_NAME[k]).join(','));
+  test('覚えた見かたが往復する', () => {
+    const v = sanitizeView({iv:'15m', range:'1mo',
+      toggles:{ma:false, rsi:true, ichimoku:true},
+      scale:{rsi:1.6}, order:['macd','rsi']});
+    if(!v) return 'null';
+    return eq(v.iv, '15m') && eq(v.range, '1mo')
+      && eq(v.toggles.rsi, true) && eq(v.toggles.ma, false)
+      && eq(v.scale.rsi, 1.6) && eq(v.order.join(','), 'macd,rsi')
+      && isNum(v.at);
+  });
+  test('こわれた見かたは通さない', () => {
+    const v = sanitizeView({iv:'ダメ', range:'zz', toggles:{ma:'yes'},
+                            scale:{'__proto__':9, rsi:99}, order:['__proto__']});
+    /* iv も range も toggles も scale も order も落ちるので、
+       残るのは時刻だけ = 中身なしとして null を返します */
+    return eq(v, null) && eq(sanitizeView(null), null) && eq(sanitizeView({}), null);
+  });
+  test('お気に入りの洗浄が見かたを残す', () => {
+    const out = sanitizeBook([{code:'7203.T', name:'トヨタ', at:1,
+      view:{iv:'1d', range:'6mo', toggles:{rsi:true}, at:123}}]);
+    return eq(out.length, 1) && !!out[0].view && eq(out[0].view.iv, '1d')
+        && eq(out[0].view.at, 123);
+  });
+  test('見かたは新しいほうが同期で勝つ', () => {
+    const keepF = Book.favs.slice(), keepT = Object.assign(Object.create(null), Book.tomb);
+    Book.favs = [{code:'9999.T', name:'x', at: 1000,
+                  view:{iv:'1d', range:'1y', toggles:{rsi:true}, at: 1000}}];
+    const b = sanitizeBundle({kind:'ta-tool-settings', v: SHARE_V, savedAt: 2000,
+      favs:[{code:'9999.T', name:'x', at: 1000,
+             view:{iv:'15m', range:'5d', toggles:{rsi:false}, at: 2000}}]});
+    const inc = b.favs[0];
+    const cur = Book.favs[0];
+    /* applyBundle の合流と同じ判定 */
+    const wins = inc.view && (!cur.view || (inc.view.at || 0) > (cur.view.at || 0));
+    Book.favs = keepF; Book.tomb = keepT;
+    return wins && inc.view.iv === '15m' ? true : '古いほうが勝った';
+  });
+  test('見かた中の操作が端末の既定を汚さない', () => {
+    /* 覚えた銘柄を開くと、その高さと並びが<b>端末の既定</b>になり、
+       ドラッグ1回で保存されていました。以後どの銘柄も同じ高さで出ます。 */
+    const kB = baseScale, kP = panelScale, kV = viewActive, kS = Store.get('panelScale', {});
+    baseScale = {rsi: 1}; panelScale = baseScale; viewActive = null;
+    Store.set('panelScale', {rsi: 1});
+    viewActive = '7203.T';                 /* 見かたを当てている状態 */
+    panelScale = {rsi: 2.5};
+    persistLayoutPrefs();
+    const kept = JSON.stringify(Store.get('panelScale', {}));
+    viewActive = null;
+    persistLayoutPrefs();
+    const now = JSON.stringify(Store.get('panelScale', {}));
+    baseScale = kB; panelScale = kP; viewActive = kV; Store.set('panelScale', kS);
+    return (kept === '{"rsi":1}' && now === '{"rsi":2.5}')
+      ? true : `見かた中=${kept} 解除後=${now}`;
+  });
+  test('覚えていない銘柄では既定に戻る', () => {
+    const kB = baseScale, kP = panelScale, kV = viewActive;
+    baseScale = {rsi: 1}; panelScale = {rsi: 3}; viewActive = '7203.T';
+    Book.applyViewPost('この銘柄はない.T');
+    const ok = panelScale === baseScale && viewActive === null;
+    baseScale = kB; panelScale = kP; viewActive = kV;
+    return ok ? true : '戻らなかった';
+  });
+  test('消した印が同期の荷物に乗る', () => {
+    const keep = Book.favs.slice();
+    Book.favs = [{code:'9999.T', name:'x', at:1, viewDel: 12345}];
+    const b = buildBundle({});
+    const f = (b.favs || [])[0];
+    Book.favs = keep;
+    return !!(f && !f.view && f.viewDel === 12345) ? true : JSON.stringify(f);
+  });
+  test('消したあとに古い見かたが戻らない', () => {
+    /* 消したこと(viewDel)より古い見かたは受け取りません */
+    const cur = {code:'9999.T', viewDel: 2000};
+    const x = {code:'9999.T', view:{iv:'1d', at: 1000}};
+    const revive = !!(x.view && (x.view.at || 0) > (cur.viewDel || 0));
+    const newer = {code:'9999.T', view:{iv:'1d', at: 3000}};
+    const take = !!(newer.view && (newer.view.at || 0) > (cur.viewDel || 0));
+    return (!revive && take) ? true : `古い=${revive} 新しい=${take}`;
+  });
+  test('時刻の無い見かたは同期で勝たない', () => {
+    const v = sanitizeView({iv:'1d', toggles:{rsi:true}});
+    return eq(v && v.at, 0);
+  });
+  test('パネルの高さは同期の荷物から外す', () => {
+    /* 画面の大きさが端末ごとに違うので、カードにも「同期しないもの」と
+       書いてあります。見かたに乗せて運んだら同じことです。 */
+    const keep = Book.favs.slice();
+    Book.favs = [{code:'9999.T', name:'x', at:1,
+      view:{iv:'15m', range:'5d', toggles:{rsi:true}, scale:{rsi:2}, order:['macd'], at:5}}];
+    const b = buildBundle({});
+    const v = ((b.favs || [])[0] || {}).view || {};
+    Book.favs = keep;
+    return (!v.scale && v.iv === '15m' && v.order && v.order[0] === 'macd')
+      ? true : JSON.stringify(v);
+  });
+  test('見かたも同期の荷物に乗る', () => {
+    const keep = Book.favs.slice();
+    Book.favs = [{code:'9999.T', name:'x', at:1,
+                  view:{iv:'15m', range:'5d', toggles:{rsi:true}, at:5}}];
+    const b = buildBundle({});
+    Book.favs = keep;
+    const f = (b.favs || [])[0];
+    return !!(f && f.view && f.view.iv === '15m') && Array.isArray(b.panelOrder)
+      ? true : JSON.stringify(f);
+  });
+
+  await new Promise(r => setTimeout(r, 60));
   tgroup('XSS(表示部への注入)');
   test('注入コードが一度も実行されていない', () => eq(window.__xssFired, 0));
   return T.list;
@@ -15134,6 +15666,9 @@ function redraw(){
   renderNavPos();
   /* the panel list changes whenever an indicator is switched on or off */
   if($('#phWrap') && $('#phWrap').open) renderPanelHeights();
+  /* LAY を組み直したあとに。トグルのハンドラから先に呼んでいたので、
+     一覧が常に1手ぶん古く、消えたパネルの行に▲が残っていました。 */
+  renderPanelOrder();
   if(Compare.active.length){
     /* the numbers are labelled "over the displayed period", so they have to
        follow the zoom — debounced because correlation is O(visible bars) */
@@ -15231,7 +15766,7 @@ function endSizing(){
   const key = sizing.key;
   sizing = null;
   cv.style.cursor = '';
-  Store.set('panelScale', panelScale);        /* written once, at the end */
+  persistLayoutPrefs();                      /* written once, at the end */
   saveWorkspaceSoon();
 }
 
@@ -15772,6 +16307,8 @@ $$('.chip[data-t]').forEach(btn => {
     if(k === 'valuation') renderFundCard();
     /* 金利と建玉のカードにも同じ切り替えボタンがあります */
     if(k === 'rates' || k === 'cot') renderRateCard();
+    /* 並びの一覧は redraw() のなかで出し直します(LAY を組んだあと)。
+       ここではボタンの文言だけそろえます。 */
     /* the verdict list is toggle-dependent too — スーパートレンド, VWAP,
        一目・三役, 資金フロー and 価格帯別出来高 all appear only when their
        chip is on, and the score is weighted by them. redraw() alone left the
@@ -15801,8 +16338,6 @@ const IV_RANGES = {
 /* what to actually ask the server for, and how many of those to fold into
    one bar. Anything not listed is requested as-is. */
 const IV_BUILD = {'4h': {from: '1h', n: 4}, '8h': {from: '1h', n: 8}};
-const RANGE_LABEL = {'1d':'1日','5d':'5日','1mo':'1ヶ月','3mo':'3ヶ月','6mo':'6ヶ月',
-                     '1y':'1年','2y':'2年','5y':'5年','max':'全期間'};
 
 /* roughly how long each range is, in days — only the ORDER matters */
 const RANGE_DAYS = {'1d': 1, '5d': 5, '1mo': 30, '3mo': 91, '6mo': 182,
@@ -16419,7 +16954,21 @@ function apply(data){
   /* the poll counter answers "how many times have I fetched THIS stock and
      seen nothing move" — carrying it across a symbol change made the answer
      meaningless */
-  if(!state.raw || state.raw.code !== data.code){ pollCount = 0; pollChanged = 0; }
+  const symChanged = !state.raw || state.raw.code !== data.code;
+  if(symChanged){ pollCount = 0; pollChanged = 0; }
+  /* 覚えた見かたを当てるのは<b>利用者が「この銘柄を開いた」ときだけ</b>。
+
+     はじめ「銘柄が変わったとき」にしていましたが、それだと
+     ・いま出ている銘柄をもう一度開いても指標が戻らない
+       (＝「覚えた形に戻したい」といういちばん自然な操作が効かない)
+     ・2枚目のタブで同じ銘柄を開くと、state.raw が1枚目のままなので当たらない
+     という穴がありました。run() が旗を立て、ここで1回だけ使います。
+     自動更新は旗を立てないので、その場で指標を切った操作は戻りません。 */
+  const wantView = pendingView;
+  pendingView = null;
+  if(wantView && !wsRestoring){
+    try { Book.applyViewPost(data.code); } catch(e){}
+  }
   /* 別の銘柄に移るなら、前の銘柄の外部データを先に落とします。
      Ext.loadCache() は下で呼びますが非同期で、その前に走る recompute() が
      前の銘柄の空売り・信用・決算を新しい足に貼り付けてしまいます。
@@ -16443,7 +16992,7 @@ function apply(data){
   /* カードも先に空にします。読み込みが返るまでの数十ミリ秒、前の銘柄の
      PERやBPSが新しい銘柄の名前で出たままになっていました。 */
   renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
-  renderRateCard();
+  renderRateCard(); renderViewCard();
   Ext.loadCache().then(() => {
     if(!state.raw || Ext.codeKey() !== key) return;   /* moved on while reading */
     state.ind = alignExt(state.ind);
@@ -16510,6 +17059,16 @@ async function run(){
   notice('');
   const op = beginOp('load');
   const prev = {interval: state.interval, range: state.range};
+  /* この銘柄に「見かた」を覚えさせてあるなら、<b>取りにいく前</b>に
+     足種と期間を合わせます。あとから変えると取り直しになります。
+
+     ただし prev を取った<b>あと</b>で。先に当てると prev が「当てた
+     あとの値」になり、取得に失敗したときに戻せません。戻せないと、
+     去年の日足を画面に出したまま「15分足」と書かれ、30秒後の自動更新が
+     その表示どおりに取りにいって、頼んでもいない足に置き換わります。 */
+  let viewMoved = false;
+  try { viewMoved = Book.applyViewPre(chosen.y || chosen.code); } catch(e){}
+  pendingView = chosen.y || chosen.code;   /* apply() で1回だけ使われます */
   const askedRange = state.range;
   try{
     const data = await loadSymbol(raw, state.range, state.interval);
@@ -16535,6 +17094,15 @@ async function run(){
     }
   }catch(err){
     if(!opValid(op)) return;
+    /* 見かたで足種を動かしていたなら、まず戻します。ここを通るのは
+       「取れなかった」ときで、画面にはまだ前の銘柄が出ています。 */
+    if(viewMoved && (state.interval !== prev.interval || state.range !== prev.range)){
+      state.interval = prev.interval; state.range = prev.range;
+      setPreset(state.interval); buildRanges(); showPreset(); syncControls();
+      if(state.raw){
+        try { state.ind = recompute(); redraw(); renderSignals(); renderTable(); }catch(e2){}
+      }
+    }
     /* a failed load must not leave the chart relabelled with a timeframe it
        was never computed for */
     if(state.raw && (state.interval !== prev.interval || state.range !== prev.range)
@@ -16969,6 +17537,29 @@ $('#fundFill').addEventListener('click', fundFillForm);
 $('#fundSec').addEventListener('click', loadUsFund);
 $('#fundClear').addEventListener('click', () => Ext.clear('fund'));
 $('#rateGet').addEventListener('click', () => loadRates(false));
+$('#panelOrderBox').addEventListener('click', e => {
+  const b = e.target.closest('[data-move]');
+  if(!b) return;
+  movePanel(b.dataset.k, b.dataset.move === 'up' ? -1 : 1);
+});
+$('#panelOrderReset').addEventListener('click', resetPanelOrder);
+$('#panelScaleReset').addEventListener('click', () => { resetPanelScales(); renderViewCard(); });
+$('#viewSave').addEventListener('click', () => {
+  if(!state.raw || state.raw.code === 'DEMO' || state.raw.code === 'CSV'){
+    notice('銘柄を読み込んでから押してください。', true); return;
+  }
+  Book.saveView(state.raw.code, state.raw.name);
+  notice(`${state.raw.code} の表示を覚えました。次にこの銘柄を開いたとき、この形で出ます。`);
+});
+$('#viewClear').addEventListener('click', () => {
+  if(state.raw) Book.clearView(state.raw.code);
+});
+$('#viewList').addEventListener('click', e => {
+  const b = e.target.closest('[data-vcode]');
+  if(!b) return;
+  $('#sym').value = b.dataset.vcode;
+  run();
+});
 $('#rateClear').addEventListener('click', () => {
   Macro.clear();
   state.ind = alignExt(state.ind);
@@ -17178,7 +17769,9 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
   buildRanges();
   showPreset();
   applyLayout('auto');
-  panelScale = sanitizeScales(Store.get('panelScale', {}));
+  baseScale = sanitizeScales(Store.get('panelScale', {}));
+  panelScale = baseScale;
+  baseOrder = panelOrder;                    /* 起動時は「既定 = いまの値」 */
   $('#autoExt').checked = autoExtOn();
   renderAutoExtStatus();
   refreshSyncInfo();
@@ -17243,6 +17836,9 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
     let restored = false;
     try { restored = await restoreWorkspace(); }
     catch(e){ restored = false; }
+    /* 復元は apply() を通らないので、ここで出し直さないと
+       「先に銘柄を読み込んでください」のまま、保存ボタンも死んでいます。 */
+    try { renderViewCard(); } catch(e){}
     if(!DB.ok) setSaveState('off');
     const live = state.raw && state.raw.source && /Yahoo|Stooq/.test(state.raw.source);
     if(!restored){
