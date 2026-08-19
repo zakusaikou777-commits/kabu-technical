@@ -5,7 +5,7 @@
 /* 名前を変えると、activate で古いキャッシュがまとめて消えます。
    v2 には、CDNのエラー応答やWi-Fiのログインページを保存してしまった端末が
    あり得ます(そのままだとSheetJSが永久に壊れたままになるため)。 */
-const CACHE = 'ta-tool-v10';
+const CACHE = 'ta-tool-v11';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 /* SheetJS など、内容が固定でSRI検証もかかるもの */

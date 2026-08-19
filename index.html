@@ -1336,7 +1336,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v46';
+const APP_VER = 'v47';
 const APP_DATE = '2026-08-19';
 
 /* ============================================================
@@ -3441,15 +3441,15 @@ function layout(){
   /* 出来高と同じで、決算の数値を入れていない銘柄では空の箱になるだけなので
      データがあるときだけ出します。赤字でPERが引けない銘柄はPBRに切り替え、
      どちらも引けなければ出しません。 */
-  const vk = state.toggles.valuation ? valuationKind() : null;
-  if(vk){
+  const vks = state.toggles.valuation ? valuationKinds() : [];
+  if(vks.length){
     /* 決算が1期しか入っていないと、この線は「株価 ÷ 定数」でしかありません。
        当時の会社予想ではなく<b>いまのEPS</b>で割った値なので、そう書きます。
        半年前の株価が倍あった銘柄では、この線は当時のPERとは一致しません。 */
     const one = !state.ind.fund || state.ind.fund.count < 2;
-    subs.push({key:'valuation',
-      title: (vk === 'pbr' ? 'PBRの推移(倍' : 'PERの推移(倍')
-           + (one ? '・いまの決算の数値で換算)' : ')')});
+    const nm = vks.length === 2 ? 'PER(右) と PBR(左) の推移(倍'
+             : vks[0] === 'pbr' ? 'PBRの推移(倍' : 'PERの推移(倍';
+    subs.push({key:'valuation', title: nm + (one ? '・いまの決算の数値で換算)' : ')')});
   }
 
   /* 金利は銘柄に紐づかないので、まだ取っていなければ空の箱になります。
@@ -4878,17 +4878,28 @@ function renderLegend(){
     }
   }
   if(T.valuation){
-    const vk = valuationKind();
+    const vks = valuationKinds();
+    const vk = vks[0] || null;
     if(!vk){
       L.push(`<span class="li" style="color:var(--ink-3)">`
-        + `PER/PBRの推移: 下の「株価指標」で決算の数値を入れると出ます</span>`);
+        + `PER/PBRの推移: 下の「株価指標」で決算の数値を入れると出ます`
+        + `(PBRの線にはBPS=1株純資産が要ります)</span>`);
     } else {
       const f = state.ind && state.ind.fund;
+      const both = vks.length === 2;
       const hasQ = !!(f && fundQuartiles(f, vk === 'pbr' ? f.pbr : f.per));
-      L.push(`<span class="li"><i class="k" style="background:var(--${vk === 'pbr' ? 'ma2' : 'ma1'})"></i>`
-        + `${vk.toUpperCase()}`
-        + (hasQ ? '(横線はこの銘柄自身の過去の四分位。市場平均ではありません)' : '')
-        + `</span>`);
+      if(vks.indexOf('per') >= 0)
+        L.push(`<span class="li"><i class="k" style="background:var(--ma1)"></i>`
+          + `PER${both ? '(右の目盛り)' : ''}</span>`);
+      if(vks.indexOf('pbr') >= 0)
+        L.push(`<span class="li"><i class="k" style="background:var(--cmp2)"></i>`
+          + `PBR${both ? '(左の目盛り)' : ''}</span>`);
+      if(both)
+        L.push(`<span class="li" style="color:var(--ink-3)">`
+          + `倍率の桁が違うので、軸を分けています(目盛りの色が線の色です)</span>`);
+      if(hasQ)
+        L.push(`<span class="li" style="color:var(--ink-3)">`
+          + `横線は${esc(vk.toUpperCase(),4)}の四分位。この銘柄自身の過去で、市場平均ではありません</span>`);
       if(f && f.allBackfill)
         L.push(`<span class="li" style="color:var(--ink-3)">`
           + `決算の日付がいまの足より先なので、全区間が当てはめた参考値です</span>`);
@@ -7153,18 +7164,29 @@ function fundIsBackfilled(f, i){
   return !(isNum(f.firstReal) && f.firstReal >= 0 && i >= f.firstReal);
 }
 
-/* どちらを描けるか。赤字だとPERが無いのでPBRに切り替えます。
+/* 描ける系列。<b>PERとPBRは両方とも出します。</b>
+
+   もとは「PERがあればPER、無ければPBR」の<b>どちらか一方</b>でした。
+   ボタンには「PER / PBRの推移」と書いてあるので、BPSを入れてあるのに
+   PBRの線が出ない、という状態になります(実際そう言われました)。
+
+   倍率の桁が違う(PER 50倍 / PBR 3倍)ので、同じ目盛りには乗せられません。
+   PERを右の軸、PBRを左の軸に置き、目盛りの色を線に合わせます。
+
    点が1つしかない区間は線になりようがないので2つ以上を条件にします。
    表示範囲ではなく配列全体を数えます — layout() は resolveFit() より前に
    走ることがあり、そのとき i0/i1 はまだ前の銘柄の値だからです。 */
-function valuationKind(){
+function valuationKinds(){
   const f = state.ind && state.ind.fund;
-  if(!f) return null;
+  if(!f) return [];
   const cnt = a => { let n = 0; for(let i = 0; i < a.length; i++) if(isNum(a[i])) n++; return n; };
-  if(cnt(f.per) >= 2) return 'per';
-  if(cnt(f.pbr) >= 2) return 'pbr';
-  return null;
+  const out = [];
+  if(cnt(f.per) >= 2) out.push('per');
+  if(cnt(f.pbr) >= 2) out.push('pbr');
+  return out;
 }
+/* 主役(右の軸・四分位を出すほう)。赤字ならPBRが主役になります。 */
+function valuationKind(){ return valuationKinds()[0] || null; }
 
 /* 「この銘柄自身の過去のPERレンジ」として四分位を出してよいか。
 
@@ -10596,42 +10618,56 @@ function drawCot(g){
 function drawValuation(g){
   const p = panel('valuation'); if(!p) return;
   const f = state.ind && state.ind.fund;
-  const kind = valuationKind();
-  if(!f || !kind){ panelFrame(g, p); return; }
-  const arr = kind === 'pbr' ? f.pbr : f.per;
+  const kinds = valuationKinds();
+  if(!f || !kinds.length){ panelFrame(g, p); return; }
   const bars = state.raw.bars;
-  let mn = Infinity, mx = -Infinity;
-  for(let i=Math.max(0,state.i0);i<=Math.min(state.i1, bars.length-1);i++){
-    const v = arr[i];
-    if(!isNum(v)) continue;
-    if(v < mn) mn = v;
-    if(v > mx) mx = v;
-  }
-  /* 表示している範囲に1本も値が無いことがあります(いまが赤字で、過去の
-     黒字だった時期だけPERがある銘柄)。枠だけ描いて黙るのではなく、
-     なぜ空なのかを書きます。 */
-  if(!isFinite(mn) || !isFinite(mx)){
+  const i0 = Math.max(0, state.i0), i1 = Math.min(state.i1, bars.length - 1);
+  const both = kinds.length === 2;
+
+  /* 表示範囲の上下。系列ごとに別の軸なので、別々に測ります。 */
+  const extent = arr => {
+    let mn = Infinity, mx = -Infinity;
+    for(let i = i0; i <= i1; i++){
+      const v = arr[i];
+      if(!isNum(v)) continue;
+      if(v < mn) mn = v;
+      if(v > mx) mx = v;
+    }
+    if(!isFinite(mn) || !isFinite(mx)) return null;
+    const pad = Math.max((mx - mn) * 0.12, Math.abs(mx) * 0.02, 1e-6);
+    return {mn: Math.max(0, mn - pad), mx: mx + pad};
+  };
+  const perE = kinds.indexOf('per') >= 0 ? extent(f.per) : null;
+  const pbrE = kinds.indexOf('pbr') >= 0 ? extent(f.pbr) : null;
+  if(!perE && !pbrE){
     panelFrame(g, p);
     g.fillStyle = C.ink3;
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
-    g.fillText(kind === 'per' ? 'この期間は赤字のためPERがありません' : 'この期間は計算できる値がありません',
+    g.fillText(kinds[0] === 'per' ? 'この期間は赤字のためPERがありません'
+                                  : 'この期間は計算できる値がありません',
                p.x + 6, p.y + p.h / 2);
     return;
   }
-  const pad = Math.max((mx - mn) * 0.12, Math.abs(mx) * 0.02, 1e-6);
-  const y = makeY(p, Math.max(0, mn - pad), mx + pad, 14, 6);
   resetSlots();
 
-  /* この銘柄自身の四分位。ただし決算が1期しか入っていないと、PERは
-     「株価 ÷ 定数」でしかなく、四分位は株価の四分位そのものになります。
-     それを「過去のPERレンジ」と称するのは嘘なので、2期以上あるときだけ。 */
-  const q = fundQuartiles(f, arr);
+  const COL = {per: C.ma[0], pbr: C.rateUs || C.ma[1]};
+  const yFor = e => e ? makeY(p, e.mn, e.mx, 14, 6) : null;
+  const yPer = yFor(perE), yPbr = yFor(pbrE);
+
+  /* 主役 = 右の軸。PERがあればPER、無ければPBR。四分位もこちらだけ
+     (2本ぶん出すと、横線だけで6本になって線が読めません)。 */
+  const mainKind = perE ? 'per' : 'pbr';
+  const mainY = mainKind === 'per' ? yPer : yPbr;
+  const mainArr = mainKind === 'per' ? f.per : f.pbr;
+  const mainE = mainKind === 'per' ? perE : pbrE;
+
+  const q = fundQuartiles(f, mainArr);
   let drew = 0;
   if(q){
     g.save();
     for(let k = 0; k < 3; k++){
-      const Y = y(q[k]);
+      const Y = mainY(q[k]);
       if(Y < p.y + 2 || Y > p.y + p.h - 2) continue;
       g.strokeStyle = C.ink3; g.globalAlpha = k === 1 ? .5 : .28;
       g.setLineDash(k === 1 ? [] : [3,3]); g.lineWidth = 1;
@@ -10639,38 +10675,71 @@ function drawValuation(g){
     }
     g.restore();
     const step = Math.abs(q[2] - q[0]) || Math.abs(q[1]) || 1;
+    /* 四分位が近いと、3つの札が重なって全部読めなくなります。
+       間が空かないぶんは出しません(線は3本とも引いてあります)。 */
+    let lastY = -1e9;
     for(const [k, tag] of [[0,'安'],[1,'中央'],[2,'高']]){
-      const Y = y(q[k]);
+      const Y = mainY(q[k]);
       if(Y < p.y + 2 || Y > p.y + p.h - 2) continue;
-      yLabel(g, p, Y, fmtTick(q[k], step / 4, '倍') + ' ' + tag);
+      if(Math.abs(Y - lastY) < 12) continue;
+      lastY = Y;
+      yLabel(g, p, Y, fmtTick(q[k], step / 4, '倍') + ' ' + tag, COL[mainKind]);
       drew++;
     }
   }
-  /* 四分位が全部パネルの外(ズームで狭い範囲だけ見ている)だと、目盛りが
-     1本も無い線になります。そのときはふつうの目盛りに戻します。 */
   if(!drew){
-    const tk = ticks(Math.max(0, mn - pad), mx + pad, 2);
-    const step = tk.length > 1 ? Math.abs(tk[1] - tk[0]) : (Math.abs(mx) || 1);
-    for(const t of tk){ gridline(g, p, y(t)); yLabel(g, p, y(t), fmtTick(t, step, '倍')); }
+    const tk = ticks(mainE.mn, mainE.mx, 2);
+    const step = tk.length > 1 ? Math.abs(tk[1] - tk[0]) : (Math.abs(mainE.mx) || 1);
+    for(const t of tk){
+      gridline(g, p, mainY(t));
+      yLabel(g, p, mainY(t), fmtTick(t, step, '倍'), COL[mainKind]);
+    }
   }
 
-  /* 実際の決算が効き始める足。そこより前は当てはめただけなので破線。
-     firstReal が無い(全部が当てはめ)ときは、全部を破線にします。 */
-  const col = kind === 'pbr' ? C.ma[1] : C.ma[0];
-  const fr = f.allBackfill ? arr.length
+  /* 脇役 = 左の目盛り。<b>枠の内側</b>に書きます。
+
+     はじめは左の余白(padL)に書きましたが、そこは比較機能が使うときだけ
+     広げる場所で、ふだんは10pxしかありません。数字が画面の外に出て
+     「倍」の字だけが残っていました。余白を常に広げると、スマホの
+     横幅をこのパネルのためだけに毎回50px削ることになります。 */
+  if(both){
+    const tk = ticks(pbrE.mn, pbrE.mx, 2);
+    const step = tk.length > 1 ? Math.abs(tk[1] - tk[0]) : (Math.abs(pbrE.mx) || 1);
+    g.save();
+    g.font = `${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    for(const t of tk){
+      const Y = yPbr(t);
+      /* 題名(左上)の下から。重ねると両方読めなくなります */
+      if(!isNum(Y) || Y < p.y + 18 || Y > p.y + p.h - 4) continue;
+      const txt = fmtTick(t, step, '倍');
+      const w = g.measureText(txt).width + 6;
+      /* 線の上に素で書くと読めないので、下敷きを敷きます */
+      g.fillStyle = C.surface; g.globalAlpha = .8;
+      g.fillRect(p.x + 1, Y - 6, w, 12);
+      g.globalAlpha = 1;
+      g.fillStyle = COL.pbr;
+      g.fillText(txt, p.x + 4, Y);
+    }
+    g.restore();
+  }
+
+  /* 実際の決算が効き始める足。そこより前は当てはめただけなので破線。 */
+  const fr = f.allBackfill ? mainArr.length
            : ((isNum(f.firstReal) && f.firstReal >= 0) ? f.firstReal : 0);
-  if(fr > 0){
-    const pre = arr.map((v, i) => i <= fr ? v : null);
-    line(g, p, pre, y, C.ink3, 1.4, [4,3]);
-  }
-  if(fr < arr.length){
-    const post = arr.map((v, i) => i >= fr ? v : null);
-    line(g, p, post, y, col, 2);
-  }
-  endLabel(g, p, arr, y, f.allBackfill ? C.ink3 : col,
-           kind.toUpperCase() + (f.allBackfill ? '(参考)' : ''));
+  const draw = (kind, arr, y) => {
+    if(!y) return;
+    const col = f.allBackfill ? C.ink3 : COL[kind];
+    if(fr > 0) line(g, p, arr.map((v, i) => i <= fr ? v : null), y, C.ink3, 1.4, [4,3]);
+    if(fr < arr.length) line(g, p, arr.map((v, i) => i >= fr ? v : null), y, COL[kind], 2);
+    endLabel(g, p, arr, y, col,
+             kind.toUpperCase() + (both ? (kind === 'per' ? '(右)' : '(左)') : '')
+             + (f.allBackfill ? '(参考)' : ''));
+  };
+  if(perE) draw('per', f.per, yPer);
+  if(pbrE) draw('pbr', f.pbr, yPbr);
   panelFrame(g, p);
-  state._valuationY = y;
+  state._valuationY = mainY;
 }
 /* ============================================================
    12. Workspace persistence (IndexedDB)
@@ -16044,6 +16113,31 @@ async function runSelfTests(){
     /* 3ページのうち1つが落ちたとき、取れた2つまで捨てていました */
     const m = mergeNkRows([{d:'20260818', w:17.4, i:22.4}], [], []);
     return eq(m.length, 1) && eq(m[0].perI, 22.4) && eq(m[0].pbrI, undefined);
+  });
+  test('PERとPBRを両方描く', () => {
+    /* ボタンには「PER / PBRの推移」と書いてあるのに、片方しか
+       出ていませんでした(PERがあればPER、無ければPBR)。 */
+    const keep = state.ind;
+    const mk = (per, pbr) => ({fund: {per, pbr, count: 4, firstReal: 0, allBackfill: false}});
+    state.ind = mk([50, 51, 52], [3.0, 3.1, 3.2]);
+    const both = valuationKinds();
+    state.ind = mk([null, null, null], [3.0, 3.1, 3.2]);
+    const onlyP = valuationKinds();
+    state.ind = mk([50, 51, 52], [null, null, null]);
+    const onlyE = valuationKinds();
+    state.ind = mk([50, null, null], [3.0, null, null]);
+    const one = valuationKinds();
+    state.ind = keep;
+    return eq(both.join(','), 'per,pbr', '両方')
+        && eq(onlyP.join(','), 'pbr', '赤字ならPBRだけ')
+        && eq(onlyE.join(','), 'per', 'BPSが無ければPERだけ')
+        && eq(one.length, 0, '1点では線にならない');
+  });
+  test('主役は右、脇役は左の目盛り', () => {
+    /* 倍率の桁が違う(PER 50倍 / PBR 3倍)ので同じ軸には乗せられません */
+    const src = String(drawValuation);
+    return /yPer/.test(src) && /yPbr/.test(src)
+        && /both/.test(src) && !/const arr = kind/.test(src);
   });
   test('見かたに通貨が入る', () => {
     const v = sanitizeView({iv:'1d', cur:'USD', toggles:{rsi:true}});
