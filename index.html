@@ -1364,7 +1364,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v48';
+const APP_VER = 'v49';
 const APP_DATE = '2026-08-20';
 
 /* ============================================================
@@ -1446,6 +1446,9 @@ function fmtCur(v, d, cur){
 
 /* 為替かどうか。Yahooの為替コードは USDJPY=X の形です。 */
 function isFxCode(code){ return /=X$/.test(String(code || '')); }
+/* 先物かどうか。Yahooの先物は ES=F / CL=F の形で、いちばん近い限月を
+   つないだ連続足です(=X の為替と紛れないよう、末尾で見分けます)。 */
+function isFutureCode(code){ return /=F$/.test(String(code || '')); }
 function isFxNow(){ return isFxCode(state && state.raw && state.raw.code); }
 
 /* 為替の建値の桁。
@@ -12752,7 +12755,7 @@ const JP_STOCKS = [["1332","ニッスイ","日本水産","にっすい"],["1333"
    US Treasury yields, indices and ETFs. Verified against Yahoo's own
    pages — symbols that could not be confirmed were left out rather
    than shipped to 404. */
-const ASSETS = [["USDJPY=X","ドル円","fx","ドル/円","USDJPY","米ドル円","ドルエン"],["EURJPY=X","ユーロ円","fx","ユーロ/円","EURJPY","欧州ユーロ円"],["EURUSD=X","ユーロドル","fx","ユーロ/ドル","EURUSD","ユーロ米ドル"],["GBPJPY=X","ポンド円","fx","ポンド/円","GBPJPY","英ポンド円"],["GBPUSD=X","ポンドドル","fx","ポンド/ドル","GBPUSD","英ポンドドル","ケーブル"],["AUDJPY=X","豪ドル円","fx","オージー円","AUDJPY","オーストラリアドル円"],["NZDJPY=X","NZドル円","fx","ニュージーランドドル円","NZDJPY","キウイ円"],["CADJPY=X","カナダドル円","fx","カナダ円","CADJPY","加ドル円"],["CHFJPY=X","スイスフラン円","fx","フラン円","CHFJPY","スイス円"],["CNYJPY=X","人民元円","fx","元円","CNYJPY","中国元円","人民元"],["KRWJPY=X","韓国ウォン円","fx","ウォン円","KRWJPY","ウォン"],["TRYJPY=X","トルコリラ円","fx","リラ円","TRYJPY","トルコリラ"],["MXNJPY=X","メキシコペソ円","fx","ペソ円","MXNJPY","メキシコペソ"],["ZARJPY=X","南アフリカランド円","fx","ランド円","南アランド円","ZARJPY","南アフリカランド"],["DX-Y.NYB","ドルインデックス","fx","ドル指数","DXY","ドルインデクス","米ドル指数"],["BTC-USD","ビットコイン／ドル","crypto","BTC","BTCUSD","ビット","ビットコイン","ビットコインドル"],["BTC-JPY","ビットコイン／円","crypto","BTC","BTCJPY","ビット","ビットコイン","ビットコイン円"],["ETH-USD","イーサリアム／ドル","crypto","ETH","ETHUSD","イーサ","イーサリアム","イーサリアムドル"],["ETH-JPY","イーサリアム／円","crypto","ETH","ETHJPY","イーサ","イーサリアム","イーサリアム円"],["XRP-USD","リップル／ドル","crypto","XRP","XRPUSD","エックスアールピー","リップル","リップルドル"],["XRP-JPY","リップル／円","crypto","XRP","XRPJPY","エックスアールピー","リップル","リップル円"],["SOL-USD","ソラナ／ドル","crypto","SOL","SOLUSD","ソラナ","ソラナドル","ソラーナ"],["SOL-JPY","ソラナ／円","crypto","SOL","SOLJPY","ソラナ","ソラナ円","ソラーナ"],["DOGE-USD","ドージコイン／ドル","crypto","DOGE","DOGEUSD","ドージ","ドージコイン","ドージコインドル"],["DOGE-JPY","ドージコイン／円","crypto","DOGE","DOGEJPY","ドージ","ドージコイン","ドージコイン円"],["ADA-USD","カルダノ／ドル","crypto","ADA","ADAUSD","エイダ","エイダコイン","カルダノ"],["ADA-JPY","カルダノ／円","crypto","ADA","ADAJPY","エイダ","エイダコイン","カルダノ"],["BNB-USD","バイナンスコイン／ドル","crypto","BNB","BNBUSD","バイナンス","バイナンスコイン","バイナンスコインドル"],["BNB-JPY","バイナンスコイン／円","crypto","BNB","BNBJPY","バイナンス","バイナンスコイン","バイナンスコイン円"],["CL=F","WTI原油","commodity","原油","WTI","石油","クルード"],["BZ=F","ブレント原油","commodity","ブレント","北海ブレント","Brent"],["GC=F","金（ゴールド）","commodity","金","ゴールド","gold","金先物","キン"],["SI=F","銀（シルバー）","commodity","銀","シルバー","silver","銀先物"],["PL=F","プラチナ","commodity","白金","platinum","プラチナ先物"],["HG=F","銅","commodity","カッパー","copper","銅先物"],["NG=F","天然ガス","commodity","ガス","ナチュラルガス","天然ガス先物"],["ZC=F","とうもろこし","commodity","コーン","トウモロコシ","corn"],["ZW=F","小麦","commodity","こむぎ","ウィート","wheat"],["ZS=F","大豆","commodity","だいず","ソイビーン","soybean"],["^IRX","米13週国債利回り","bond","米13週","13週財務省証券","短期金利","IRX","米短期債"],["^FVX","米5年債利回り","bond","米5年債","5年債利回り","FVX","米国5年債"],["^TNX","米10年債利回り","bond","米10年債","10年債利回り","TNX","米国10年債","長期金利"],["^TYX","米30年債利回り","bond","米30年債","30年債利回り","TYX","米国30年債","超長期金利"],["^N225","日経平均株価","index","日経平均","日経225","日経","N225","にっけい"],["^GSPC","S&P500","index","SP500","エスアンドピー500","米国株指数"],["^IXIC","ナスダック総合指数","index","ナスダック","ナスダック総合","NASDAQ","ナスダック指数"],["^NDX","ナスダック100","index","NDX","NASDAQ100","ナス100"],["^DJI","NYダウ（ダウ平均）","index","ダウ","NYダウ","ダウ平均","ダウ工業株30種","DJIA"],["^RUT","ラッセル2000","index","ラッセル","RUT","米小型株"],["^VIX","VIX指数（恐怖指数）","index","VIX","恐怖指数","ビックス","ボラティリティ指数"],["^FTSE","FTSE100（英国）","index","FTSE100","イギリス株","英国株価指数","フッツィー"],["^GDAXI","DAX（ドイツ）","index","DAX","ダックス","ドイツ株","ドイツ株価指数"],["^FCHI","CAC40（フランス）","index","CAC40","カック40","フランス株","フランス株価指数"],["^HSI","ハンセン指数（香港）","index","ハンセン","ハンセン指数","香港株","HSI"],["000001.SS","上海総合指数","index","上海総合","上海株","中国株","上海指数"],["^KS11","韓国総合株価指数（KOSPI）","index","KOSPI","コスピ","韓国株","韓国総合株価指数"],["^BSESN","SENSEX（インド）","index","SENSEX","センセックス","インド株","ムンバイ"],["^BVSP","ボベスパ指数（ブラジル）","index","ボベスパ","ブラジル株","BOVESPA","ブラジル指数"],["1321.T","NEXT FUNDS 日経225連動型ETF","etf","日経225ETF","1321","日経ETF","ノムラ日経225"],["1306.T","NEXT FUNDS TOPIX連動型ETF","etf","TOPIX ETF","1306","トピックスETF","東証株価指数ETF"],["1655.T","iShares S&P500 ETF（東証上場）","etf","1655","S&P500 ETF","米国株ETF","iシェアーズS&P500"],["1545.T","NEXT FUNDS NASDAQ-100 ETF（為替ヘッジなし）","etf","1545","ナスダック100ETF","NASDAQ100 ETF","ナスダックETF"],["1540.T","純金上場信託（現物国内保管型）","etf","1540","金ETF","純金上場信託","ゴールドETF"],["1489.T","NEXT FUNDS 日経平均高配当株50指数ETF","etf","1489","高配当ETF","日経高配当50","高配当株ETF"],["1478.T","iShares MSCI ジャパン高配当ETF","etf","1478","高配当ETF","MSCI高配当","日本高配当ETF"],["1591.T","NEXT FUNDS JPX日経400連動型ETF","etf","1591","JPX400 ETF","JPX日経400","日経400ETF"],["2516.T","東証グロース250 ETF","etf","2516","グロース250","マザーズETF","グロースETF"],["SPY","SPDR S&P500 ETF","etf","SPY","スパイダー","S&P500 ETF","スパイ"],["VOO","バンガード S&P500 ETF","etf","VOO","バンガードS&P500","ブイオーオー"],["QQQ","インベスコ QQQ（ナスダック100）","etf","QQQ","キューキューキュー","ナスダック100ETF"],["VTI","バンガード 全米株式 ETF","etf","VTI","全米株式","バンガード全米","ブイティーアイ"],["VT","バンガード 全世界株式 ETF","etf","VT","全世界株式","オルカンETF","バンガード全世界"],["IVV","iShares コア S&P500 ETF","etf","IVV","iシェアーズS&P500","コアS&P500"],["GLD","SPDR ゴールド・シェア","etf","GLD","金ETF","ゴールドETF","スパイダーゴールド"],["TLT","iShares 米国債20年超 ETF","etf","TLT","米国債ETF","長期国債ETF","20年超米国債"],["ARKK","ARK イノベーション ETF","etf","ARKK","アーク","アークイノベーション","ARK"]];
+const ASSETS = [["USDJPY=X","ドル円","fx","ドル/円","USDJPY","米ドル円","ドルエン"],["EURJPY=X","ユーロ円","fx","ユーロ/円","EURJPY","欧州ユーロ円"],["EURUSD=X","ユーロドル","fx","ユーロ/ドル","EURUSD","ユーロ米ドル"],["GBPJPY=X","ポンド円","fx","ポンド/円","GBPJPY","英ポンド円"],["GBPUSD=X","ポンドドル","fx","ポンド/ドル","GBPUSD","英ポンドドル","ケーブル"],["AUDJPY=X","豪ドル円","fx","オージー円","AUDJPY","オーストラリアドル円"],["NZDJPY=X","NZドル円","fx","ニュージーランドドル円","NZDJPY","キウイ円"],["CADJPY=X","カナダドル円","fx","カナダ円","CADJPY","加ドル円"],["CHFJPY=X","スイスフラン円","fx","フラン円","CHFJPY","スイス円"],["CNYJPY=X","人民元円","fx","元円","CNYJPY","中国元円","人民元"],["KRWJPY=X","韓国ウォン円","fx","ウォン円","KRWJPY","ウォン"],["TRYJPY=X","トルコリラ円","fx","リラ円","TRYJPY","トルコリラ"],["MXNJPY=X","メキシコペソ円","fx","ペソ円","MXNJPY","メキシコペソ"],["ZARJPY=X","南アフリカランド円","fx","ランド円","南アランド円","ZARJPY","南アフリカランド"],["DX-Y.NYB","ドルインデックス","fx","ドル指数","DXY","ドルインデクス","米ドル指数"],["BTC-USD","ビットコイン／ドル","crypto","BTC","BTCUSD","ビット","ビットコイン","ビットコインドル"],["BTC-JPY","ビットコイン／円","crypto","BTC","BTCJPY","ビット","ビットコイン","ビットコイン円"],["ETH-USD","イーサリアム／ドル","crypto","ETH","ETHUSD","イーサ","イーサリアム","イーサリアムドル"],["ETH-JPY","イーサリアム／円","crypto","ETH","ETHJPY","イーサ","イーサリアム","イーサリアム円"],["XRP-USD","リップル／ドル","crypto","XRP","XRPUSD","エックスアールピー","リップル","リップルドル"],["XRP-JPY","リップル／円","crypto","XRP","XRPJPY","エックスアールピー","リップル","リップル円"],["SOL-USD","ソラナ／ドル","crypto","SOL","SOLUSD","ソラナ","ソラナドル","ソラーナ"],["SOL-JPY","ソラナ／円","crypto","SOL","SOLJPY","ソラナ","ソラナ円","ソラーナ"],["DOGE-USD","ドージコイン／ドル","crypto","DOGE","DOGEUSD","ドージ","ドージコイン","ドージコインドル"],["DOGE-JPY","ドージコイン／円","crypto","DOGE","DOGEJPY","ドージ","ドージコイン","ドージコイン円"],["ADA-USD","カルダノ／ドル","crypto","ADA","ADAUSD","エイダ","エイダコイン","カルダノ"],["ADA-JPY","カルダノ／円","crypto","ADA","ADAJPY","エイダ","エイダコイン","カルダノ"],["BNB-USD","バイナンスコイン／ドル","crypto","BNB","BNBUSD","バイナンス","バイナンスコイン","バイナンスコインドル"],["BNB-JPY","バイナンスコイン／円","crypto","BNB","BNBJPY","バイナンス","バイナンスコイン","バイナンスコイン円"],["CL=F","WTI原油","commodity","原油","WTI","石油","クルード"],["BZ=F","ブレント原油","commodity","ブレント","北海ブレント","Brent"],["GC=F","金（ゴールド）","commodity","金","ゴールド","gold","金先物","キン"],["SI=F","銀（シルバー）","commodity","銀","シルバー","silver","銀先物"],["PL=F","プラチナ","commodity","白金","platinum","プラチナ先物"],["HG=F","銅","commodity","カッパー","copper","銅先物"],["NG=F","天然ガス","commodity","ガス","ナチュラルガス","天然ガス先物"],["ZC=F","とうもろこし","commodity","コーン","トウモロコシ","corn"],["ZW=F","小麦","commodity","こむぎ","ウィート","wheat"],["ZS=F","大豆","commodity","だいず","ソイビーン","soybean"],["^IRX","米13週国債利回り","bond","米13週","13週財務省証券","短期金利","IRX","米短期債"],["^FVX","米5年債利回り","bond","米5年債","5年債利回り","FVX","米国5年債"],["^TNX","米10年債利回り","bond","米10年債","10年債利回り","TNX","米国10年債","長期金利"],["^TYX","米30年債利回り","bond","米30年債","30年債利回り","TYX","米国30年債","超長期金利"],["^N225","日経平均株価","index","日経平均","日経225","日経","N225","にっけい"],["^GSPC","S&P500","index","SP500","エスアンドピー500","米国株指数"],["^IXIC","ナスダック総合指数","index","ナスダック","ナスダック総合","NASDAQ","ナスダック指数"],["^NDX","ナスダック100","index","NDX","NASDAQ100","ナス100"],["^DJI","NYダウ（ダウ平均）","index","ダウ","NYダウ","ダウ平均","ダウ工業株30種","DJIA"],["^RUT","ラッセル2000","index","ラッセル","RUT","米小型株"],["^VIX","VIX指数（恐怖指数）","index","VIX","恐怖指数","ビックス","ボラティリティ指数"],["^FTSE","FTSE100（英国）","index","FTSE100","イギリス株","英国株価指数","フッツィー"],["^GDAXI","DAX（ドイツ）","index","DAX","ダックス","ドイツ株","ドイツ株価指数"],["^FCHI","CAC40（フランス）","index","CAC40","カック40","フランス株","フランス株価指数"],["^HSI","ハンセン指数（香港）","index","ハンセン","ハンセン指数","香港株","HSI"],["000001.SS","上海総合指数","index","上海総合","上海株","中国株","上海指数"],["^KS11","韓国総合株価指数（KOSPI）","index","KOSPI","コスピ","韓国株","韓国総合株価指数"],["^BSESN","SENSEX（インド）","index","SENSEX","センセックス","インド株","ムンバイ"],["^BVSP","ボベスパ指数（ブラジル）","index","ボベスパ","ブラジル株","BOVESPA","ブラジル指数"],["1321.T","NEXT FUNDS 日経225連動型ETF","etf","日経225ETF","1321","日経ETF","ノムラ日経225"],["1306.T","NEXT FUNDS TOPIX連動型ETF","etf","TOPIX ETF","1306","トピックスETF","東証株価指数ETF"],["1655.T","iShares S&P500 ETF（東証上場）","etf","1655","S&P500 ETF","米国株ETF","iシェアーズS&P500"],["1545.T","NEXT FUNDS NASDAQ-100 ETF（為替ヘッジなし）","etf","1545","ナスダック100ETF","NASDAQ100 ETF","ナスダックETF"],["1540.T","純金上場信託（現物国内保管型）","etf","1540","金ETF","純金上場信託","ゴールドETF"],["1489.T","NEXT FUNDS 日経平均高配当株50指数ETF","etf","1489","高配当ETF","日経高配当50","高配当株ETF"],["1478.T","iShares MSCI ジャパン高配当ETF","etf","1478","高配当ETF","MSCI高配当","日本高配当ETF"],["1591.T","NEXT FUNDS JPX日経400連動型ETF","etf","1591","JPX400 ETF","JPX日経400","日経400ETF"],["2516.T","東証グロース250 ETF","etf","2516","グロース250","マザーズETF","グロースETF"],["SPY","SPDR S&P500 ETF","etf","SPY","スパイダー","S&P500 ETF","スパイ"],["VOO","バンガード S&P500 ETF","etf","VOO","バンガードS&P500","ブイオーオー"],["QQQ","インベスコ QQQ（ナスダック100）","etf","QQQ","キューキューキュー","ナスダック100ETF"],["VTI","バンガード 全米株式 ETF","etf","VTI","全米株式","バンガード全米","ブイティーアイ"],["VT","バンガード 全世界株式 ETF","etf","VT","全世界株式","オルカンETF","バンガード全世界"],["IVV","iShares コア S&P500 ETF","etf","IVV","iシェアーズS&P500","コアS&P500"],["GLD","SPDR ゴールド・シェア","etf","GLD","金ETF","ゴールドETF","スパイダーゴールド"],["TLT","iShares 米国債20年超 ETF","etf","TLT","米国債ETF","長期国債ETF","20年超米国債"],["ARKK","ARK イノベーション ETF","etf","ARKK","アーク","アークイノベーション","ARK"],["ES=F","S&P500 Eミニ先物","future","SP500先物","S&P先物","ES","イーエス","エスピー先物","米株先物"],["NQ=F","ナスダック100 Eミニ先物","future","ナスダック先物","NQ","ナス先","NASDAQ先物"],["YM=F","ダウ Eミニ先物","future","ダウ先物","YM","NYダウ先物"],["RTY=F","ラッセル2000 Eミニ先物","future","ラッセル先物","RTY","米小型株先物"],["NIY=F","日経225先物(円建て・CME)","future","日経先物","日経平均先物","NIY","日経225先物","日経先","N225先物"],["NKD=F","日経225先物(ドル建て・CME)","future","日経ドル建て先物","NKD","ドル建て日経先物"],["ZN=F","米10年国債先物","future","10年債先物","ZN","米国債先物","Tノート先物"],["ZB=F","米30年国債先物","future","30年債先物","ZB","超長期国債先物","Tボンド先物"],["ZF=F","米5年国債先物","future","5年債先物","ZF"],["ZT=F","米2年国債先物","future","2年債先物","ZT"],["PA=F","パラジウム","commodity","パラジューム","palladium","PA"],["HO=F","ヒーティングオイル(灯油)","commodity","暖房油","ヒーティングオイル","HO"],["RB=F","ガソリン(RBOB)","commodity","ガソリン先物","RBOB","RB"],["KC=F","コーヒー","commodity","珈琲","coffee","KC","アラビカ"],["SB=F","砂糖","commodity","さとう","sugar","SB","粗糖"],["CC=F","ココア","commodity","cocoa","CC","カカオ"],["CT=F","綿(コットン)","commodity","めん","cotton","CT","綿花"]];
 
 /* ---- matching -------------------------------------------------------
    Japanese input arrives in whatever the IME produced: half-width kana,
@@ -12803,7 +12806,7 @@ function symIndex(){
 }
 
 const KIND_LABEL = {jp:'日本株', fx:'為替', crypto:'暗号資産', commodity:'商品',
-                    bond:'債券利回り', index:'指数', etf:'ETF'};
+                    bond:'債券利回り', index:'指数', etf:'ETF', future:'先物'};
 
 /* Ranked: an exact hit beats a prefix, a prefix beats "contains". Without
    the ranking, typing 「トヨタ」 put トヨタ紡織 above トヨタ自動車. */
@@ -16517,6 +16520,25 @@ async function runSelfTests(){
         && eq(tab && tab.getAttribute('aria-controls'), 'sec_read')
         && eq(document.querySelector('#chipMore').getAttribute('aria-controls'), 'chipAll');
   });
+  test('先物が名前で見つかる', () => {
+    const q = t => (searchLocal(t, 3)[0] || {}).y || '';
+    const want = {'日経平均先物':'NIY=F', 'SP500先物':'ES=F', 'ナスダック先物':'NQ=F',
+                  'ダウ先物':'YM=F', 'WTI':'CL=F', '原油':'CL=F', '10年債先物':'ZN=F'};
+    for(const k in want) if(q(k) !== want[k]) return k + ' → ' + (q(k) || 'なし');
+    return true;
+  });
+  test('先物と為替を取り違えない', () =>
+    eq(isFutureCode('ES=F'), true) && eq(isFutureCode('USDJPY=X'), false)
+    && eq(isFxCode('ES=F'), false) && eq(isFutureCode('^N225'), false));
+  test('銘柄表に重複コードがない', () => {
+    const seen = new Set(), dup = [];
+    for(const r of ASSETS){ if(seen.has(r[0])) dup.push(r[0]); seen.add(r[0]); }
+    return dup.length ? '重複: ' + dup.join(',') : true;
+  });
+  test('銘柄表の種類に名前がある', () => {
+    const miss = [...new Set(ASSETS.map(r => r[2]))].filter(k => !KIND_LABEL[k]);
+    return miss.length ? '名前が無い種類: ' + miss.join(',') : true;
+  });
   test('カードから束を引ける', () => {
     const f = SECTIONS.find(x => x.cards.indexOf('rateCard') >= 0);
     const g = SECTIONS.find(x => x.cards.indexOf('fundCard') >= 0);
@@ -17736,6 +17758,11 @@ function applyQuoteStrip(){
   const what = (m && m.open) ? '時点(取引中)' : '終値';
   /* 換算して出しているなら、必ずそう書きます。67,460円 と 456ドル が
      同じ日の同じ指数だと分かるのは、書いてあるときだけです。 */
+  /* 先物は<b>期近</b>(いちばん近い限月)の連続足です。限月が入れ替わる日に
+     値が飛ぶので、分割でもニュースでもない段差がチャートに出ます。
+     書いておかないと「データがおかしい」に見えます。 */
+  const fut = isFutureCode(state.raw.code)
+    ? ' ・ <b>先物(期近)</b>・限月が変わる日に段差が出ます' : '';
   const conv = (dispCur && dispCur !== state.raw.currency)
     ? ` ・ <b>${esc(dispCur === 'USD' ? 'ドル建て' : '円建て', 8)}に換算</b>`
       + `(${esc(state.raw.currency || '', 4)} → ${esc(dispCur, 4)}・その日のドル円終値で)`
@@ -17744,7 +17771,7 @@ function applyQuoteStrip(){
     + `${esc(IV_LABEL[state.interval] || '', 8)} ${state.raw.bars.length}本`
     + (state.raw.built ? '(' + esc(state.raw.built, 40) + ')' : '')
     + (mk ? ' ・ ' + esc(mk, 40) : '')
-    + conv
+    + fut + conv
     + (curNote ? `<br><span style="color:var(--warn)">${curNote}</span>` : '');
   renderFreshness();
 }
