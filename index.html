@@ -76,6 +76,34 @@
   --cmp1:#3987e5; --cmp2:#d95926; --cmp3:#199e70; --cmp4:#c98500; --cmp5:#d55181;
 }
 
+a.goto{color:var(--ink-2);text-decoration:underline;text-underline-offset:2px}
+a.goto:hover{color:var(--ink-1)}
+
+/* --- 束ねたカードのタブ --- */
+.secbar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;
+  /* 1カラムのときはページごとスクロールするので、上に貼り付くと
+     ヘッダ(高さ66px・z-index 20)の裏に潜って見えなくなります。
+     2カラムのときは #colSide 自身がスクロール箱なので 0 で合います。 */
+  position:sticky;top:66px;z-index:4;background:var(--page);padding:8px 0}
+body.two .secbar{top:0}
+body.chart-full .secbar{position:static}
+.sectab{font-weight:600}
+.sectab[aria-selected="true"]{background:var(--ink-1);color:var(--surface-1);
+  border-color:var(--ink-1)}
+.secbox.hide{display:none}
+
+/* --- 指標ボタンの束 --- */
+.chipnow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chipnow .chip.on{border-color:var(--ink-2)}
+.chipnow .x{margin-left:6px;opacity:.55;font-weight:700}
+/* .filters の中に入れると、全画面(flex-wrap:nowrap;overflow-x:auto)で
+   横に流れて画面の外へ出ます。行の<b>外</b>に置きます。 */
+.chipall{margin:8px 0 0;padding:10px 0 2px;border-top:1px solid var(--hairline)}
+.chipall.hide{display:none}
+.chiphead{font-size:12px;font-weight:700;color:var(--ink-3);margin:8px 0 5px}
+.chiphead:first-child{margin-top:0}
+.chipline{display:flex;gap:6px;flex-wrap:wrap}
+
 /* パネルの並び順の一覧 */
 .porder{margin:0;padding:0;list-style:none}
 .porder .pnum{flex:0 0 auto;color:var(--ink-3);font-variant-numeric:tabular-nums;
@@ -661,7 +689,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   <div class="cols">
    <div id="colMain">
 
-  <div class="card">
+  <div class="card" id="chartCard">
     <div id="chartHost">
       <canvas id="chart" role="img" aria-label="ローソク足チャートとテクニカル指標"></canvas>
       <div id="tip" role="status" aria-live="off"></div>
@@ -703,7 +731,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    </div>
    <div id="colSide">
 
-  <div class="card">
+  <div class="card" id="sigCard">
     <h2>シグナル判定</h2>
     <div class="verdict" id="verdict"></div>
     <div class="sig" id="signals"></div>
@@ -712,7 +740,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="cmpPickCard">
     <h2>ほかのチャートと比べる</h2>
     <div id="cmpList"></div>
     <div class="filters" style="margin:10px 0 0">
@@ -739,7 +767,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div id="newsList"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="shortCard">
     <h2 id="shortH2">空売り残高(機関投資家の報告)</h2>
     <div class="filters" style="margin-bottom:8px">
       <button class="chip" id="short10">直近10日を取得</button>
@@ -765,7 +793,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       取得済みの日付は飛ばすので、途中で止めて後から続けても構いません。</p>
   </div>
 
-  <div class="card">
+  <div class="card" id="gyakuCard">
     <h2>逆日歩(品貸料率)</h2>
     <div class="filters" style="margin-bottom:8px">
       <button class="chip" id="shinaBtn">逆日歩を取得</button>
@@ -773,7 +801,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div id="shinaBox"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="earnCard">
     <h2>決算発表予定</h2>
     <div class="filters" style="margin-bottom:8px">
       <button class="chip" id="earnBtn">決算予定を取得</button>
@@ -781,7 +809,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div id="earnBox"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="marginCard">
     <h2>信用取引残高</h2>
     <div class="filters" style="margin-bottom:8px">
       <button class="chip" id="jsfBtn">日証金の当日残を取得</button>
@@ -1066,7 +1094,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </details>
   </div>
 
-  <div class="card">
+  <div class="card" id="linkCard">
     <h2>この銘柄のページ</h2>
     <p class="qsrc" style="margin:0 0 10px">このツールが読んでいない情報は、公式のページで直接どうぞ。</p>
     <div class="links">
@@ -1078,7 +1106,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="syncCard">
     <h2>PC ↔ スマホで共用</h2>
     <p class="qsrc" style="margin:0 0 10px"><b>同期するもの</b>:
       お気に入り ・ 閲覧履歴 ・ タブ構成 ・ 指標のオンオフ ・ テーマ ・
@@ -1163,7 +1191,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </p>
   </div>
 
-  <div class="card">
+  <div class="card" id="favCard">
     <h2>お気に入り一覧</h2>
     <p class="qsrc" style="margin:0 0 10px">★に登録した銘柄をまとめて取得して並べます。見出しを押すと並べ替わり、
       行を押すとその銘柄を開きます。</p>
@@ -1175,7 +1203,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div id="watchBody"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="alertCard">
     <h2>アラート</h2>
     <p class="qsrc" style="margin:0 0 10px"><b>このページを開いている間だけ動きます。</b>
       サーバーを持たない作りなので、閉じている間の値動きは見張れません。
@@ -1201,7 +1229,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <p class="qsrc" id="alMsg" style="margin:0"></p>
   </div>
 
-  <div class="card">
+  <div class="card" id="histCard">
     <h2>このシグナルは効いているのか</h2>
     <p class="qsrc" style="margin:0 0 10px">いま表示している期間で、各シグナルが過去に出たあと実際どうなったかを数えます。
       <b>「基準との差」がプラスでなければ、そのシグナルはこの銘柄では何も見つけていません。</b></p>
@@ -1219,7 +1247,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div id="histBody"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="relayCard">
     <h2>通信(中継サーバー)</h2>
     <p class="qsrc" style="margin:0 0 10px">株価もニュースも、無料の公開中継サーバーを経由しています。
       混んでいると時間切れになりますし、<b>見ている銘柄がその運営者に渡ります</b>。
@@ -1252,7 +1280,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </details>
   </div>
 
-  <div class="card">
+  <div class="card" id="exportCard">
     <h2>1枚にまとめて書き出す</h2>
     <p class="qsrc" style="margin:0 0 10px">いま表示しているチャートとシグナル判定、指標の数値を1ページにまとめます。
       <b>数値は画像ではなく文字として入る</b>ので、PDFをAIに読ませたときに値をそのまま読み取れます。</p>
@@ -1336,8 +1364,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v47';
-const APP_DATE = '2026-08-19';
+const APP_VER = 'v48';
+const APP_DATE = '2026-08-20';
 
 /* ============================================================
    1. Small helpers
@@ -4860,7 +4888,8 @@ function renderLegend(){
   }
   if(T.cot){
     if(!(state.ind && state.ind.cot)){
-      L.push(`<span class="li" style="color:var(--ink-3)">円の建玉: 下の「金利」で取得すると出ます</span>`);
+      L.push(`<span class="li" style="color:var(--ink-3)">円の建玉: `
+        + `<a href="#" class="goto" data-goto="rateCard">金利のカードを開く</a></span>`);
     } else {
       L.push(`<span class="li"><i class="k" style="background:var(--ink-1)"></i>投機筋(Leveraged Money)の円ネット枚数</span>`);
       L.push(`<span class="li"><i class="k" style="background:var(--ink-3)"></i>資産運用勢(Asset Manager)</span>`);
@@ -4869,7 +4898,8 @@ function renderLegend(){
   }
   if(T.rates){
     if(!(state.ind && state.ind.rates)){
-      L.push(`<span class="li" style="color:var(--ink-3)">日米金利差: 下の「金利」で取得すると出ます</span>`);
+      L.push(`<span class="li" style="color:var(--ink-3)">日米金利差: `
+        + `<a href="#" class="goto" data-goto="rateCard">金利のカードを開く</a></span>`);
     } else {
       L.push(`<span class="li"><i class="k" style="background:var(--cmp2)"></i>米10年債</span>`);
       L.push(`<span class="li"><i class="k" style="background:var(--ich1)"></i>日10年債</span>`);
@@ -4882,8 +4912,8 @@ function renderLegend(){
     const vk = vks[0] || null;
     if(!vk){
       L.push(`<span class="li" style="color:var(--ink-3)">`
-        + `PER/PBRの推移: 下の「株価指標」で決算の数値を入れると出ます`
-        + `(PBRの線にはBPS=1株純資産が要ります)</span>`);
+        + `PER/PBRの推移: <a href="#" class="goto" data-goto="fundCard">株価指標のカードを開く</a>`
+        + `。決算の数値を入れると出ます(PBRの線にはBPS=1株純資産が要ります)</span>`);
     } else {
       const f = state.ind && state.ind.fund;
       const both = vks.length === 2;
@@ -5701,6 +5731,9 @@ function syncControls(){
   showPreset();
   $$('.chip[data-t]').forEach(b =>
     b.setAttribute('aria-pressed', String(!!state.toggles[b.dataset.t])));
+  /* タブの切り替えと復元はここを通ります。「いま出している」行を
+     作り直さないと、行が前のタブのままになり、×が逆に働きます。 */
+  try { renderChipSummary(); } catch(e){}
   Compare.renderChips();
 }
 /* ============================================================
@@ -7218,6 +7251,264 @@ function pctlOf(arr, qs){
 
 
 
+
+/* ============================================================
+   16. 画面の整理 — カードを5つの束に、指標ボタンを4つの束に
+   ------------------------------------------------------------
+   カードが20枚、指標のボタンが27個まで増えて、スマホでは縦に
+   9,500px ありました。何がどこにあるか覚えていられません。
+
+   ・カードは「いま何をしたいか」で5つに分け、選んだ束だけ出します
+   ・指標のボタンは、ふだんは<b>いま出しているものだけ</b>を見せて、
+     足すときだけ全部を開きます
+
+   どちらも中身は移動するだけで、IDも処理もそのままです。
+   ============================================================ */
+const SECTIONS = [
+  {k:'read',  label:'判定',    cards:['sigCard', 'histCard']},
+  {k:'fetch', label:'吸い出し', cards:['fundCard', 'rateCard', 'shortCard',
+                                      'marginCard', 'gyakuCard', 'earnCard']},
+  {k:'cmp',   label:'比べる',   cards:['cmpPickCard', 'cmpCard', 'newsCard', 'linkCard']},
+  {k:'view',  label:'表示',    cards:['viewCard']},
+  {k:'set',   label:'設定',    cards:['favCard', 'alertCard', 'syncCard',
+                                      'relayCard', 'exportCard', 'selfWrap']}
+];
+/* いま<b>画面に出ている</b>束。覚えている束(Store)とは別物です
+   — 自己診断は「見せるが覚えない」で開くので、そこがずれます。
+   左右キーは見えているほうを基準に動かないと1つ飛びます。 */
+let secShown = '';
+function sectionKey(){
+  const v = String(Store.get('section', 'read') || 'read');
+  return SECTIONS.some(x => x.k === v) ? v : 'read';
+}
+/* カードを束ごとの入れ物へ移します。名簿に無いカードは「設定」へ。
+   消えるくらいなら、多少ずれた場所にあるほうがましです。 */
+function buildSections(){
+  const side = $('#colSide');
+  if(!side || side.dataset.sectioned) return;
+  const listed = new Set();
+  for(const sc of SECTIONS) for(const id of sc.cards) listed.add(id);
+  /* id のあるなしに関わらず拾います。id で拾っていたので、id の無い
+     カードだけが束の外に取り残され、どの束でも出っぱなしになりました
+     (「迷子にしない」と書いてある当の仕組みに穴がありました)。 */
+  const strays = [...side.querySelectorAll(':scope > .card')]
+    .filter(el => !el.id || !listed.has(el.id));
+
+  const bar = document.createElement('div');
+  bar.className = 'secbar';
+  bar.setAttribute('role', 'tablist');
+  /* 銘柄タブにも role="tablist" があるので、名前が無いと
+     読み上げで「タブ2つ、どちら?」になります。 */
+  bar.setAttribute('aria-label', 'カードの束');
+  bar.id = 'secBar';
+  side.insertBefore(bar, side.firstChild);
+
+  for(const sc of SECTIONS){
+    const box = document.createElement('div');
+    box.className = 'secbox';
+    box.id = 'sec_' + sc.k;
+    box.setAttribute('role', 'tabpanel');
+    box.setAttribute('aria-label', sc.label);
+    box.setAttribute('tabindex', '0');
+    box.setAttribute('aria-labelledby', 'sectab_' + sc.k);
+    side.appendChild(box);
+    for(const id of sc.cards){
+      const el = document.getElementById(id);
+      if(el) box.appendChild(el);
+    }
+    if(sc.k === 'set') for(const el of strays) box.appendChild(el);
+    const b = document.createElement('button');
+    b.className = 'chip sectab';
+    b.dataset.sec = sc.k;
+    b.id = 'sectab_' + sc.k;
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-controls', 'sec_' + sc.k);
+    b.textContent = sc.label;
+    bar.appendChild(b);
+  }
+  side.dataset.sectioned = '1';
+  bar.addEventListener('click', e => {
+    const t = e.target.closest('[data-sec]');
+    if(t) showSection(t.dataset.sec);
+  });
+  /* 左右キーで隣の束へ。role="tab" と名乗る以上、これが無いと
+     キーボードだけの人は束を切り替えられません。 */
+  bar.addEventListener('keydown', e => {
+    const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1
+            : e.key === 'Home' ? -99 : e.key === 'End' ? 99 : 0;
+    if(!d) return;
+    e.preventDefault();
+    const ks = SECTIONS.map(x => x.k);
+    const i = Math.max(0, ks.indexOf(secShown || sectionKey()));
+    const j = d === -99 ? 0 : d === 99 ? ks.length - 1
+            : (i + d + ks.length) % ks.length;
+    showSection(ks[j]);
+    const nb = document.getElementById('sectab_' + ks[j]);
+    if(nb) nb.focus();
+  });
+  showSection(sectionKey());
+}
+function showSection(k, quiet){
+  if(!SECTIONS.some(x => x.k === k)) k = 'read';
+  /* quiet は「見せるけれど覚えない」。セルフテストや自己診断が
+     利用者の選んだ束を勝手に書き換えないようにするためです。 */
+  if(!quiet) Store.set('section', k);
+  secShown = k;
+  for(const sc of SECTIONS){
+    const box = document.getElementById('sec_' + sc.k);
+    if(box) box.classList.toggle('hide', sc.k !== k);
+  }
+  for(const b of document.querySelectorAll('.sectab')){
+    const on = b.dataset.sec === k;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;          /* タブ移動は束の列に1回だけ止まります */
+  }
+  /* 隠れているあいだに変わった中身を描き直します(セルフテストの結果や
+     比較の数字は、開いた瞬間に古いままだと壊れて見えます)。 */
+  if(!quiet){
+    try {
+      if(k === 'cmp') renderCompareStats();
+      if(k === 'view') renderViewCard();
+      if(k === 'fetch'){ renderFundCard(); renderRateCard(); }
+    } catch(e){}
+  }
+}
+/* 凡例やお知らせの中の「◯◯のカードを開く」。束を切り替えたうえで
+   そのカードまで運びます。案内した先が隠れた束の中にある、を防ぎます。 */
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-goto]');
+  if(!a) return;
+  e.preventDefault();
+  revealCard(a.dataset.goto);
+});
+/* あるカードを含む束を開きます。 */
+function revealCard(id, quiet){
+  const sc = SECTIONS.find(x => x.cards.indexOf(id) >= 0);
+  if(!sc) return false;
+  showSection(sc.k, quiet);
+  const el = document.getElementById(id);
+  if(el && el.scrollIntoView) el.scrollIntoView({block:'nearest'});
+  return true;
+}
+
+/* --- 指標ボタン ------------------------------------------------------
+   ふだんは「いま出しているもの」だけ。押すと種類ごとに開きます。 */
+const CHIP_GROUPS = [
+  {label:'トレンド',       keys:['ma','bb','ichimoku','st','vwap','don','mtf','osgfc','lorentz','fib']},
+  {label:'オシレーター',    keys:['rsi','macd','stoch','adx']},
+  {label:'需給',          keys:['vol','shortPanel','marginPanel','flow','sizeflow','vprofile','cot']},
+  {label:'ファンダ・マクロ', keys:['valuation','rates','cbank','pivot','session','events']}
+];
+function buildChipGroups(){
+  const first = document.querySelector('.chip[data-t]');
+  if(!first) return;
+  const row = first.parentElement;
+  if(!row || row.dataset.grouped) return;
+  const chips = new Map();
+  for(const b of row.querySelectorAll('.chip[data-t]')) chips.set(b.dataset.t, b);
+
+  /* 「いま出しているもの」の行は、ボタンが並んでいた場所にそのまま置きます
+     (期間や足種のボタンより下、という位置関係を変えないため)。 */
+  const sum = document.createElement('div');
+  sum.id = 'chipNow';
+  sum.className = 'chipnow';
+  row.insertBefore(sum, first);
+
+  const more = document.createElement('button');
+  more.id = 'chipMore';
+  more.className = 'chip';
+  more.style.borderStyle = 'dashed';
+  more.setAttribute('aria-expanded', 'false');
+  row.insertBefore(more, first);
+
+  const wrap = document.createElement('div');
+  wrap.id = 'chipAll';
+  wrap.className = 'chipall hide';
+  const seen = new Set();
+  for(const g of CHIP_GROUPS){
+    const h = document.createElement('div');
+    h.className = 'chiphead';
+    h.textContent = g.label;
+    wrap.appendChild(h);
+    const line = document.createElement('div');
+    line.className = 'chipline';
+    for(const k of g.keys){
+      const b = chips.get(k);
+      if(b){ line.appendChild(b); seen.add(k); }
+    }
+    wrap.appendChild(line);
+  }
+  /* 名簿から漏れたボタンがあれば、最後の束に足します。
+     消えるくらいなら、多少ずれた場所にあるほうがましです。 */
+  const rest = [...chips.entries()].filter(([k]) => !seen.has(k));
+  if(rest.length){
+    const lines = wrap.querySelectorAll('.chipline');
+    const line = lines[lines.length - 1];
+    for(const [, b] of rest) line.appendChild(b);
+  }
+  /* 行の外側へ。全画面では行が横スクロールになるので、中に置くと
+     開いたパネルが画面の右外に出ます。 */
+  (row.parentElement || row).insertBefore(wrap, row.nextSibling);
+  more.setAttribute('aria-controls', 'chipAll');
+
+  more.addEventListener('click', () => {
+    const open = !wrap.classList.toggle('hide');
+    more.setAttribute('aria-expanded', String(open));
+    renderChipSummary();
+  });
+  /* 「いま出している」行の × で消せます */
+  sum.addEventListener('click', e => {
+    const t = e.target.closest('[data-off]');
+    if(!t) return;
+    const k = t.dataset.off;
+    /* ここは<b>消すボタン</b>です。行が古いまま「切り替え」にしていたので、
+       消したつもりで出す、が起きていました。すでに消えていれば行を直すだけ。 */
+    if(!state.toggles[k]){ renderChipSummary(); return; }
+    const b = document.querySelector(`.chip[data-t="${k}"]`);
+    if(b) b.click();
+  });
+  row.dataset.grouped = '1';
+  renderChipSummary();
+}
+/* トグルを立てる/倒すのは何か所もあります(取得したら自動でON、
+   見かたの復元、タブの切り替え、カードの中のボタン…)。チップの
+   見た目と「いま出している」行を一緒に更新しないと、行が古いまま残り、
+   ×が「消す」ではなく「出す」になります。必ずここを通します。 */
+function setToggle(k, on){
+  if(!owns(state.toggles, k)) return false;
+  const v = !!on;
+  if(state.toggles[k] === v) return false;
+  state.toggles[k] = v;
+  const b = document.querySelector(`.chip[data-t="${k}"]`);
+  if(b) b.setAttribute('aria-pressed', String(v));
+  renderChipSummary();
+  return true;
+}
+
+/* 「いま出しているもの」の行。閉じているときだけ出します。 */
+function renderChipSummary(){
+  const wrap = $('#chipAll'), more = $('#chipMore'), sum = $('#chipNow');
+  if(!wrap || !more || !sum) return;
+  const open = !wrap.classList.contains('hide');
+  more.textContent = open ? '指標をとじる' : '指標をえらぶ';
+  sum.classList.toggle('hide', open);
+  if(open) return;
+  const on = [];
+  for(const g of CHIP_GROUPS) for(const k of g.keys)
+    if(state.toggles[k]) on.push(k);
+  sum.innerHTML = on.length
+    ? on.map(k => {
+        const b = document.querySelector(`.chip[data-t="${k}"]`);
+        const t = b ? b.textContent.trim() : k;
+        /* 読み上げの名前は「◯◯を消す」。中身が「◯◯」だけだと、
+           本物のボタンと区別がつきません。 */
+        return `<button class="chip on" data-off="${esc(k, 20)}" aria-pressed="true"`
+             + ` aria-label="${esc(t, 30)}を消す" title="${esc(t, 30)}を消す">`
+             + `${esc(t, 20)}<span class="x" aria-hidden="true">×</span></button>`;
+      }).join('')
+    : '<span class="qsrc">いま出している指標はありません</span>';
+}
+
 /* ============================================================
    15. パネルの並び順と、銘柄ごとの表示の記憶
    ============================================================ */
@@ -7389,6 +7680,7 @@ function syncToggleChips(){
     const k = b.dataset.t;
     if(owns(state.toggles, k)) b.setAttribute('aria-pressed', String(!!state.toggles[k]));
   }
+  renderChipSummary();
 }
 
 function renderViewCard(){
@@ -9200,7 +9492,7 @@ function displayBars(bars){
     return plain;
   }
   if(!Macro.fx || !Macro.fx.points.length){
-    curNote = 'ドル円のレートがまだありません。下の「金利」で取得すると換算できます。';
+    curNote = 'ドル円のレートがまだありません。「吸い出し」の<b>金利</b>のカードで取得すると換算できます。';
     fxTopUp();
     return plain;
   }
@@ -9210,7 +9502,7 @@ function displayBars(bars){
     const first = Macro.fx.points[0].d, last = Macro.fx.points[Macro.fx.points.length-1].d;
     const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
     curNote = `この期間のドル円がありません(手元にあるのは ${fm(first)}〜${fm(last)})。`
-            + `期間をその中に収めるか、下の「金利」で取り直してください。`;
+            + `期間をその中に収めるか、「吸い出し」の<b>金利</b>のカードで取り直してください。`;
     return plain;
   }
   return {bars: conv.bars, fac: conv.fac, cur: want};
@@ -9286,11 +9578,7 @@ async function loadNikkeiFund(){
       return false;
     }
     const n = Ext.mergeFund(pts, '日経平均プロフィル', code, true);
-    if(!state.toggles.valuation){
-      state.toggles.valuation = true;
-      const b = document.querySelector('.chip[data-t="valuation"]');
-      if(b) b.setAttribute('aria-pressed', 'true');
-    }
+    setToggle('valuation', true);
     state.ind = alignExt(state.ind);
     renderFundCard();
     redraw(); renderSignals();
@@ -9384,16 +9672,8 @@ async function loadRates(force){
   }catch(e){
     Macro.note = '取得できませんでした: ' + cleanText(e && e.message, 60);
   }
-  if(!state.toggles.rates && (Macro.us10 || Macro.jp10)){
-    state.toggles.rates = true;
-    const b = document.querySelector('.chip[data-t="rates"]');
-    if(b) b.setAttribute('aria-pressed', 'true');
-  }
-  if(!state.toggles.cot && Macro.cot){
-    state.toggles.cot = true;
-    const b = document.querySelector('.chip[data-t="cot"]');
-    if(b) b.setAttribute('aria-pressed', 'true');
-  }
+  if(Macro.us10 || Macro.jp10) setToggle('rates', true);
+  if(Macro.cot) setToggle('cot', true);
   state.ind = alignExt(state.ind);
   renderRateCard();
   redraw(); renderSignals();
@@ -9921,11 +10201,7 @@ function fundApply(point, d, src){
     return false;
   }
   Ext.mergeFund([Object.assign({d}, point)], src, code, true);
-  if(!state.toggles.valuation){
-    state.toggles.valuation = true;
-    const b = document.querySelector('.chip[data-t="valuation"]');
-    if(b) b.setAttribute('aria-pressed', 'true');
-  }
+  setToggle('valuation', true);
   state.ind = alignExt(state.ind);
   renderFundCard();
   redraw(); renderSignals();
@@ -10243,11 +10519,7 @@ async function loadUsFund(){
       return false;
     }
     const n = Ext.mergeFund(final, 'SEC EDGAR', code, true);
-    if(!state.toggles.valuation){
-      state.toggles.valuation = true;
-      const b = document.querySelector('.chip[data-t="valuation"]');
-      if(b) b.setAttribute('aria-pressed', 'true');
-    }
+    setToggle('valuation', true);
     state.ind = alignExt(state.ind);
     renderFundCard();
     redraw(); renderSignals();
@@ -10269,16 +10541,8 @@ async function loadUsFund(){
 
 function afterExtUpdate(){
   syncShortCardChrome();
-  if((Ext.short || Ext.usvol) && !state.toggles.shortPanel){
-    state.toggles.shortPanel = true;
-    const b = document.querySelector('.chip[data-t="shortPanel"]');
-    if(b) b.setAttribute('aria-pressed','true');
-  }
-  if(Ext.margin && !state.toggles.marginPanel){
-    state.toggles.marginPanel = true;
-    const b = document.querySelector('.chip[data-t="marginPanel"]');
-    if(b) b.setAttribute('aria-pressed','true');
-  }
+  if(Ext.short || Ext.usvol) setToggle('shortPanel', true);
+  if(Ext.margin) setToggle('marginPanel', true);
   state.ind = alignExt(state.ind);
   renderExtStatus();
   redraw();
@@ -10510,7 +10774,8 @@ function drawRates(g){
     g.fillStyle = C.ink3;
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
-    g.fillText('この期間の金利がまだありません。下の「金利」で取得してください',
+    /* ここはキャンバスなので押せません。行き先だけはっきり書きます。 */
+    g.fillText('この期間の金利がありません。「吸い出し」→「金利」で取得してください',
                p.x + 6, p.y + p.h / 2);
     return;
   }
@@ -16146,12 +16411,127 @@ async function runSelfTests(){
   });
 
   await new Promise(r => setTimeout(r, 60));
+  tgroup('画面の整理');
+  test('カードが1枚も迷子にならない', () => {
+    /* 名簿に無いカードは「設定」に回りますが、それは最後の砦です。
+       ここで気づけば、正しい束に入れられます。 */
+    const listed = new Set();
+    for(const sc of SECTIONS) for(const id of sc.cards) listed.add(id);
+    const boxes = [...document.querySelectorAll('.secbox')];
+    if(!boxes.length) return '束が作られていません';
+    const inDom = [...document.querySelectorAll('.secbox > .card')].map(c => c.id);
+    const lost = inDom.filter(id => id && !listed.has(id));
+    return lost.length ? '名簿に無い: ' + lost.join(',') : true;
+  });
+  test('同じカードを2つの束に入れていない', () => {
+    const seen = new Set(), dup = [];
+    for(const sc of SECTIONS) for(const id of sc.cards){
+      if(seen.has(id)) dup.push(id);
+      seen.add(id);
+    }
+    return dup.length ? '重複: ' + dup.join(',') : true;
+  });
+  test('名簿のカードが全部ある', () => {
+    const miss = [];
+    for(const sc of SECTIONS) for(const id of sc.cards)
+      if(!document.getElementById(id)) miss.push(id);
+    return miss.length ? '見つからない: ' + miss.join(',') : true;
+  });
+  test('開いている束は必ず1つ', () => {
+    const keep = sectionKey();
+    let ok = true, why = '';
+    for(const sc of SECTIONS){
+      showSection(sc.k, true);
+      const open = [...document.querySelectorAll('.secbox')].filter(x => !x.classList.contains('hide'));
+      if(open.length !== 1 || open[0].id !== 'sec_' + sc.k){ ok = false; why = sc.k + ' で ' + open.length + '個'; }
+    }
+    showSection(keep, true);
+    return ok ? true : why;
+  });
+  test('知らない束の名前は判定に戻る', () => {
+    const keep = Store.get('section', 'read');
+    Store.set('section', '__proto__');
+    const a = sectionKey();
+    Store.set('section', 'こわれ');
+    const b2 = sectionKey();
+    Store.set('section', keep);
+    return eq(a, 'read') && eq(b2, 'read');
+  });
+  test('指標ボタンが1個も迷子にならない', () => {
+    const listed = new Set();
+    for(const g of CHIP_GROUPS) for(const k of g.keys) listed.add(k);
+    const lost = [...document.querySelectorAll('.chip[data-t]')]
+      .map(b => b.dataset.t).filter(k => !listed.has(k));
+    return lost.length ? '束に入っていない: ' + lost.join(',') : true;
+  });
+  test('指標ボタンを2つの束に入れていない', () => {
+    const seen = new Set(), dup = [];
+    for(const g of CHIP_GROUPS) for(const k of g.keys){
+      if(seen.has(k)) dup.push(k);
+      seen.add(k);
+    }
+    return dup.length ? '重複: ' + dup.join(',') : true;
+  });
+  test('束の名前が全部ある', () =>
+    SECTIONS.every(x => x.label && x.k) && CHIP_GROUPS.every(x => x.label && x.keys.length));
+  test('×は「消す」であって「切り替え」ではない', () => {
+    /* 行が古いまま切り替えにしていたので、消したつもりで出す、が
+       起きていました。すでに消えているものを押しても出しません。 */
+    const keep = state.toggles.bb;
+    state.toggles.bb = false;
+    const sum = document.querySelector('#chipNow');
+    if(!sum) return '行がありません';
+    sum.insertAdjacentHTML('beforeend', '<button class="chip on" data-off="bb">x</button>');
+    const btn = sum.querySelector('[data-off="bb"]');
+    btn.click();
+    const after = state.toggles.bb;
+    state.toggles.bb = keep;
+    renderChipSummary();
+    return after === false ? true : '出てしまった';
+  });
+  test('トグルを立てる入口が1つにまとまっている', () => {
+    const keep = state.toggles.stoch;
+    setToggle('stoch', true);
+    const b = document.querySelector('.chip[data-t="stoch"]');
+    const ok = state.toggles.stoch === true
+            && b.getAttribute('aria-pressed') === 'true'
+            && document.querySelector('#chipNow').textContent.indexOf('ストキャス') >= 0;
+    setToggle('stoch', !!keep);
+    return ok ? true : 'チップか行が付いてこない';
+  });
+  test('見せるだけと、覚えるを分ける', () => {
+    const keep = Store.get('section', 'read');
+    showSection('cmp');
+    showSection('set', true);                 /* 見せるが覚えない */
+    const remembered = Store.get('section', '');
+    const shown = [...document.querySelectorAll('.secbox')]
+      .filter(x => !x.classList.contains('hide')).map(x => x.id)[0];
+    Store.set('section', keep); showSection(keep, true);
+    return eq(remembered, 'cmp', '覚えているのは cmp') && eq(shown, 'sec_set', '見えているのは set');
+  });
+  test('タブに読み上げの手がかりがある', () => {
+    const bar = document.querySelector('#secBar');
+    if(!bar) return 'タブ列がありません';
+    const tab = document.querySelector('#sectab_read');
+    return !!bar.getAttribute('aria-label')
+        && eq(tab && tab.getAttribute('aria-controls'), 'sec_read')
+        && eq(document.querySelector('#chipMore').getAttribute('aria-controls'), 'chipAll');
+  });
+  test('カードから束を引ける', () => {
+    const f = SECTIONS.find(x => x.cards.indexOf('rateCard') >= 0);
+    const g = SECTIONS.find(x => x.cards.indexOf('fundCard') >= 0);
+    return eq(f && f.k, 'fetch', '金利は吸い出し') && eq(g && g.k, 'fetch', '指標も吸い出し');
+  });
+
+  await new Promise(r => setTimeout(r, 60));
   tgroup('XSS(表示部への注入)');
   test('注入コードが一度も実行されていない', () => eq(window.__xssFired, 0));
   return T.list;
 }
 
 function renderSelfTests(list){
+  /* 結果は「設定」の束にあります。開いて見せますが、覚えはしません。 */
+  try { revealCard('selfWrap', true); } catch(e){}
   const groups = [];
   for(const t of list){
     let g = groups.find(x => x.name === t.group);
@@ -16816,6 +17196,10 @@ $$('.chip[data-t]').forEach(btn => {
     const on = btn.getAttribute('aria-pressed') !== 'true';
     btn.setAttribute('aria-pressed', String(on));
     state.toggles[k] = on;
+    /* 下に「重い指標は別経路で return」する枝があるので、行の作り直しは
+       枝に入る<b>前</b>に。あとに置いていたので、OSGFCなどを×で消しても
+       行に残り続け、もう一度押すと出てしまいました。 */
+    renderChipSummary();
     /* Overlays used to switch each other off to keep the panel readable.
        That was the wrong call: combining moving averages with the Ichimoku
        cloud is a standard way to read a chart, so any combination is allowed
@@ -16878,6 +17262,7 @@ $$('.chip[data-t]').forEach(btn => {
     if(k === 'valuation') renderFundCard();
     /* 金利と建玉のカードにも同じ切り替えボタンがあります */
     if(k === 'rates' || k === 'cot') renderRateCard();
+    renderChipSummary();
     /* 並びの一覧は redraw() のなかで出し直します(LAY を組んだあと)。
        ここではボタンの文言だけそろえます。 */
     /* the verdict list is toggle-dependent too — スーパートレンド, VWAP,
@@ -18080,7 +18465,11 @@ setSigOpen(Store.get('sigOpen', false) === true);
 /* ---- the favourites drawer -------------------------------------------- */
 $('#favBox').addEventListener('toggle', () => { $('#favBox').dataset.touched = '1'; });
 $('#favOpenList').addEventListener('click', () => {
+  /* 一覧は「設定」の束の中にあります。束を開かずに scrollIntoView を
+     呼んでも、隠れている要素には箱が無いので何も起きません。
+     押したのに画面が動かないまま、40銘柄ぶんの取得だけが走っていました。 */
   const card = $('#watchBody').closest('.card');
+  if(card && card.id) revealCard(card.id);
   if(card) card.scrollIntoView({behavior: 'smooth', block: 'start'});
   refreshWatch(false);
 });
@@ -18427,6 +18816,11 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
     }
     $('#selfWrap').scrollIntoView({block:'start'});
   });
+  /* 束は<b>セルフテストより前</b>に組みます。あとに置いていたので、
+     テスト用に開いた画面ではカードが束に入っておらず、
+     「カードが迷子」の試験がテストのせいで落ちていました。 */
+  try { buildChipGroups(); buildSections(); } catch(e){}
+
   if(/(^|[#&])selftest/.test(location.hash)){
     /* running the tests must never stand in for the user's real session */
     wsRestoring = true;
