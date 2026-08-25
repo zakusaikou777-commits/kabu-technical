@@ -104,6 +104,17 @@ body.chart-full .secbar{position:static}
 .chiphead:first-child{margin-top:0}
 .chipline{display:flex;gap:6px;flex-wrap:wrap}
 
+/* --- お気に入りのフォルダ --- */
+.favfolders{margin:0 0 8px;gap:6px}
+.favfolders .chip[aria-pressed="true"]{background:var(--ink-1);color:var(--surface-1);
+  border-color:var(--ink-1)}
+.favfolders .fn{margin-left:5px;opacity:.6;font-variant-numeric:tabular-nums}
+.favrow{display:flex;align-items:center;gap:6px;width:100%}
+.favrow .favsel{max-width:150px;flex:0 0 auto}
+body.tidy .favgrid{display:block}
+body.tidy .favgrid .favrow{margin:0 0 6px}
+body.tidy .favgrid .chip.fav{flex:1 1 auto;justify-content:flex-start;text-align:left}
+
 /* パネルの並び順の一覧 */
 .porder{margin:0;padding:0;list-style:none}
 .porder .pnum{flex:0 0 auto;color:var(--ink-3);font-variant-numeric:tabular-nums;
@@ -609,9 +620,12 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   <details class="favbox" id="favBox">
     <summary><span class="favttl">★ お気に入り</span>
       <span class="favn" id="favCount">0</span></summary>
+    <div id="favFolders" class="filters favfolders" role="group" aria-label="フォルダ"></div>
     <div id="favList" class="favgrid"></div>
     <div class="filters" style="margin:9px 0 0">
       <button class="chip" id="favOpenList">現在値つきの一覧を見る</button>
+      <button class="chip" id="favTidy" style="border-style:dashed" aria-pressed="false">整理する</button>
+      <button class="chip hide" id="favNewFolder" style="border-style:dashed">フォルダを作る</button>
       <button class="chip" id="favClearAll" style="border-style:dashed">すべて外す</button>
     </div>
   </details>
@@ -681,6 +695,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="pivot" aria-pressed="false"><i class="sw" style="background:var(--ink-2)"></i>節目・ピボット</button>
     <button class="chip" data-t="session" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--cmp2),var(--ich1),var(--smooth))"></i>取引時間帯</button>
     <button class="chip" data-t="cot" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>円の建玉(CFTC)</button>
+    <button class="chip" data-t="kenri" aria-pressed="false"><i class="sw" style="background:var(--warn)"></i>権利付最終日</button>
     <button class="chip" data-t="events" aria-pressed="true"><i class="sw" style="background:var(--ink-2)"></i>分割・配当</button>
     <button id="csvBtn" class="chip" aria-pressed="false" style="border-style:dashed">CSVを読み込む</button>
     <input type="file" id="csvFile" accept=".csv,.txt,text/csv" class="sr" aria-hidden="true" tabindex="-1">
@@ -889,6 +904,19 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </div>
     <p class="qsrc" id="viewStat" style="margin:0"></p>
     <div id="viewList"></div>
+  </div>
+
+  <div class="card" id="kenriCard">
+    <h2>権利付最終日(配当・株主優待)</h2>
+    <p class="qsrc" style="margin:0 0 10px">配当の権利落ち日から<b>逆算</b>して出します。
+      取りにいくものは何もありません(すでに手元にある足と配当の履歴だけで出ます)。
+      <b>優待の中身は機械が読める形で公開されていない</b>ので、そこは下のリンク先です。</p>
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="kenriPanelBtn" style="border-style:dashed">チャートに縦線を出す</button>
+    </div>
+    <p class="qsrc" id="kenriStat" style="margin:0 0 10px"></p>
+    <div id="kenriBox"></div>
+    <div class="links hide" id="kenriLinks" style="margin-top:12px"></div>
   </div>
 
   <div class="card" id="rateCard">
@@ -1364,8 +1392,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v49';
-const APP_DATE = '2026-08-20';
+const APP_VER = 'v50';
+const APP_DATE = '2026-08-25';
 
 /* ============================================================
    1. Small helpers
@@ -3351,7 +3379,7 @@ const state = {
             fib:false, st:false, vwap:false, don:false, mtf:false, osgfc:false, lorentz:false,
             shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false,
             valuation:false, rates:false, cbank:false, pivot:false,
-            session:false, cot:false, events:true},
+            session:false, cot:false, kenri:false, events:true},
   range: '1y', interval: '1d'
 };
 
@@ -4553,7 +4581,7 @@ function renderBase(){
    Marking them stops the chart from lying by omission — and the same
    marks explain the small step down on an ex-dividend date. */
 function drawEvents(g){
-  if(!state.toggles.events && !state.toggles.cbank) return;
+  if(!state.toggles.events && !state.toggles.cbank && !state.toggles.kenri) return;
   const ev = (state.raw && state.raw.events) || [];
   /* The earnings marker lives at the bottom of this function, so returning
      early on "no splits or dividends" took it with it — and a stock with no
@@ -4561,7 +4589,7 @@ function drawEvents(g){
      FX pair. The line the 決算 panel promises simply never appeared. */
   const wantEarn = typeof earnings !== 'undefined' && earnings && earnings.next
                    && Ext.codeKey() === earnings.code;
-  if(!ev.length && !wantEarn && !state.toggles.cbank) return;
+  if(!ev.length && !wantEarn && !state.toggles.cbank && !state.toggles.kenri) return;
   const p = panel('main'), bars = state.raw.bars;
   const pos = new Map();
   for(let i = Math.max(0, state.i0); i <= Math.min(state.i1, bars.length - 1); i++)
@@ -4570,6 +4598,7 @@ function drawEvents(g){
   g.save();
   g.beginPath(); g.rect(p.x, p.y, p.w, p.h); g.clip();
   drawCbank(g, p, pos);
+  drawKenri(g, p, pos);
   const lastX = new Map();
   for(const e of (state.toggles.events ? ev : [])){
     const i = pos.get(e.d);
@@ -5487,6 +5516,15 @@ function sanitizeBook(list){
          この関数が走るのは Book を作るときで、そこはもっと後です。 */
       const v = sanitizeView(x.view);
       if(v) o.view = v;
+      /* フォルダ名。入れ子は作らないので、ただの1つの名前です。 */
+      const g = cleanText(x.g, 24);
+      if(g) o.g = g;
+      /* 「いつそのフォルダに決めたか」。同期でどちらを採るかの決め手です
+         ——これが無いと「フォルダから出した」が相手に伝わりません。
+         進んだ時計の端末から来た値は<b>捨てずに丸めます</b>。捨てると
+         0 になり、必ず手元が勝って、外したはずのフォルダが復活します
+         (すぐ上の at も同じ理由で捨てていません)。 */
+      if(isNum(x.gAt) && x.gAt > 0) o.gAt = Math.min(x.gAt, Date.now());
       /* 「見かたを消した」時刻。同期で古い記録が戻ってこないように。 */
       if(isNum(x.viewDel) && x.viewDel > 0 && x.viewDel < Date.now() + 3e5)
         o.viewDel = x.viewDel;
@@ -5523,6 +5561,7 @@ const Book = {
   isFav(code){ return this.favs.some(f => f.code === code); },
 
   toggleFav(code, name){
+    favMsg = '';
     const i = this.favs.findIndex(f => f.code === code);
     const at = Date.now();
     if(i >= 0){ this.favs.splice(i, 1); this.tomb[code] = at; }
@@ -5537,6 +5576,7 @@ const Book = {
 
   visit(code, name, price, cur){
     if(!code || code === 'DEMO' || code === 'CSV') return;
+    favMsg = '';
     this.hist = this.hist.filter(h => h.code !== code);
     this.hist.unshift({code, name: name || code, price, cur, at: Date.now()});
     this.hist = this.hist.slice(0, 30);
@@ -5564,19 +5604,183 @@ const Book = {
   }
 };
 
+
+/* --- お気に入りのフォルダ ---------------------------------------------
+   ブラウザのブックマークと同じで、数が増えたら束ねたくなります。
+   銘柄1つにフォルダ1つ(入れ子はなし)。入れていないものは「未分類」です。
+
+   フォルダ名は<b>お気に入りの中にしか無い</b>ので、名簿を別に持ちます
+   ——中身が0件のフォルダを作れるようにするためです(先に箱を作って
+   あとから入れる、が自然な順序なので)。 */
+const FAV_GROUP_MAX = 40;
+const UNFILED = ' ';                /* 「未分類」を表す合図。フォルダ名にはなりえません */
+function sanitizeGroups(a){
+  const out = [];
+  if(!Array.isArray(a)) return out;
+  for(const x of a.slice(0, FAV_GROUP_MAX)){
+    const g = cleanText(x, 24);
+    if(g && out.indexOf(g) < 0) out.push(g);
+  }
+  return out;
+}
+let favFilter = (() => {
+  const v = String(Store.get('favFilter', '') || '');
+  return v.length <= 24 ? v : '';
+})();
+let favTidy = false;
+let favMsg = '';                    /* 「どこへ入れたか」の一言。次の操作で消えます */
+
+/* いま見ているフォルダを変えるのは、必ずここを通します。
+   直に代入していたので、<b>保存されない経路</b>と<b>保存される経路</b>が
+   混ざり、フォルダを解除したあとも「もう無いフォルダ」が保存に残って、
+   次に開いたときお気に入りが1件も出ない、が起きていました。 */
+function setFavFilter(v){
+  favFilter = (v === UNFILED) ? UNFILED : cleanText(v, 24);
+  favMsg = '';
+  Store.set('favFilter', favFilter);
+}
+
+Object.assign(Book, {
+  groups: sanitizeGroups(Store.get('favGroups', [])),
+  /* 名簿に無いフォルダ名が銘柄側にあったら拾います(同期で来た場合など) */
+  allGroups(){
+    const out = this.groups.slice();
+    for(const f of this.favs)
+      if(f.g && out.indexOf(f.g) < 0) out.push(f.g);
+    return out;
+  },
+  addGroup(name){
+    const g = cleanText(name, 24);
+    if(!g || this.groups.indexOf(g) >= 0) return false;
+    if(this.groups.length >= FAV_GROUP_MAX){
+      notice(`フォルダは${FAV_GROUP_MAX}個までです。使っていないものを解除してください。`, true);
+      return false;
+    }
+    this.groups.push(g);
+    Store.set('favGroups', this.groups);
+    renderBook();
+    this.changed();
+    return true;
+  },
+  removeGroup(name){
+    const g = cleanText(name, 24);
+    if(!g) return false;
+    this.groups = this.groups.filter(x => x !== g);
+    /* 中の銘柄は消しません。フォルダから出すだけです
+       ——箱を捨てたら中身も捨てる、はここでは怖すぎます。 */
+    const at = Date.now();
+    for(const f of this.favs) if(f.g === g){ delete f.g; f.gAt = at; }
+    Store.set('favGroups', this.groups);
+    Store.set('favs', this.favs);
+    /* 解除したフォルダを見ていたなら「すべて」へ。<b>保存も</b>します */
+    if(favFilter === g) setFavFilter('');
+    renderBook();
+    this.changed();
+    return true;
+  },
+  setGroup(code, name){
+    const c = cleanSymbol(code);
+    const f = this.favs.find(x => x.code === c);
+    if(!f) return false;
+    const g = cleanText(name, 24);
+    if(g && this.groups.indexOf(g) < 0 && this.groups.length >= FAV_GROUP_MAX){
+      notice(`フォルダは${FAV_GROUP_MAX}個までです。使っていないものを解除してください。`, true);
+      return false;
+    }
+    if(g) f.g = g; else delete f.g;
+    /* 「いつ決めたか」。これが無いと、同期のたびに<b>古い所属が復活</b>
+       します——「フォルダから出した」は相手側から見ると「まだ入っている」
+       としか見えないので、外したそばから戻ってきていました。 */
+    f.gAt = Date.now();
+    if(g && this.groups.indexOf(g) < 0){
+      this.groups.push(g);
+      Store.set('favGroups', this.groups);
+    }
+    /* 見ているフォルダは<b>動かしません</b>。動かすと、まとめて片づける
+       ときに1件入れるたび画面が飛んで、次の1件が選べませんでした。
+       代わりに「どこへ入れたか」を一言だけ出します。 */
+    favMsg = (favFilter && favFilter !== (g || UNFILED))
+      ? `${f.name || f.code} を「${g || '未分類'}」へ入れました`
+      : '';
+    Store.set('favs', this.favs);
+    renderBook();
+    this.changed();
+    return true;
+  },
+  inGroup(f){
+    if(!favFilter) return true;
+    if(favFilter === UNFILED) return !f.g;
+    return f.g === favFilter;
+  }
+});
+
+function renderFavFolders(){
+  const box = $('#favFolders');
+  if(!box) return;
+  const gs = Book.allGroups();
+  /* もう無いフォルダを見ていたら「すべて」に戻します。放っておくと
+     1件も表示されないまま、戻す手がかりも画面に出ませんでした。 */
+  if(favFilter && favFilter !== UNFILED && gs.indexOf(favFilter) < 0) setFavFilter('');
+  const cnt = g => g === UNFILED ? Book.favs.filter(f => !f.g).length
+             : g === '' ? Book.favs.length : Book.favs.filter(f => f.g === g).length;
+  const chip = (key, label) =>
+    `<button class="chip" data-g="${esc(key, 30)}" aria-pressed="${favFilter === key}">`
+    + `${esc(label, 24)}<span class="fn">${cnt(key)}</span></button>`;
+  let html = chip('', 'すべて');
+  if(Book.favs.some(f => !f.g) || gs.length) html += chip(UNFILED, '未分類');
+  for(const g of gs) html += chip(g, g);
+  /* 整理中は、いま見ているフォルダを解除できます */
+  if(favTidy && favFilter && favFilter !== UNFILED)
+    html += `<button class="chip" id="favDelFolder" style="border-style:dashed">`
+          + `「${esc(favFilter, 20)}」を解除</button>`;
+  box.innerHTML = html;
+  /* フォルダで絞り込んでいるあいだは、たとえ名簿が空でも必ず出します
+     ——「すべて」に戻す手が画面から消えないように。 */
+  box.classList.toggle('hide', !gs.length && !favTidy && !favFilter);
+}
+
 function renderBook(){
   const fav = $('#favList'), his = $('#histSel');
   /* the company name, not just the ticker: a row of 「★ 8267.T」 is a list
      of codes, and nobody keeps a list of codes in their head */
-  fav.innerHTML = Book.favs.length
-    ? Book.favs.map(f =>
-        `<button class="chip fav" data-code="${esc(f.code, 24)}" title="${esc(f.name, 60)}">`
-        + `★ ${esc(f.name || f.code, 22)}`
-        + `<span class="qsrc" style="margin-left:6px">${esc(f.code, 12)}</span></button>`).join('')
-    : '<p class="favempty">まだありません。銘柄を開いて、入力欄の右の ☆ を押すとここに貯まります。'
-      + '別の端末とはGoogleドライブ同期で共用できます。</p>';
+  renderFavFolders();
+  document.body.classList.toggle('tidy', favTidy);
+  const shown = Book.favs.filter(f => Book.inGroup(f));
+  const gs = Book.allGroups();
+  /* 整理中は1件ずつ行にして、フォルダを選ぶ箱を横に出します */
+  const one = f => {
+    const chip = `<button class="chip fav" data-code="${esc(f.code, 24)}" title="${esc(f.name, 60)}">`
+      + `★ ${esc(f.name || f.code, 22)}`
+      + `<span class="qsrc" style="margin-left:6px">${esc(f.code, 12)}</span></button>`;
+    if(!favTidy) return chip;
+    const opts = ['<option value="">未分類</option>']
+      .concat(gs.map(g => `<option value="${esc(g, 24)}"${f.g === g ? ' selected' : ''}>`
+                        + `${esc(g, 24)}</option>`))
+      .concat('<option value="\u0001new">新しいフォルダ…</option>').join('');
+    return `<div class="favrow">${chip}`
+      + `<label class="sr" for="favsel_${esc(f.code, 24)}">${esc(f.name || f.code, 30)}のフォルダ</label>`
+      + `<select class="mini favsel" id="favsel_${esc(f.code, 24)}" data-move="${esc(f.code, 24)}">`
+      + `${opts}</select></div>`;
+  };
+  /* 「よそのフォルダへ入れた」ときの一言。入れた銘柄が目の前から消えても、
+     消したのではないと分かるように。画面のほうは動かしません。 */
+  const moved = favMsg ? `<p class="favempty" style="opacity:.85">${esc(favMsg, 60)}</p>` : '';
+  fav.innerHTML = !Book.favs.length
+    ? '<p class="favempty">まだありません。銘柄を開いて、入力欄の右の ☆ を押すとここに貯まります。'
+      + '別の端末とはGoogleドライブ同期で共用できます。</p>'
+    : (shown.length
+        ? shown.map(one).join('')
+        : `<p class="favempty">このフォルダは空です。`
+          + `「整理する」を押して、銘柄の横の箱からここへ入れてください。</p>`) + moved;
   const cnt = $('#favCount');
   if(cnt) cnt.textContent = String(Book.favs.length);
+  const tb = $('#favTidy');
+  if(tb){
+    tb.setAttribute('aria-pressed', String(favTidy));
+    tb.textContent = favTidy ? '整理をやめる' : '整理する';
+  }
+  const nf = $('#favNewFolder');
+  if(nf) nf.classList.toggle('hide', !favTidy);
   const box = $('#favBox');
   /* opened by default once there is something in it, so it does not read as
      an empty header the first time either */
@@ -7270,7 +7474,7 @@ function pctlOf(arr, qs){
 const SECTIONS = [
   {k:'read',  label:'判定',    cards:['sigCard', 'histCard']},
   {k:'fetch', label:'吸い出し', cards:['fundCard', 'rateCard', 'shortCard',
-                                      'marginCard', 'gyakuCard', 'earnCard']},
+                                      'marginCard', 'gyakuCard', 'earnCard', 'kenriCard']},
   {k:'cmp',   label:'比べる',   cards:['cmpPickCard', 'cmpCard', 'newsCard', 'linkCard']},
   {k:'view',  label:'表示',    cards:['viewCard']},
   {k:'set',   label:'設定',    cards:['favCard', 'alertCard', 'syncCard',
@@ -7372,7 +7576,7 @@ function showSection(k, quiet){
     try {
       if(k === 'cmp') renderCompareStats();
       if(k === 'view') renderViewCard();
-      if(k === 'fetch'){ renderFundCard(); renderRateCard(); }
+      if(k === 'fetch'){ renderFundCard(); renderRateCard(); renderKenri(); }
     } catch(e){}
   }
 }
@@ -7400,7 +7604,7 @@ const CHIP_GROUPS = [
   {label:'トレンド',       keys:['ma','bb','ichimoku','st','vwap','don','mtf','osgfc','lorentz','fib']},
   {label:'オシレーター',    keys:['rsi','macd','stoch','adx']},
   {label:'需給',          keys:['vol','shortPanel','marginPanel','flow','sizeflow','vprofile','cot']},
-  {label:'ファンダ・マクロ', keys:['valuation','rates','cbank','pivot','session','events']}
+  {label:'ファンダ・マクロ', keys:['valuation','rates','cbank','pivot','session','events','kenri']}
 ];
 function buildChipGroups(){
   const first = document.querySelector('.chip[data-t]');
@@ -8223,12 +8427,42 @@ const Macro = {
 
       /* --- ドル円(表示通貨の換算用) ------------------------------------ */
       try{
+        /* range=max で頼むと、Yahoo は長い銘柄に<b>週足</b>で答えることが
+           あります(meta.dataGranularity が 1wk になる)。そのまま貯めると
+           レートが週に1本しかなく、日足の換算で「7日以内の点が無い」足が
+           出て、換算そのものが丸ごと拒否されます。実際そうなりました。
+           日足で返る長さまで下げながら試します。 */
         const first = !this.fx || !this.fx.points.length;
-        const y = await fetchYahoo('USDJPY=X', first || force ? 'max' : '3mo', '1d');
-        const pts = [];
-        for(const b of y.bars) if(isNum(b.c) && b.c > 0 && b.c < 1000) pts.push({d: barKey(b), v: b.c});
+        let y = null, used = '', wide = 0, widePts = null;
+        if(first || force){
+          /* 日足で確実に返る幅まで下げると、こんどは<b>10年より前が
+             まるごと消えます</b>。1990年代からの日経を1本のチャートで
+             見ているときに、換算が丸ごと拒否されました。
+             なので max も取ります(長い銘柄では週足で返りますが、
+             週に1本でも「無い」よりずっとましです)。 */
+          try{
+            const w = await fetchYahoo('USDJPY=X', 'max', '1d');
+            const wp = fxPointsFrom(w.bars, w.granularity);
+            if(wp.length) widePts = wp;
+          }catch(e){}
+        }
+        for(const r of (first || force ? ['10y','5y','2y'] : ['3mo'])){
+          const got = await fetchYahoo('USDJPY=X', r, '1d');
+          used = r;
+          y = got;
+          if(got.granularity === '1d') break;
+        }
+        const pts = fxPointsFrom(y.bars, y.granularity);
+        /* 古い分を<b>先に</b>入れ、そのうえに日足をかぶせます。重なった日は
+           日足が残ります。そして日足が取れなかったときは古い分も入れません
+           ——入れてしまうと「もう持っている」判定になり、次からは3か月ぶん
+           しか頼まなくなって、<b>週足のまま二度と埋まりません</b>。
+           取り込みを最後にまとめてあるのは、そのためです。 */
+        if(widePts){ this.merge('fx', widePts, 'USDJPY=X (Yahoo)'); wide = widePts.length; }
         const n = this.merge('fx', pts, 'USDJPY=X (Yahoo)');
-        msgs.push(`ドル円 ${pts.length}日ぶん(新規${n})`);
+        msgs.push(`ドル円 ${pts.length}日ぶん(新規${n}・${used})`
+          + (wide ? `＋古い分 ${wide}本` : '')
+          + (y.granularity !== '1d' ? ` ※${IV_LABEL[y.granularity] || y.granularity}で届きました` : ''));
       }catch(e){ msgs.push('ドル円は取得できませんでした: ' + cleanText(e && e.message, 40)); }
 
       /* --- CFTC 円の建玉 ---------------------------------------------- */
@@ -9303,6 +9537,311 @@ function pbrStory(per, pbr, roe){
 }
 
 
+
+/* ============================================================
+   17. 権利付最終日(配当・株主優待)
+   ------------------------------------------------------------
+   優待の<b>内容</b>を機械が読める形で無料配信しているところは
+   ありません(JPXも日経も出していません)。なので内容はリンク先に任せ、
+   このツールは<b>日付</b>だけを引き受けます。
+
+   日付は取りにいきません。すでに手元にあるもので出せます。
+
+   ・Yahooが配っている配当イベントの日付は<b>権利落ち日</b>です
+   ・その1営業日前が<b>権利付最終日</b>(その日までに買えば権利が付く)
+   ・「1営業日前」は<b>足そのもの</b>から取ります。祝日表も営業日計算も
+     要りません。実際に取引があった日が並んでいるので、それが答えです
+
+   優待の権利確定日は、たいてい配当と同じ(期末・中間期末)です。
+   ただし<b>優待だけ別の月</b>の会社もあるので、そう書いておきます。
+   ============================================================ */
+
+/* 手元の足と配当イベントから、過去の権利付最終日を組み立てます。
+   足の外にある配当は日付を確かめようがないので落とします。 */
+/* 日足のときだけ組み立てます。<b>足種で意味が変わる</b>からです。
+   週足なら「1本前」は1週間前、月足なら1か月前、分足なら同じ日の
+   数分前になります。どれも「その日までに買えば権利が付く」には
+   ならないので、黙って別の日付を出すより出さないほうが安全です。 */
+function kenriOk(){ return state.interval === '1d'; }
+
+let kenriCache = null;              /* 描くたびに組み直さないための控え */
+function kenriDates(){
+  const raw = state.raw;
+  if(!raw || !raw.bars || !raw.bars.length) return [];
+  if(!kenriOk()) return [];
+  const evs = (raw.events || []).filter(e => e && e.kind === 'div' && /^\d{8}$/.test(e.d));
+  if(!evs.length) return [];
+  const bars = raw.bars;
+  /* チャートを動かすたびに全部の足を舐め直していました。銘柄・足種・
+     本数・最後の日付・配当の数が同じなら、答えも同じです。 */
+  /* 配当の<b>中身</b>も鍵に入れます。本数も両端も同じまま、提供元が
+     権利落ち日を1日訂正して配り直すことがあります。日付だけ見ていた
+     ので、取り直しても古い日付が出たままでした。 */
+  let eh = 0;
+  for(const e of evs){
+    const t = e.d + '' + (e.text || '');
+    for(let k = 0; k < t.length; k++) eh = (Math.imul(eh, 31) + t.charCodeAt(k)) | 0;
+  }
+  const ck = [raw.code, state.interval, bars.length, barKey(bars[bars.length - 1]),
+              barKey(bars[0]), evs.length, eh].join('|');
+  if(kenriCache && kenriCache.key === ck) return kenriCache.list;
+  const idx = new Map();
+  for(let i = 0; i < bars.length; i++) idx.set(barKey(bars[i]), i);
+  const out = [];
+  const seen = new Set();
+  for(const e of evs){
+    let i = idx.get(e.d);
+    if(i === undefined){
+      /* 権利落ち日そのものに足が無いことがあります(その日が休みだった、
+         配信のズレ)。その日より後ろでいちばん近い足を落ち日とみなします。 */
+      for(let k = 0; k < bars.length; k++){
+        if(barKey(bars[k]) >= e.d){ i = k; break; }
+      }
+    }
+    if(i === undefined || i < 1) continue;
+    const last = barKey(bars[i - 1]);          /* = 権利付最終日 */
+    if(seen.has(last)) continue;
+    seen.add(last);
+    out.push({last, ex: barKey(bars[i]), text: e.text || ''});
+  }
+  out.sort((a, b) => a.last.localeCompare(b.last));
+  kenriCache = {key: ck, list: out};
+  return out;
+}
+
+/* 例年どの月に権利が確定しているか。2回以上出てきた月だけを「例年」と
+   呼びます。1回きりの記念配当を毎年の予定として出さないためです。 */
+function kenriMonths(list){
+  const c = new Map();
+  for(const x of list){
+    const m = +x.last.slice(4, 6);
+    c.set(m, (c.get(m) || 0) + 1);
+  }
+  return [...c.entries()].filter(([, n]) => n >= 2).map(([m]) => m).sort((a, b) => a - b);
+}
+
+/* 次の見込み。土日・祝日・年末年始は数えますが、臨時の休場までは
+   見ていません。ここで「◯月◯日です」と言い切るのは、いちばん
+   やってはいけない類の嘘なので、必ず「見込み」と書きます。
+
+   日本株の T+2 が前提なので、<b>日本株のときだけ</b>出します。米国株は
+   締めの決まりも配当の周期も違い、同じ数え方をすると平気で外れます。 */
+const isWknd = d => d.getDay() === 0 || d.getDay() === 6;
+/* 東証が閉まる日。土日だけでは足りませんでした。
+
+   月末の数営業日に<b>祝日が挟まる月</b>があります——4月の昭和の日、
+   そして12月31日〜1月3日の年末年始です。そこを平日として数えると、
+   答えが1営業日あと、つまり<b>権利落ち日</b>になります。その日に
+   買っても権利は付きません。いちばん悪い向きの誤りなので数えます。
+
+   春分・秋分は年ごとに動くので、官報の値に合う近似式を使います
+   (1980〜2099年で一致します)。祝日法が変われば変わる数字です。
+   臨時の休場(システム障害や皇室行事)までは見ていません。 */
+const JP_HOL = new Map();          /* 年 → Set('MMDD') */
+const mdKey = d => String(d.getMonth() + 1).padStart(2, '0')
+                 + String(d.getDate()).padStart(2, '0');
+function jpHolidays(y){
+  if(JP_HOL.has(y)) return JP_HOL.get(y);
+  /* m月の第n w曜日 */
+  const nth = (m, w, n) => {
+    const d = new Date(y, m - 1, 1);
+    let c = 0;
+    for(let i = 0; i < 31; i++){
+      if(d.getDay() === w && ++c === n) return new Date(d);
+      d.setDate(d.getDate() + 1);
+    }
+    return d;
+  };
+  const vernal   = Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  const autumnal = Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  const days = [
+    new Date(y, 0, 1),                        /* 元日 */
+    nth(1, 1, 2),                             /* 成人の日 */
+    new Date(y, 1, 11), new Date(y, 1, 23),   /* 建国記念の日・天皇誕生日 */
+    new Date(y, 2, vernal),                   /* 春分の日 */
+    new Date(y, 3, 29),                       /* 昭和の日 */
+    new Date(y, 4, 3), new Date(y, 4, 4), new Date(y, 4, 5),
+    nth(7, 1, 3),                             /* 海の日 */
+    new Date(y, 7, 11),                       /* 山の日 */
+    nth(9, 1, 3),                             /* 敬老の日 */
+    new Date(y, 8, autumnal),                 /* 秋分の日 */
+    nth(10, 1, 2),                            /* スポーツの日 */
+    new Date(y, 10, 3), new Date(y, 10, 23)   /* 文化の日・勤労感謝の日 */
+  ];
+  const set = new Set(days.map(mdKey));
+  /* 振替休日: 日曜と重なったら、次の平日が休みになります */
+  for(const d of days){
+    if(d.getDay() !== 0) continue;
+    const n = new Date(d);
+    for(let i = 0; i < 5; i++){
+      n.setDate(n.getDate() + 1);
+      if(!set.has(mdKey(n))) break;
+    }
+    set.add(mdKey(n));
+  }
+  /* 国民の休日: 祝日に挟まれた平日(9月の敬老の日と秋分の日のあいだ) */
+  const sep = nth(9, 1, 3).getDate();
+  if(autumnal - sep === 2) set.add(mdKey(new Date(y, 8, sep + 1)));
+  /* 東証の年末年始。元日は上の祝日で入っています */
+  for(const k of ['0102', '0103', '1231']) set.add(k);
+  JP_HOL.set(y, set);
+  return set;
+}
+function isJpxShut(d){
+  return isWknd(d) || jpHolidays(d.getFullYear()).has(mdKey(d));
+}
+function kenriNext(months, list, jp, asOf){
+  if(!jp || !months || !months.length) return null;
+  const now = asOf || new Date();        /* asOf は自己テストが年を固定するため */
+  const y0 = now.getFullYear();
+  const cand = [];
+  for(const m of months){
+    const past = (list || []).filter(x => x && /^\d{8}$/.test(x.last) && +x.last.slice(4, 6) === m);
+    /* 月末締めの会社か、日にちが決まっている会社か。過去の権利付最終日が
+       いつも月末から5日以内なら月末締めとみなします。ニトリ(20日)や
+       ツルハ(15日)のように月なかばで締める会社があり、そこへ月末の
+       数え方を当てると<b>10日も違う日付</b>が出ていました。 */
+    const endish = past.length > 0 && past.every(x => {
+      const y = +x.last.slice(0, 4), mm = +x.last.slice(4, 6), dd = +x.last.slice(6, 8);
+      return new Date(y, mm, 0).getDate() - dd <= 5;
+    });
+    const days = past.map(x => +x.last.slice(6, 8)).sort((a, b) => a - b);
+    /* 真ん中の<b>手前側</b>を採ります。外すなら早いほうへ外したい
+       ——早すぎる日に買っても権利は付きますが、遅い日に買うと付きません。 */
+    const mid = days.length ? days[(days.length - 1) >> 1] : 0;
+    for(const y of [y0, y0 + 1]){
+      let d;
+      if(endish || !mid){
+        d = new Date(y, m, 0);                       /* その月の末日 */
+        /* <b>先に</b>月末の営業日まで戻します。ここを飛ばして末日から
+           2営業日数えていたので、月末が休みの月は答えが1営業日あと
+           ——つまり<b>権利落ち日</b>——になっていました。
+           その日に買っても権利は付きません。いちばん悪い向きの誤りです。 */
+        while(isJpxShut(d)) d.setDate(d.getDate() - 1);
+        let back = 2;                                /* 確定日→落ち日→付最終日 */
+        while(back > 0){
+          d.setDate(d.getDate() - 1);
+          if(!isJpxShut(d)) back--;
+        }
+      }else{
+        const lastDay = new Date(y, m, 0).getDate();
+        d = new Date(y, m - 1, Math.min(mid, lastDay));
+        while(isJpxShut(d)) d.setDate(d.getDate() - 1);
+      }
+      cand.push(dkey(d));
+    }
+  }
+  cand.sort();
+  const today = dkey(now);
+  const d = cand.find(x => x >= today);
+  return d ? {d, days: daysBetweenKeys(today, d)} : null;
+}
+
+/* チャートに縦線。分割・配当と同じ場所から呼ばれます。 */
+function drawKenri(g, p, pos){
+  if(!state.toggles.kenri) return;
+  const list = kenriDates();
+  if(!list.length) return;
+  g.save();
+  g.font = `600 ${LAY.narrow?9:10}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  const seen = new Set();
+  for(const x of list){
+    const i = pos.get(x.last);
+    if(i === undefined) continue;
+    const px = Math.round(xAt(p, i)) + 0.5;
+    const key = Math.round(px / 8);
+    if(seen.has(key)) continue;
+    seen.add(key);
+    g.strokeStyle = C.warn || C.ink2; g.globalAlpha = .5; g.lineWidth = 1;
+    g.setLineDash([4,3]);
+    g.beginPath(); g.moveTo(px, p.y + 42); g.lineTo(px, p.y + p.h); g.stroke();
+    g.setLineDash([]); g.globalAlpha = 1;
+    const t = '権利';
+    const w = g.measureText(t).width + 6;
+    g.fillStyle = C.surface; g.globalAlpha = .85;
+    g.fillRect(px - w/2, p.y + 30, w, 12);
+    g.globalAlpha = 1;
+    g.fillStyle = C.warn || C.ink2;
+    g.fillText(t, px, p.y + 31);
+  }
+  g.restore();
+}
+
+/* ---- 権利日カード ---------------------------------------------------- */
+function renderKenri(){
+  const box = $('#kenriBox'), stat = $('#kenriStat');
+  if(!box || !stat) return;
+  const code = state.raw && state.raw.code;
+  const jp = isJpCode(Ext.codeKey());
+  const links = $('#kenriLinks');
+  if(links){
+    const c = Ext.codeKey();
+    links.innerHTML = jp
+      ? `<a href="https://minkabu.jp/stock/${encodeURIComponent(c)}/yutai" target="_blank" rel="noopener noreferrer">みんかぶ 優待</a>`
+        + `<a href="https://finance.yahoo.co.jp/quote/${encodeURIComponent(c)}.T/incentive" target="_blank" rel="noopener noreferrer">Yahoo!ファイナンス 優待</a>`
+        + `<a href="https://www.nikkei.com/nkd/company/?scode=${encodeURIComponent(c)}" target="_blank" rel="noopener noreferrer">日経 会社情報</a>`
+      : '';
+    links.classList.toggle('hide', !jp);
+  }
+  const pb = $('#kenriPanelBtn');
+  if(pb){
+    const on = !!state.toggles.kenri;
+    pb.setAttribute('aria-pressed', String(on));
+    pb.textContent = on ? 'チャートから消す' : 'チャートに縦線を出す';
+  }
+  if(!code || code === 'DEMO' || code === 'CSV'){
+    stat.textContent = '先に銘柄を読み込んでください。';
+    box.innerHTML = '';
+    return;
+  }
+  /* 足種で「1本前」の意味が変わるので、日足以外では日付を出しません */
+  if(!kenriOk()){
+    stat.innerHTML = `いまは<b>${esc(IV_LABEL[state.interval] || state.interval, 10)}</b>です。`
+      + '権利付最終日は「権利落ち日の1営業日前」なので、'
+      + '<b>日足</b>にしないと正しい日が出せません(足を日足に変えてください)。';
+    box.innerHTML = '';
+    return;
+  }
+  const list = kenriDates();
+  if(!list.length){
+    stat.innerHTML = '配当の履歴が届いていないので、権利付最終日を出せません。'
+      + (jp ? '無配の銘柄か、提供元にその履歴が無い場合です。' : 'この銘柄は日本株ではありません。');
+    box.innerHTML = '';
+    return;
+  }
+  const months = kenriMonths(list);
+  const nx = kenriNext(months, list, jp);
+  const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+  const recent = list.slice(-6).reverse();
+  stat.innerHTML = `配当の権利落ち日から逆算した<b>権利付最終日</b>です`
+    + `(その日までに買えば権利が付きます)。`
+    + (months.length ? ` 例年 <b>${months.map(m => m + '月').join(' と ')}</b>。` : '')
+    + ` 過去 ${list.length} 回ぶん。`;
+  const ago = daysBetweenKeys(recent[0].last, dkey(new Date()));
+  box.innerHTML = '<div class="fgrid">'
+    + fundCell('直近の権利付最終日', '日前', isNum(ago) && ago >= 0 ? ago : null, 0,
+        `<b>${esc(fm(recent[0].last), 12)}</b>(権利落ち ${esc(fm(recent[0].ex), 12)})`)
+    + (nx ? fundCell('次の見込み', '日', nx.days, 0,
+        `<b>${esc(fm(nx.d), 12)}</b> ごろ。土日・祝日・年末年始は数えて`
+        + `いますが、<b>臨時の休場までは見ていません</b>`
+        + `。月に入ったら証券会社の表示で確かめてください`)
+      : '')
+    + '</div>'
+    + `<p class="qsrc" style="margin:8px 0 0;line-height:1.8">`
+    + recent.map(x => `${esc(fm(x.last), 12)}<span class="qsrc" style="margin-left:6px">`
+        + `${esc(x.text, 20)}</span>`).join('<br>')
+    + `</p>`
+    + (jp ? '' : `<p class="qsrc" style="margin:8px 0 0">`
+        + `日本株ではないので<b>次の見込みは出しません</b>。締めの決まりも`
+        + `配当の周期も違うため、同じ数え方をすると外れます。上の履歴は`
+        + `配当落ち日の1本前なので、こちらはそのまま使えます。</p>`)
+    + `<p class="qsrc" style="margin:8px 0 0;line-height:1.8">`
+    + `<b>優待の権利確定日は、たいてい配当と同じ</b>(期末・中間期末)ですが、`
+    + `<b>優待だけ別の月</b>の会社もあります。優待の中身と必要株数は`
+    + `機械が読める形で公開されていないので、下のリンク先で確かめてください。</p>`;
+}
+
 /* ---- 金利カード ------------------------------------------------------- */
 
 /* --- 日経平均そのものの PER・PBR・配当利回り ---------------------------
@@ -9398,6 +9937,39 @@ function mergeNkRows(per, pbr, dy){
    為替でそれをやると、手元に2020年のレートしか無いのに2026年の指数を
    それで割った数字が、何食わぬ顔で「ドル建て」として出ます。連休を
    またげるだけの幅(7日)を上限にします。 */
+/* レートを流用してよい日数。<b>前後どちらにも</b>この幅で探します。
+
+   前だけ見ていたので、手元のレートが週に1本しか無いとき(上の granularity の
+   件)や、最後の数本が新しすぎるときに「1本でも欠けたら換算しない」に
+   引っかかって、チャート全体が円建てのまま「期間を狭めてください」と
+   出ていました。数日あとの実測レートを使うほうが、換算を諦めるより
+   ずっと役に立ちます(過去の足に数日後のレートを当てることになるので、
+   そうと分かるように注記します)。 */
+/* Yahooの足を、換算に使うレート点に直します。
+
+   週足・月足のとき、値はその期間の<b>終値</b>ですが、Yahooはそれを
+   期間の<b>始まり</b>の日に置きます。そのまま貯めると、月曜の欄に
+   金曜のレートが入り、火曜〜木曜の足に<b>数日先のレート</b>を当てる
+   ことになります(CFTCの週次報告で同じ罠を踏んで直したのと同じ形です)。
+   期間の終わりに置き直せば、参照はすべて過去向きになります。 */
+function fxPointsFrom(bars, gran, today){
+  const wk = gran === '1wk', mo = gran === '1mo';
+  const lim = today || dkey(new Date());
+  const out = [];
+  for(const b of (bars || [])){
+    if(!isNum(b.c) || !(b.c > 0) || !(b.c < 1000)) continue;
+    let d = barKey(b);
+    if(wk || mo){
+      const t = new Date(b.t);
+      if(wk) t.setDate(t.getDate() + ((5 - t.getDay() + 7) % 7));   /* その週の金曜 */
+      else t.setMonth(t.getMonth() + 1, 0);                         /* その月の末日 */
+      d = dkey(t);
+      if(d > lim) continue;      /* 途中の週・月は、置き場所が未来になります */
+    }
+    out.push({d, v: b.c});
+  }
+  return out;
+}
 const FX_STALE_DAYS = 7;
 /* レートが古くなってきたら、黙って取り直します。取りにいくのを
    利用者の操作だけに任せていると、1週間後に何の説明もなく換算が
@@ -9414,11 +9986,33 @@ function fxTopUp(){
   fxTopAt = now;
   setTimeout(() => { loadRates(false).catch(() => {}); }, 50);
 }
+let fxLooked = 0;                 /* 「あとのレート」を使った足の数 */
+let fxOld = 0;                    /* 4日以上前のレートで換算した足の数 */
 function fxRateAt(d){
-  const p = Macro.pointAt('fx', d);
-  if(!p || !isNum(p.v)) return null;
-  if(daysBetweenKeys(p.d, d) > FX_STALE_DAYS) return null;
-  return p.v;
+  const before = Macro.pointAt('fx', d);
+  if(before && isNum(before.v)){
+    const gap = daysBetweenKeys(before.d, d);
+    if(gap <= FX_STALE_DAYS){
+      /* 3日までは連休で普通に空きます。4日以上空くのは、その期間の
+         レートが<b>週に1本</b>しか無いときです(古い分は max で貯めた
+         週足なので、そうなります)。数えて画面に出します。 */
+      if(gap >= 4) fxOld++;
+      return before.v;
+    }
+  }
+  /* 前が遠すぎるなら、後ろのいちばん近い点を探します */
+  const pts = Macro.fx && Macro.fx.points;
+  if(!pts || !pts.length) return null;
+  let lo = 0, hi = pts.length - 1, after = null;
+  while(lo <= hi){
+    const mid = (lo + hi) >> 1;
+    if(pts[mid].d >= d){ after = pts[mid]; hi = mid - 1; } else lo = mid + 1;
+  }
+  if(after && isNum(after.v) && daysBetweenKeys(d, after.d) <= FX_STALE_DAYS){
+    fxLooked++;
+    return after.v;
+  }
+  return null;
 }
 /* 足を丸ごと換算した写しを返します。元の足はいじりません。
    出来高は株数(口数)なので、換算しません。 */
@@ -9426,6 +10020,7 @@ function convertBars(bars, from, to){
   if(!bars || !bars.length || from === to) return null;
   const out = [];
   const fac = [];
+  fxLooked = 0; fxOld = 0;
   for(const b of bars){
     const r = fxRateAt(barKey(b));
     if(!isNum(r) || !(r > 0)) return null;          /* 1本でも欠けたらやりません */
@@ -9507,6 +10102,18 @@ function displayBars(bars){
     curNote = `この期間のドル円がありません(手元にあるのは ${fm(first)}〜${fm(last)})。`
             + `期間をその中に収めるか、「吸い出し」の<b>金利</b>のカードで取り直してください。`;
     return plain;
+  }
+  /* 換算した足から指標を組んでいるので、レートのズレは移動平均や
+     RSIにもそのまま乗ります。数字だけ直っていると思われないよう、
+     どちらも書いておきます。 */
+  const notes = [];
+  if(fxLooked > 0)
+    notes.push(`${fxLooked}本は手元にレートが無い日なので<b>数日あとのレート</b>で換算しています`);
+  if(fxOld > 0)
+    notes.push(`${fxOld}本は<b>4日以上前のレート</b>です(その期間は週に1本しかありません)`);
+  if(notes.length){
+    curNote = notes.join('。') + `。<b>移動平均などの指標も換算後の値から計算している</b>ので、`
+            + `同じぶんだけずれます(「吸い出し」の金利のカードで取り直すと埋まります)。`;
   }
   return {bars: conv.bars, fac: conv.fac, cur: want};
 }
@@ -11331,10 +11938,13 @@ function buildBundle(opts){
     theme: document.documentElement.getAttribute('data-theme') || 'auto',
     layout: ['auto','one','two','full'].includes(layoutMode) ? layoutMode : 'auto',
     panelOrder: panelOrder.slice(),
+    favGroups: Book.groups.slice(),
     /* 銘柄ごとに覚えた「見かた」も運びます。数十バイトで、
        端末をまたいで使い分けを持ち歩けるほうが自然です。 */
     favs: Book.favs.map(f => {
       const o = {code: f.code, name: f.name, at: f.at || 0};
+      if(f.g) o.g = f.g;
+      if(f.gAt) o.gAt = f.gAt;
       /* パネルの高さは端末ごとの好みです(画面の大きさが違います)。
          カードにも「同期しないもの」と書いてあるので、見かたを運ぶときも
          そこだけ外します。並びと指標と足種は運びます。 */
@@ -11416,6 +12026,7 @@ function sanitizeBundle(raw){
     theme: ['auto','light','dark'].includes(raw.theme) ? raw.theme : null,
     layout: ['auto','one','two','full'].includes(raw.layout) ? raw.layout : null,
     panelOrder: sanitizeOrder(raw.panelOrder),
+    favGroups: sanitizeGroups(raw.favGroups),
     favs: sanitizeBook(raw.favs),
     favdel: sanitizeTomb(raw.favdel),
     hist: sanitizeBook(raw.hist),
@@ -11516,6 +12127,18 @@ async function applyBundle(raw, mode){
          手元の記録を優先しますが(名前や日付を書き換えないため)、
          見かたまで巻き添えにすると、スマホで覚えた形がPCに永久に
          届きません。ここだけは新しいほうを取ります。 */
+      /* フォルダは<b>あとで決めたほう</b>を採ります。以前は「手元に無い
+         ときだけ受け取る」でした。それだと<b>フォルダから出した</b>が
+         相手に伝わらず——向こうにはまだ入って見えるので——同期のたびに
+         永久に復活しました。時刻がどちらにも無い古い荷物のときだけ、
+         昔どおりの控えめな受け取りにします。 */
+      if(cur){
+        const ga = cur.gAt || 0, gb = x.gAt || 0;
+        if(gb > ga){
+          if(x.g) cur.g = x.g; else delete cur.g;
+          cur.gAt = gb;
+        }else if(!ga && !gb && x.g && !cur.g) cur.g = x.g;
+      }
       if(cur){
         /* 消したほうが新しければ、こちらの記録も落とします */
         if((x.viewDel || 0) > (cur.view ? (cur.view.at || 0) : 0)
@@ -11573,6 +12196,14 @@ async function applyBundle(raw, mode){
   Store.set('favs', Book.favs);
   Store.set('hist', Book.hist);
   Store.set('favdel', Book.tomb);
+  /* 名簿は<b>描く前</b>に足します。あとに置いていたので、取り込んだ直後の
+     1回だけフォルダの帯に空のフォルダが出ず、次に何か触るまで見えません
+     でした(中身のあるフォルダは銘柄側から拾えるので気づきにくい)。 */
+  if(b.favGroups && b.favGroups.length){
+    for(const g of b.favGroups) if(Book.groups.indexOf(g) < 0) Book.groups.push(g);
+    Book.groups = Book.groups.slice(0, FAV_GROUP_MAX);
+    Store.set('favGroups', Book.groups);
+  }
   renderBook();
 
   if(b.theme) setTheme(b.theme, Date.now());
@@ -14521,30 +15152,41 @@ function pasteImport(){
    it verifies the build actually running on your device.
    ============================================================ */
 
-const T = {list: [], group: ''};
+const T = {list: [], group: '', fails: []};
 function tgroup(g){ T.group = g; }
 function test(name, fn){
   let ok = false, detail = '';
+  T.fails = [];
   try{
     const r = fn();
     if(r === true || r === undefined) ok = true;
     else if(typeof r === 'string'){ ok = false; detail = r; }
     else ok = !!r;
   }catch(e){ ok = false; detail = (e && e.message) || String(e); }
+  /* <b>この自己テスト自身の穴でした。</b>eq() は失敗を「中身のある文字列」
+     で返します。文字列は真なので、`eq(A) && eq(B)` と書くと A が落ちても
+     B さえ通れば式全体が true になり、<b>最後の1本以外は飾り</b>に
+     なっていました。ほとんどのテストがその書き方です。
+     戻り値とは別に、その回に落ちた assertion を全部拾って判定します。 */
+  if(T.fails.length){
+    ok = false;
+    detail = T.fails.concat(detail && T.fails.indexOf(detail) < 0 ? [detail] : []).join(' / ');
+  }
   T.list.push({group: T.group, name, ok, detail});
 }
-const eq = (a, b, msg) => a === b ? true : `${msg || ''} 期待 ${JSON.stringify(b)} / 実際 ${JSON.stringify(a)}`;
+const tfail = m => { T.fails.push(m); return m; };
+const eq = (a, b, msg) => a === b ? true : tfail(`${msg || ''} 期待 ${JSON.stringify(b)} / 実際 ${JSON.stringify(a)}`);
 const near = (a, b, tol, msg) => (isNum(a) && Math.abs(a-b) <= (tol || 1e-9))
-  ? true : `${msg || ''} 期待 ${b} / 実際 ${a}`;
-const throws = fn => { try { fn(); return '例外が出ませんでした'; } catch(e){ return true; } };
+  ? true : tfail(`${msg || ''} 期待 ${b} / 実際 ${a}`);
+const throws = fn => { try { fn(); return tfail('例外が出ませんでした'); } catch(e){ return true; } };
 
 /* payload that is inert but unmistakable if it ever gets parsed as markup */
 const XSS = '<img src=x onerror="window.__xssFired=1"><script>window.__xssFired=1<\/script>';
 const noInjection = (root, label) => {
   const el = typeof root === 'string' ? $(root) : root;
-  if(!el) return `${label}: 要素が見つかりません`;
+  if(!el) return tfail(`${label}: 要素が見つかりません`);
   const bad = el.querySelector('img, script, iframe, object, embed, svg');
-  return bad ? `${label}: <${bad.tagName.toLowerCase()}> が生成されました` : true;
+  return bad ? tfail(`${label}: <${bad.tagName.toLowerCase()}> が生成されました`) : true;
 };
 
 async function runSelfTests(){
@@ -14566,9 +15208,18 @@ async function runSelfTests(){
   test('safeUrl が https を通す', () => !!safeUrl('https://example.com/a?b=1'));
   test('cleanSymbol が記号入りコードを弾く', () => eq(cleanSymbol('<img src=x>'), ''));
   test('cleanSymbol が正常なコードを通す', () => eq(cleanSymbol('7203.T'), '7203.T'));
-  test('cleanText が制御文字とタグ記号を除去する', () =>
-    eq(cleanText('a<b> c"d'), 'a b  c d'.replace(/\s+/g,' ').trim()) === true ||
-    (!/[<>"]/.test(cleanText('a<b> c"d')) || 'タグ記号が残りました'));
+  test('cleanText が制御文字とタグ記号を除去する', () => {
+    /* NUL をソースに直接書くと、HTMLの構文解析が U+FFFD に置き換えます
+       (仕様どおりの挙動です)。cleanText は U+FFFD を消さないので、
+       <b>このテストは制御文字を一度も試せていませんでした</b>——
+       ゆるいほうの分岐で通っていたので、それに気づけませんでした。
+       実行時に組み立てて、本物の制御文字を渡します。 */
+    const nul = String.fromCharCode(0), del = String.fromCharCode(127);
+    const out = cleanText('a<b>' + nul + 'c"d' + del + 'e');
+    return eq(out, 'a b c d e')
+        && eq(/[<>"'`\\&]/.test(out), false, 'タグ記号が残りました')
+        && eq(/[\u0000-\u001f\u007f]/.test(out), false, '制御文字が残りました');
+  });
   test('normalizeSymbol が注入文字列を拒否する', () => eq(normalizeSymbol(XSS), null));
   test('normalizeSymbol が長すぎる入力を拒否する', () => eq(normalizeSymbol('A'.repeat(40)), null));
   test('normalizeSymbol が 7203 を 7203.T にする', () => eq(normalizeSymbol('7203').y, '7203.T'));
@@ -16539,6 +17190,287 @@ async function runSelfTests(){
     const miss = [...new Set(ASSETS.map(r => r[2]))].filter(k => !KIND_LABEL[k]);
     return miss.length ? '名前が無い種類: ' + miss.join(',') : true;
   });
+  test('お気に入りをフォルダで束ねる', () => {
+    const kf = Book.favs.slice(), kg = Book.groups.slice(), kFil = favFilter;
+    Book.favs = [{code:'8267.T', name:'イオン', at:1}, {code:'7203.T', name:'トヨタ', at:2}];
+    Book.groups = []; favFilter = '';
+    Book.setGroup('8267.T', '優待');
+    const a = Book.favs.find(f => f.code === '8267.T').g;
+    favFilter = '優待';
+    const inA = Book.favs.filter(f => Book.inGroup(f)).map(f => f.code).join(',');
+    favFilter = UNFILED;
+    const inB = Book.favs.filter(f => Book.inGroup(f)).map(f => f.code).join(',');
+    /* 箱を捨てても中身は捨てません */
+    Book.removeGroup('優待');
+    const kept = Book.favs.length;
+    const g2 = Book.favs.find(f => f.code === '8267.T').g;
+    Book.favs = kf; Book.groups = kg; favFilter = kFil;
+    return eq(a, '優待') && eq(inA, '8267.T') && eq(inB, '7203.T')
+        && eq(kept, 2, '解除で銘柄を消さない') && eq(g2, undefined);
+  });
+  test('フォルダ名を洗う', () => {
+    const out = sanitizeGroups(['ok', '', 'ok', '<b>x</b>', 42, 'あ'.repeat(60), null]);
+    /* 重複と空は落ち、記号は抜かれ、長すぎる名前は切られます */
+    return eq(out.filter(x => x === 'ok').length, 1, '重複')
+        && !out.some(x => /[<>&"']/.test(x))
+        && out.every(x => x.length <= 24, '長さ')
+        && eq(sanitizeGroups(null).length, 0);
+  });
+  /* 「フォルダから出した」が相手に伝わらないと、同期のたびに永久に
+     戻ってきます。向こうから見れば「まだ入っている」としか見えません。 */
+  test('フォルダから出したことが同期で伝わる', () => {
+    const now = Date.now();
+    const mine  = [{code:'8267.T', name:'イオン', at:1, gAt: now}];          /* 外した */
+    const yours = [{code:'8267.T', name:'イオン', at:1, g:'優待', gAt: now - 1000}];
+    /* 手元のほうが新しいので、外したままのはず */
+    const a = JSON.parse(JSON.stringify(mine));
+    const ga = a[0].gAt || 0, gb = yours[0].gAt || 0;
+    if(gb > ga){ if(yours[0].g) a[0].g = yours[0].g; else delete a[0].g; a[0].gAt = gb; }
+    /* 逆に、向こうがあとで入れたなら受け取ります */
+    const b = [{code:'8267.T', name:'イオン', at:1, gAt: now - 1000}];
+    const yb = [{code:'8267.T', name:'イオン', at:1, g:'優待', gAt: now}];
+    const gc = b[0].gAt || 0, gd = yb[0].gAt || 0;
+    if(gd > gc){ if(yb[0].g) b[0].g = yb[0].g; else delete b[0].g; b[0].gAt = gd; }
+    return eq(a[0].g, undefined, '外したまま') && eq(b[0].g, '優待', '入れたほうを採る');
+  });
+  test('フォルダの時刻が荷物に乗る', () => {
+    const kf = Book.favs.slice();
+    Book.favs = [{code:'8267.T', name:'イオン', at:1, g:'優待', gAt: 1700000000000}];
+    const b2 = buildBundle({});
+    const back = sanitizeBook([{code:'8267.T', name:'イオン', at:1, g:'優待',
+                                gAt: 1700000000000}]);
+    Book.favs = kf;
+    /* 進んだ時計から来た値は<b>捨てず</b>に「いま」へ丸めます。捨てると
+       0 になり、必ず手元が勝って、外したフォルダが復活します。 */
+    const fast = (sanitizeBook([{code:'x', gAt: Date.now() + 9e8}])[0] || {}).gAt;
+    return eq((b2.favs[0] || {}).gAt, 1700000000000, '書き出し')
+        && eq((back[0] || {}).gAt, 1700000000000, '読み込み')
+        && (isNum(fast) && fast > 0 && fast <= Date.now() + 1000
+            ? true : '未来の時刻を丸めていない: ' + fast);
+  });
+  /* もう無いフォルダで絞り込んだまま保存されていると、次に開いたとき
+     お気に入りが1件も出ず、帯も隠れていて戻す手がありませんでした。 */
+  test('もう無いフォルダで絞り込んだままにしない', () => {
+    const kf = Book.favs.slice(), kg = Book.groups.slice(), kFil = favFilter;
+    Book.favs = [{code:'7203.T', name:'トヨタ', at:1}];
+    Book.groups = [];
+    favFilter = '消えたフォルダ';
+    renderFavFolders();
+    const healed = favFilter;
+    const shown = Book.favs.filter(f => Book.inGroup(f)).length;
+    Book.favs = kf; Book.groups = kg; favFilter = kFil;
+    Store.set('favFilter', kFil);
+    return eq(healed, '', '「すべて」に戻す') && eq(shown, 1, '銘柄が見える');
+  });
+  test('まとめて片づけても画面が飛ばない', () => {
+    const kf = Book.favs.slice(), kg = Book.groups.slice(), kFil = favFilter;
+    Book.favs = [{code:'8267.T', name:'イオン', at:1}, {code:'7203.T', name:'トヨタ', at:2}];
+    Book.groups = [];
+    favFilter = UNFILED;                       /* 未分類を見ながら片づける */
+    Book.setGroup('8267.T', '優待');
+    const stay = favFilter;                    /* 未分類のままのはず */
+    const left = Book.favs.filter(f => Book.inGroup(f)).map(f => f.code).join(',');
+    const msg = favMsg;
+    Book.favs = kf; Book.groups = kg; favFilter = kFil; favMsg = '';
+    Store.set('favFilter', kFil);
+    return eq(stay, UNFILED, '見ているフォルダは動かさない')
+        && eq(left, '7203.T', '次の1件が残る')
+        && (msg.indexOf('優待') >= 0 ? true : '入れた先を知らせていない');
+  });
+  test('フォルダは40個まで', () => {
+    const kf = Book.favs.slice(), kg = Book.groups.slice();
+    Book.favs = [{code:'7203.T', name:'トヨタ', at:1}];
+    Book.groups = Array.from({length: FAV_GROUP_MAX}, (x, i) => 'g' + i);
+    const added = Book.setGroup('7203.T', 'あふれる');
+    const n = Book.groups.length;
+    const g = Book.favs[0].g;
+    Book.favs = kf; Book.groups = kg;
+    return eq(added, false, '断る') && eq(n, FAV_GROUP_MAX, '増やさない')
+        && eq(g, undefined, '銘柄側にも書かない');
+  });
+  test('フォルダも同期の荷物に乗る', () => {
+    const kf = Book.favs.slice(), kg = Book.groups.slice();
+    Book.favs = [{code:'8267.T', name:'イオン', at:1, g:'優待'}];
+    Book.groups = ['優待', 'マクロ'];
+    const b2 = buildBundle({});
+    Book.favs = kf; Book.groups = kg;
+    return eq((b2.favs[0] || {}).g, '優待')
+        && eq((b2.favGroups || []).join(','), '優待,マクロ');
+  });
+
+  /* 週足の値は「その週の終値」なのに、Yahooはそれを週の始まりに置きます。
+     置き直さないと、過去の足に数日先のレートを当てることになります。 */
+  test('週足のレートを週の終わりに置き直す', () => {
+    const bar = (y, m, d, c) => ({t: new Date(y, m - 1, d), o:c, h:c, l:c, c, v:0});
+    const wk = fxPointsFrom([bar(2010, 6, 7, 116.2), bar(2010, 6, 14, 116.5)],
+                            '1wk', '20260825');
+    const mo = fxPointsFrom([bar(2010, 6, 1, 116.2)], '1mo', '20260825');
+    const dy = fxPointsFrom([bar(2010, 6, 7, 116.2)], '1d', '20260825');
+    /* 途中の週は置き場所が未来になるので落とします */
+    const future = fxPointsFrom([bar(2026, 8, 24, 150)], '1wk', '20260825');
+    return eq(wk.map(x => x.d).join(','), '20100611,20100618', '週の金曜へ')
+        && eq(mo[0] && mo[0].d, '20100630', '月末へ')
+        && eq(dy[0] && dy[0].d, '20100607', '日足は動かさない')
+        && eq(future.length, 0, '未来に置かれる週は落とす')
+        && eq(fxPointsFrom([bar(2010, 6, 7, 0)], '1d', '20260825').length, 0, '0は捨てる')
+        && eq(fxPointsFrom(null, '1d', '20260825').length, 0, '空でも落ちない');
+  });
+  test('置き直したレートは必ず過去向き', () => {
+    /* 月曜〜金曜の足に、その週の金曜に置いた点を当てても、
+       「まだ来ていない値」を引かないことを確かめます。 */
+    const bar = (y, m, d, c) => ({t: new Date(y, m - 1, d), o:c, h:c, l:c, c, v:0});
+    const pts = fxPointsFrom([bar(2010, 6, 7, 116.2), bar(2010, 6, 14, 116.5)],
+                             '1wk', '20260825');
+    const keep = Macro.fx;
+    Macro.fx = {points: pts, at: 0, src: 't'};
+    /* 6/14(月)〜6/18(金)の足が引くのは 6/11(金)の点であるべき */
+    const got = [];
+    for(const d of ['20100614','20100615','20100616','20100617','20100618'])
+      got.push(fxRateAt(d));
+    Macro.fx = keep;
+    return eq(got.join(','), '116.2,116.2,116.2,116.2,116.5', '未来の値を引かない');
+  });
+
+  test('権利付最終日は権利落ち日の1営業日前', () => {
+    const keep = state.raw, ki = state.interval;
+    state.interval = '1d';
+    const bs = [];
+    for(const d of ['20260225','20260226','20260227','20260302','20260303']){
+      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
+    }
+    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260302', kind:'div', text:'配当 25.00'}]};
+    const list = kenriDates();
+    state.raw = keep; state.interval = ki;
+    return eq(list.length, 1) && eq(list[0].last, '20260227', '最終日')
+        && eq(list[0].ex, '20260302', '落ち日');
+  });
+  test('落ち日に足が無くても次の足から逆算する', () => {
+    const keep = state.raw, ki = state.interval;
+    state.interval = '1d';
+    const bs = [];
+    for(const d of ['20260227','20260302']){
+      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
+    }
+    state.raw = {bars: bs, code:'x', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260301', kind:'div', text:'x'}]};   /* 日曜 */
+    const list = kenriDates();
+    state.raw = keep; state.interval = ki;
+    return eq(list.length, 1) && eq(list[0].last, '20260227');
+  });
+  test('1回きりの配当を「例年」と呼ばない', () =>
+    eq(kenriMonths([{last:'20250228'},{last:'20260227'},{last:'20250715'}]).join(','), '2'));
+  test('次の見込みは未来の日付', () => {
+    const nx = kenriNext([2, 8], [{last:'20250226'},{last:'20250827'}], true);
+    return !!nx && nx.d >= dkey(new Date()) && nx.days >= 0
+      ? true : JSON.stringify(nx);
+  });
+  /* 月末が土日の月は、末日から数えはじめると1営業日あと——つまり
+     権利落ち日——が出ます。その日に買っても権利は付きません。
+     答えはマネックスなどが出している2025年の一覧と突き合わせています。 */
+  test('月末が土日でも権利落ち日を出さない', () => {
+    /* 「その月の1日に立って次を訊く」形で kenriNext そのものを呼びます。
+       過去の履歴は月末締め(末日から5日以内)にしてあります。 */
+    const ask = (y, m) => {
+      const hist = [{last: (y-1) + String(m).padStart(2,'0') + '27'},
+                    {last: (y-2) + String(m).padStart(2,'0') + '28'}];
+      const nx = kenriNext([m], hist, true, new Date(y, m - 1, 1));
+      return nx ? nx.d : 'なし';
+    };
+    return eq(ask(2025, 5), '20250528', '5月末は土曜')
+        && eq(ask(2025, 8), '20250827', '8月末は日曜')
+        && eq(ask(2025, 11), '20251126', '11月末は日曜')
+        && eq(ask(2025, 3), '20250327', '3月末は月曜')
+        && eq(ask(2025, 9), '20250926', '9月末は火曜')
+        && eq(ask(2026, 2), '20260225', '2026年2月末は土曜');
+  });
+  /* 祝日を数えないと、ここが全部1営業日あと(=権利落ち日)になります。
+     12月は大納会が30日で31日は休場、4月は29日が昭和の日です。
+     答えは各社が公表している一覧と突き合わせています。 */
+  test('年末年始と昭和の日を数える', () => {
+    const ask = (y, m) => {
+      const hist = [{last: (y-1) + String(m).padStart(2,'0') + '27'},
+                    {last: (y-2) + String(m).padStart(2,'0') + '28'}];
+      const nx = kenriNext([m], hist, true, new Date(y, m - 1, 1));
+      return nx ? nx.d : 'なし';
+    };
+    return eq(ask(2025, 12), '20251226', '2025年12月')
+        && eq(ask(2024, 12), '20241226', '2024年12月')
+        && eq(ask(2026, 12), '20261228', '2026年12月')
+        && eq(ask(2025, 4), '20250425', '2025年4月(昭和の日)')
+        && eq(ask(2024, 4), '20240425', '2024年4月(昭和の日)')
+        && eq(ask(2026, 4), '20260427', '2026年4月(昭和の日)');
+  });
+  test('祝日表そのものを確かめる', () => {
+    const has = (y, k) => jpHolidays(y).has(k);
+    return eq(has(2025, '0429'), true, '昭和の日')
+        && eq(has(2025, '1231'), true, '大晦日は休場')
+        && eq(has(2025, '0103'), true, '正月三が日')
+        && eq(has(2025, '0320'), true, '2025年の春分は3/20')
+        && eq(has(2026, '0320'), true, '2026年の春分は3/20')
+        && eq(has(2025, '0923'), true, '2025年の秋分は9/23')
+        && eq(has(2025, '1124'), true, '11/23が日曜なので24日が振替')
+        && eq(has(2025, '0505'), true, 'こどもの日')
+        && eq(has(2025, '0506'), true, '5/6は振替(5/3が土でなく5/4が日)')
+        && eq(has(2025, '0801'), false, 'ただの平日')
+        && eq(isJpxShut(new Date(2025, 11, 30)), false, '大納会は開いている')
+        && eq(isJpxShut(new Date(2025, 11, 31)), true, '大晦日は閉まる');
+  });
+  /* ニトリ(20日締め)やツルハ(15日締め)に月末の数え方を当てると、
+     10日ちかく違う日付が出ます。過去の日にちから見当をつけます。 */
+  test('月末締めでない会社は過去の日にちに寄せる', () => {
+    const nx = kenriNext([2], [{last:'20240216'},{last:'20250218'}], true);
+    if(!nx) return 'なし';
+    const dd = +nx.d.slice(6, 8);
+    return dd >= 14 && dd <= 20 ? true : '出た日=' + nx.d + ' (期待 14〜20日ごろ)';
+  });
+  test('日本株でなければ次の見込みを出さない', () =>
+    eq(kenriNext([2, 8], [{last:'20250226'}], false), null));
+  test('日足でなければ権利日を組み立てない', () => {
+    const keep = state.raw, ki = state.interval;
+    const bs = [];
+    for(const d of ['20260227','20260302']){
+      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
+    }
+    state.raw = {bars: bs, code:'z1', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260302', kind:'div', text:'x'}]};
+    state.interval = '1d';  const okN = kenriDates().length;
+    state.interval = '1wk'; const wk  = kenriDates().length;
+    state.interval = '1mo'; const mo  = kenriDates().length;
+    state.interval = '5m';  const mi  = kenriDates().length;
+    state.raw = keep; state.interval = ki;
+    return eq(okN, 1, '日足では出す') && eq(wk, 0, '週足') && eq(mo, 0, '月足')
+        && eq(mi, 0, '分足');
+  });
+  test('権利日は同じ足なら組み直さない', () => {
+    const keep = state.raw, ki = state.interval;
+    state.interval = '1d';
+    const bs = [];
+    for(const d of ['20260227','20260302']){
+      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
+    }
+    state.raw = {bars: bs, code:'z2', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260302', kind:'div', text:'x'}]};
+    const a = kenriDates(), b = kenriDates();
+    /* 銘柄が変われば作り直します */
+    state.raw = Object.assign({}, state.raw, {code:'z3'});
+    const c = kenriDates();
+    state.raw = keep; state.interval = ki;
+    return (a === b ? true : '同じ足で組み直している')
+        && (c !== a ? true : '銘柄が変わっても控えを使っている');
+  });
+  test('配当の履歴が無ければ何も出さない', () => {
+    const keep = state.raw;
+    state.raw = {bars:[{t:new Date(), o:1,h:1,l:1,c:1,v:1,k:'20260825'}],
+                 code:'x', currency:'JPY', tz:'Asia/Tokyo', events:[]};
+    const n = kenriDates().length;
+    state.raw = keep;
+    return eq(n, 0);
+  });
   test('カードから束を引ける', () => {
     const f = SECTIONS.find(x => x.cards.indexOf('rateCard') >= 0);
     const g = SECTIONS.find(x => x.cards.indexOf('fundCard') >= 0);
@@ -17284,6 +18216,7 @@ $$('.chip[data-t]').forEach(btn => {
     if(k === 'valuation') renderFundCard();
     /* 金利と建玉のカードにも同じ切り替えボタンがあります */
     if(k === 'rates' || k === 'cot') renderRateCard();
+    if(k === 'kenri') renderKenri();
     renderChipSummary();
     /* 並びの一覧は redraw() のなかで出し直します(LAY を組んだあと)。
        ここではボタンの文言だけそろえます。 */
@@ -17986,7 +18919,7 @@ function apply(data){
   /* カードも先に空にします。読み込みが返るまでの数十ミリ秒、前の銘柄の
      PERやBPSが新しい銘柄の名前で出たままになっていました。 */
   renderExtStatus(); renderShorts(null); renderMarginStatus(null); renderFundCard();
-  renderRateCard(); renderViewCard();
+  renderRateCard(); renderViewCard(); renderKenri();
   Ext.loadCache().then(() => {
     if(!state.raw || Ext.codeKey() !== key) return;   /* moved on while reading */
     state.ind = alignExt(state.ind);
@@ -18142,6 +19075,42 @@ $('#favList').addEventListener('click', e => {
   if(!b) return;
   $('#sym').value = b.dataset.code;
   run();
+});
+/* フォルダの選び直し。「新しいフォルダ…」だけ名前を聞きます。 */
+$('#favList').addEventListener('change', e => {
+  const sel = e.target.closest('[data-move]');
+  if(!sel) return;
+  let v = sel.value;
+  if(v === '\u0001new'){
+    v = prompt('新しいフォルダの名前', '');
+    if(v === null){ renderBook(); return; }
+  }
+  /* 断られたら描き直します。そうしないと、箱の表示だけが選んだ先の
+     ままで、実際には入っていない、という食い違いが残ります。 */
+  if(!Book.setGroup(sel.dataset.move, v)) renderBook();
+});
+$('#favFolders').addEventListener('click', e => {
+  if(e.target.closest('#favDelFolder')){
+    const g = favFilter;
+    if(!g) return;
+    const n = Book.favs.filter(f => f.g === g).length;
+    if(!confirm(`フォルダ「${g}」を解除します。中の${n}件は未分類に戻ります`
+              + `(お気に入りから外れるわけではありません)。よろしいですか。`)) return;
+    Book.removeGroup(g);
+    return;
+  }
+  const b = e.target.closest('[data-g]');
+  if(!b) return;
+  setFavFilter(b.dataset.g);
+  renderBook();
+});
+$('#favTidy').addEventListener('click', () => { favTidy = !favTidy; favMsg = ''; renderBook(); });
+$('#favNewFolder').addEventListener('click', () => {
+  const v = prompt('新しいフォルダの名前', '');
+  if(v === null) return;
+  if(!Book.addGroup(v)) return;
+  setFavFilter(v);
+  renderBook();
 });
 $('#histSel').addEventListener('change', e => {
   if(!e.target.value) return;
@@ -18562,6 +19531,11 @@ $('#curSel').addEventListener('change', async e => {
 });
 $('#fundClear').addEventListener('click', () => Ext.clear('fund'));
 $('#rateGet').addEventListener('click', () => loadRates(false));
+$('#kenriPanelBtn').addEventListener('click', () => {
+  setToggle('kenri', !state.toggles.kenri);
+  renderKenri();
+  redraw(); renderSignals();
+});
 $('#panelOrderBox').addEventListener('click', e => {
   const b = e.target.closest('[data-move]');
   if(!b) return;
