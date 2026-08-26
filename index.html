@@ -25,6 +25,10 @@
    (not an automatic flip). Both validated against their surface.
    ============================================================ */
 :root{
+  /* 貼り付いているヘッダが実際に占める高さ。狭い画面では折り返して
+     198pxにもなるので、66px と決め打ちにはできません(決め打ちだったので、
+     束の帯がヘッダの裏に完全に隠れていました)。JS が測って書き換えます。 */
+  --headh:66px;
   color-scheme: light;
   --surface-1:#fcfcfb;  --page:#f9f9f7;
   --ink-1:#0b0b0b;      --ink-2:#52514e;   --ink-3:#898781;
@@ -84,9 +88,44 @@ a.goto:hover{color:var(--ink-1)}
   /* 1カラムのときはページごとスクロールするので、上に貼り付くと
      ヘッダ(高さ66px・z-index 20)の裏に潜って見えなくなります。
      2カラムのときは #colSide 自身がスクロール箱なので 0 で合います。 */
-  position:sticky;top:66px;z-index:4;background:var(--page);padding:8px 0}
+  position:sticky;top:var(--headh);z-index:4;background:var(--page);padding:8px 0}
 body.two .secbar{top:0}
 body.chart-full .secbar{position:static}
+/* --- 1カラムのときの束のタブ ---
+   カードの上に置いていたので、スマホでは<b>画面2.4枚ぶん</b>下でした
+   (実測: 390x844 で 2030px)。チャートより先、ヘッダのすぐ下へ移して
+   貼り付けます。押したらカードまで運ぶので、上にあっても迷子になりません。 */
+/* 貼り付けるのは<b>入れ物のほう</b>です。position:sticky は親の箱の中しか
+   動けません。帯と同じ高さの入れ物に貼り付けていたので、入れ物が画面から
+   出た瞬間に一緒に流れていきました(カードまで運んだ先で、切り替える帯が
+   もう無い)。入れ物を .wrap 直下の背の高い箱として扱わせます。 */
+#secBarHost{margin:0 0 4px;position:sticky;top:var(--headh);z-index:6;background:var(--page);
+  border-bottom:1px solid var(--hairline)}
+#secBarHost:empty{display:none}
+/* 帯の<b>背景</b>は画面いっぱい、<b>中身</b>はページと同じ幅に。
+   body直下に置いたので(sticky を効かせるため)、そのままだと本文より
+   110px 左にはみ出して、タブだけ列から外れて見えていました。 */
+#secBarHost .secbar{position:static;margin:0 auto;padding:8px 16px;
+  max-width:1180px;border-bottom:0}
+body.two #secBarHost,body.chart-full #secBarHost{display:none}
+
+/* --- 判定の先頭に出す「次の権利付最終日」 --- */
+.knote{display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;padding:10px 12px;
+  border:1px solid var(--warn);border-radius:10px;
+  background:color-mix(in srgb, var(--warn) 10%, var(--surface-1))}
+.knote.hide{display:none}
+.knote .kdot{flex:0 0 auto;width:26px;height:26px;border-radius:50%;
+  /* --warn(琥珀色)はテーマで変わらないので、文字も固定の濃い色にします。
+     var(--surface-1) だと明るいテーマで 1.79:1、var(--ink-1) だと
+     暗いテーマで白地に琥珀になります。どちらのテーマでも約10:1。 */
+  background:var(--warn);color:#231a00;font-size:12px;font-weight:700;
+  display:flex;align-items:center;justify-content:center}
+.knote .kbig{font-weight:700;font-size:15px;line-height:1.5}
+.knote .ksub{color:var(--ink-2);font-size:12px;line-height:1.7;margin:2px 0 0}
+.knote .links{margin-top:8px}
+/* 過ぎたものを「これから来る」色で出さない */
+.knote.past{border-color:var(--hairline);background:var(--surface-1)}
+.knote.past .kdot{background:var(--ink-3);color:var(--surface-1)}
 .sectab{font-weight:600}
 .sectab[aria-selected="true"]{background:var(--ink-1);color:var(--surface-1);
   border-color:var(--ink-1)}
@@ -142,7 +181,8 @@ body{
 body.two .wrap{max-width:1680px}
 body.two .cols{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(330px,1fr);
   gap:16px;align-items:start}
-body.two #colSide{position:sticky;top:66px;max-height:calc(100vh - 84px);overflow-y:auto;
+body.two #colSide{position:sticky;top:var(--headh);
+  max-height:calc(100vh - var(--headh) - 18px);overflow-y:auto;
   overscroll-behavior:contain;padding-right:2px}
 body.two #colSide::-webkit-scrollbar{width:8px}
 body.two #colSide::-webkit-scrollbar-thumb{background:var(--hairline);border-radius:4px}
@@ -177,6 +217,14 @@ header{
   border-bottom:1px solid var(--hairline); padding:10px 0;
   backdrop-filter:saturate(180%) blur(8px);
 }
+/* ヘッダが<b>折り返して背が高いとき</b>だけ、1カラムでは流します。
+   狭い画面ではヘッダが3行に折り返して198pxあり、そこへ束の帯が加わると
+   844pxの画面の<b>3割が常時ふさがります</b>。よく使うのは帯のほうです。
+
+   幅で判定すると外します——折り返す幅は文字の大きさや端末の設定で変わり、
+   「1カラム」を手で選んだ広い画面では1行(61px)のままだからです。
+   実際に測った高さで決めます(headtall は JS が付け外しします)。 */
+body.headtall:not(.two):not(.chart-full) header{position:static}
 .hrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.01em;white-space:nowrap}
 h1 .sub{font-weight:400;color:var(--ink-3);font-size:12px;margin-left:6px}
@@ -587,6 +635,10 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   </div>
 </header>
 
+  <!-- 1カラムのとき、カードの束のタブがここへ移ってきます(2カラムでは
+       右の列の上に戻ります)。中身が無いときは高さを持ちません。 -->
+  <div id="secBarHost"></div>
+
 <button class="primary" id="fullExit">全画面を終了</button>
 
 <div class="wrap">
@@ -748,6 +800,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
 
   <div class="card" id="sigCard">
     <h2>シグナル判定</h2>
+    <!-- 次の権利付最終日。最初に開く束なので、切り替えずに目に入ります。 -->
+    <div class="knote hide" id="kenriNote"></div>
     <div class="verdict" id="verdict"></div>
     <div class="sig" id="signals"></div>
     <div class="filters" style="margin:10px 0 0">
@@ -1392,8 +1446,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v50';
-const APP_DATE = '2026-08-25';
+const APP_VER = 'v51';
+const APP_DATE = '2026-08-26';
 
 /* ============================================================
    1. Small helpers
@@ -5323,6 +5377,7 @@ function buildSignals(){
 }
 
 function renderSignals(){
+  try { renderKenriNote(); } catch(e){}
   const {items, score} = buildSignals();
   const max = Math.max(8, items.length * 0.9);
   const pct = clamp(score / max, -1, 1);
@@ -7534,9 +7589,12 @@ function buildSections(){
     bar.appendChild(b);
   }
   side.dataset.sectioned = '1';
+  placeSecBar();
   bar.addEventListener('click', e => {
     const t = e.target.closest('[data-sec]');
-    if(t) showSection(t.dataset.sec);
+    if(!t) return;
+    showSection(t.dataset.sec);
+    scrollToCards();
   });
   /* 左右キーで隣の束へ。role="tab" と名乗る以上、これが無いと
      キーボードだけの人は束を切り替えられません。 */
@@ -7552,6 +7610,7 @@ function buildSections(){
     showSection(ks[j]);
     const nb = document.getElementById('sectab_' + ks[j]);
     if(nb) nb.focus();
+    scrollToCards();
   });
   showSection(sectionKey());
 }
@@ -9768,6 +9827,127 @@ function drawKenri(g, p, pos){
   g.restore();
 }
 
+/* これから来る権利付最終日。
+
+   ・提供元が<b>先の配当落ち日</b>を配っていることがあります。その場合は
+     見込みではなく<b>決まった予定</b>なので、そちらを使います。1営業日前が
+     権利付最終日で、その1営業日は祝日表から数えます
+   ・無ければ、例年の月から見込みを立てます(日本株のときだけ)
+
+   足の右端より先にある配当は kenriDates() では落としています。あちらは
+   「足そのものから1本前を取る」ので、足の無い日は答えようがないためです。
+   こちらは暦で数えるので、先の予定でも出せます。 */
+/* 「8桁の数字」と「実在する日付」は別ものです。提供元から 20260231 の
+   ような日付が来ることがあり、new Date はそれを黙って3月3日に繰り上げます。
+   繰り上がった日から逆算して、画面には<b>2026/02/31</b>と書く——という
+   ことが起きていました。実在するものだけ通します。 */
+function realDate(k){
+  if(!/^\d{8}$/.test(String(k))) return null;
+  const y = +k.slice(0, 4), m = +k.slice(4, 6), d = +k.slice(6, 8);
+  const dt = new Date(y, m - 1, d);
+  return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? dt : null;
+}
+/* 先の予定として受け取る上限。1年と少し。これを超える配当落ち日は、
+   予定ではなく<b>壊れた日付</b>とみなします(2年先の「次の権利日」を
+   案内しても、次ではありません)。 */
+const KENRI_AHEAD_MAX = 400;
+function kenriAhead(){
+  const raw = state.raw;
+  if(!raw || !raw.bars || !raw.bars.length || !kenriOk()) return null;
+  const code = raw.code;
+  if(!code || code === 'DEMO' || code === 'CSV') return null;
+  const jp = isJpCode(Ext.codeKey());
+  const today = dkey(new Date());
+  const lastBar = barKey(raw.bars[raw.bars.length - 1]);
+  const edge = lastBar > today ? lastBar : today;
+  const fut = (raw.events || [])
+    .filter(e => e && e.kind === 'div' && e.d > edge && realDate(e.d)
+                 && daysBetweenKeys(today, e.d) <= KENRI_AHEAD_MAX)
+    .sort((a, b) => a.d.localeCompare(b.d))[0];
+  if(fut){
+    if(!jp) return {ex: fut.d, d: '', days: daysBetweenKeys(today, fut.d),
+                    known: true, jp: false, text: fut.text || ''};
+    const d = realDate(fut.d);
+    for(let i = 0; i < 20; i++){
+      d.setDate(d.getDate() - 1);
+      if(!isJpxShut(d)) break;
+    }
+    const dk = dkey(d);
+    /* 落ち日はまだ先でも、<b>締め切りのほうは過ぎている</b>ことがあります。
+       土日祝に開くと必ずそうなります(落ち日が月曜なら締め切りは金曜)。
+       ここを見ずに残り日数を出していたので、とっくに過ぎた日を
+       「本日」と書いていました。その日に買っても権利は付きません。 */
+    return {ex: fut.d, d: dk, days: daysBetweenKeys(today, dk),
+            known: true, jp: true, passed: dk < today, text: fut.text || ''};
+  }
+  if(!jp) return null;
+  const list = kenriDates();
+  if(!list.length) return null;
+  const nx = kenriNext(kenriMonths(list), list, true);
+  return nx ? {ex: '', d: nx.d, days: nx.days, known: false, jp: true, text: ''} : null;
+}
+
+/* 優待・配当のリンク。日本株のときだけ出します。 */
+function kenriLinksHtml(){
+  const c = Ext.codeKey();
+  if(!isJpCode(c)) return '';
+  const e = encodeURIComponent(c);
+  return `<div class="links">`
+    + `<a href="https://minkabu.jp/stock/${e}/yutai" target="_blank" rel="noopener noreferrer">みんかぶ 優待</a>`
+    + `<a href="https://finance.yahoo.co.jp/quote/${e}.T/incentive" target="_blank" rel="noopener noreferrer">Yahoo!ファイナンス 優待</a>`
+    + `<a href="https://finance.yahoo.co.jp/quote/${e}.T/dividend" target="_blank" rel="noopener noreferrer">Yahoo!ファイナンス 配当</a>`
+    + `<a href="https://www.nikkei.com/nkd/company/?scode=${e}" target="_blank" rel="noopener noreferrer">日経 会社情報</a>`
+    + `</div>`;
+}
+
+/* 判定の先頭に出す一言。<b>未来にあるときだけ</b>出します。 */
+function renderKenriNote(){
+  const box = $('#kenriNote');
+  if(!box) return;
+  const a = kenriAhead();
+  if(!a){ box.classList.add('hide'); box.innerHTML = ''; return; }
+  const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+  const inDays = n => n <= 0 ? '本日' : n === 1 ? '明日' : `あと${n}日`;
+  let big, sub;
+  if(a.known && a.jp && a.passed){
+    /* 締め切りだけ過ぎている期間。ここで黙るより、はっきり言うほうが
+       役に立ちます——「まだ間に合う」と勘違いさせないために。 */
+    big = `権利付最終日 <b>${esc(fm(a.d), 12)}</b> は<b>過ぎました</b>`;
+    sub = `配当落ち日は ${esc(fm(a.ex), 12)} ですが、権利が付くのはその1営業日前まで`
+        + `です。<b>今からでは この期の権利には間に合いません</b>`
+        + `(次の期はまた案内します)。`;
+  }else if(a.known && a.jp){
+    big = `権利付最終日 <b>${esc(fm(a.d), 12)}</b>(${esc(inDays(a.days), 8)})`;
+    sub = `提供元が配当落ち日 ${esc(fm(a.ex), 12)} を配っているので、その1営業日前です`
+        + `(祝日・年末年始は数えています)。この日までに買うと権利が付きます。`;
+  }else if(a.known){
+    big = `配当落ち日 <b>${esc(fm(a.ex), 12)}</b>(${esc(inDays(a.days), 8)})`;
+    sub = `この<b>前の営業日</b>までに買うと権利が付きます。`
+        + `日本株ではないので、休場日を数えた日付は出していません。`;
+  }else{
+    big = `次の権利付最終日は <b>${esc(fm(a.d), 12)}</b> ごろ(${esc(inDays(a.days), 8)})`;
+    sub = `例年の権利確定月から立てた<b>見込み</b>です。土日・祝日・年末年始は`
+        + `数えていますが、臨時の休場までは見ていません。月に入ったら`
+        + `証券会社の表示で確かめてください。`;
+  }
+  const links = kenriLinksHtml();
+  box.classList.toggle('past', !!a.passed);
+  box.innerHTML = `<span class="kdot" aria-hidden="true">権</span><div>`
+    /* 配当の中身は見出しの脇に。文の途中に挟むと
+       「権利が付きます。配当 20.00 優待の中身は…」と読めてしまいます。 */
+    + `<div class="kbig">${big}`
+    + (a.text ? `<span class="qsrc" style="margin-left:8px;font-weight:400">`
+              + `${esc(a.text, 24)}</span>` : '')
+    + `</div>`
+    + `<p class="ksub">${sub}`
+    /* リンクが無いのに「下のリンク先で」と書かない。優待は日本の制度なので、
+       米国株ではその案内ごと出しません。 */
+    + (links ? ` 優待の中身と必要株数は機械が読める形で公開されていないので、`
+             + `下のリンク先で確かめてください。` : '')
+    + `</p>` + links + `</div>`;
+  box.classList.remove('hide');
+}
+
 /* ---- 権利日カード ---------------------------------------------------- */
 function renderKenri(){
   const box = $('#kenriBox'), stat = $('#kenriStat');
@@ -9776,12 +9956,9 @@ function renderKenri(){
   const jp = isJpCode(Ext.codeKey());
   const links = $('#kenriLinks');
   if(links){
-    const c = Ext.codeKey();
-    links.innerHTML = jp
-      ? `<a href="https://minkabu.jp/stock/${encodeURIComponent(c)}/yutai" target="_blank" rel="noopener noreferrer">みんかぶ 優待</a>`
-        + `<a href="https://finance.yahoo.co.jp/quote/${encodeURIComponent(c)}.T/incentive" target="_blank" rel="noopener noreferrer">Yahoo!ファイナンス 優待</a>`
-        + `<a href="https://www.nikkei.com/nkd/company/?scode=${encodeURIComponent(c)}" target="_blank" rel="noopener noreferrer">日経 会社情報</a>`
-      : '';
+    /* 判定の一言と同じリンクです。2か所で作り方が違うと、片方だけ
+       増えたり減ったりします。 */
+    links.innerHTML = kenriLinksHtml().replace(/^<div class="links">|<\/div>$/g, '');
     links.classList.toggle('hide', !jp);
   }
   const pb = $('#kenriPanelBtn');
@@ -17331,6 +17508,170 @@ async function runSelfTests(){
     return eq(got.join(','), '116.2,116.2,116.2,116.2,116.5', '未来の値を引かない');
   });
 
+  /* 「未来にある権利日」。提供元が先の配当落ち日を配っていれば、それは
+     見込みではなく決まった予定です。足の外にあるので暦で数えます。 */
+  test('先の配当落ち日から権利付最終日を出す', () => {
+    const keep = state.raw, ki = state.interval;
+    state.interval = '1d';
+    const bs = [];
+    for(const d of ['20260817','20260818','20260819','20260820','20260821']){
+      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
+    }
+    /* 2026/8/31(月)が落ち日 → 前の営業日は 8/28(金) */
+    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260831', kind:'div', text:'配当 20.00'}]};
+    const a = kenriAhead();
+    /* 大納会をまたぐ場合: 2027/1/4(月)が落ち日 → 前の営業日は 2026/12/30(水) */
+    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20270104', kind:'div', text:'x'}]};
+    const b = kenriAhead();
+    /* 米国株は日付を計算しない(休場日表が無いので) */
+    state.raw = {bars: bs, code:'AAPL', currency:'USD', tz:'America/New_York',
+                 events:[{d:'20260831', kind:'div', text:'x'}]};
+    const us = kenriAhead();
+    state.raw = keep; state.interval = ki;
+    return eq(a && a.d, '20260828', '8/31の前営業日')
+        && eq(a && a.known, true, '見込みではない')
+        && eq(b && b.d, '20261230', '年末年始をまたぐ')
+        && eq(us && us.d, '', '米国株は日付を出さない')
+        && eq(us && us.ex, '20260831', '落ち日は出す');
+  });
+  test('過ぎた配当落ち日は「次」に選ばない', () => {
+    const keep = state.raw, ki = state.interval;
+    state.interval = '1d';
+    const bs = [];
+    for(const d of ['20260817','20260818','20260819','20260820','20260821']){
+      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
+    }
+    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260302', kind:'div', text:'x'},
+                         {d:'20261130', kind:'div', text:'x'},
+                         {d:'20260901', kind:'div', text:'x'}]};
+    const a = kenriAhead();
+    state.raw = keep; state.interval = ki;
+    /* 足の右端より先で、いちばん近いもの = 9/1(火) → 前営業日 8/31(月) */
+    return eq(a && a.ex, '20260901', 'いちばん近い先の落ち日')
+        && eq(a && a.d, '20260831');
+  });
+  test('日足でなければ次の権利日も出さない', () => {
+    const keep = state.raw, ki = state.interval;
+    const bs = [{t:new Date(2026,7,21), o:1,h:1,l:1,c:1,v:1, k:'20260821'}];
+    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260831', kind:'div', text:'x'}]};
+    state.interval = '1wk'; const wk = kenriAhead();
+    state.interval = '1d';  const dy = kenriAhead();
+    state.raw = keep; state.interval = ki;
+    return eq(wk, null, '週足') && eq(dy && dy.d, '20260828', '日足');
+  });
+  test('優待リンクは日本株のときだけ', () => {
+    const keep = state.raw;
+    state.raw = {bars:[], code:'8267.T', currency:'JPY', tz:'Asia/Tokyo', events:[]};
+    const jp = kenriLinksHtml();
+    state.raw = {bars:[], code:'AAPL', currency:'USD', tz:'America/New_York', events:[]};
+    const us = kenriLinksHtml();
+    state.raw = keep;
+    return eq(us, '', '米国株には出さない')
+        && (jp.indexOf('minkabu.jp/stock/8267/yutai') >= 0 ? true : 'みんかぶのURLが違う: ' + jp)
+        && (jp.indexOf('8267.T/incentive') >= 0 ? true : 'Yahoo優待のURLが違う')
+        && (jp.indexOf('8267.T/dividend') >= 0 ? true : 'Yahoo配当のURLが違う')
+        && (/^<div class="links">/.test(jp) ? true : '入れ物が違う');
+  });
+  test('束のタブは画面の広さで置き場所が変わる', () => {
+    const keep = layoutMode, bar = $('#secBar');
+    applyLayout('two');
+    const wide = bar.parentElement.id;
+    applyLayout('one');
+    const narrow = bar.parentElement.id;
+    const n = bar.querySelectorAll('.sectab').length;
+    applyLayout(keep);
+    const back = bar.parentElement.id;
+    return eq(wide, 'colSide', '2カラムでは右の列')
+        && eq(narrow, 'secBarHost', '1カラムではヘッダの下')
+        && eq(n, SECTIONS.length, '行き来してもタブが減らない')
+        && (back ? true : '戻れない');
+  });
+  /* 66px の決め打ちで貼り付けていたので、狭い画面(ヘッダ198px)では
+     帯がヘッダの裏に完全に隠れていました。測った値と一致していること、
+     そして<b>帯が実際にその高さに居ること</b>を確かめます。 */
+  test('貼り付け位置は測ったヘッダの高さと一致する', () => {
+    const keep = layoutMode;
+    applyLayout('two');  syncHeadHeight();
+    const two = parseFloat(document.documentElement.style.getPropertyValue('--headh'));
+    const h2 = Math.round($('header').getBoundingClientRect().height);
+    applyLayout('one');  syncHeadHeight();
+    const one = parseFloat(document.documentElement.style.getPropertyValue('--headh'));
+    const stuck = getComputedStyle($('header')).position === 'sticky';
+    const h1 = Math.round($('header').getBoundingClientRect().height);
+    applyLayout(keep);   syncHeadHeight();
+    return eq(two, h2, '2カラムでは実際の高さ')
+        /* 1カラムでは、貼り付いていれば実際の高さ、流していれば0 */
+        && eq(one, stuck ? h1 : 0, '1カラムでも実測と一致')
+        && eq(stuck, h1 <= HEAD_TALL, '折り返して背が高いときだけ流す');
+  });
+  test('ヘッダが折り返したときだけ流す', () => {
+    const keep = document.body.classList.contains('headtall');
+    /* 幅ではなく<b>測った高さ</b>で決めます。幅で決めると、文字を
+       大きくした端末や「1カラム」を選んだ広い画面で外します。 */
+    const h = Math.round($('header').getBoundingClientRect().height);
+    syncHeadHeight();
+    const tall = document.body.classList.contains('headtall');
+    if(keep !== tall) document.body.classList.toggle('headtall', keep);
+    return eq(tall, h > HEAD_TALL, `高さ${h}px のときの判定`)
+        && (HEAD_TALL > 61 && HEAD_TALL < 112 ? true
+            : '1行(61px)と2行(112px)の間に閾値がありません: ' + HEAD_TALL);
+  });
+  /* 締め切りだけ過ぎている期間を「本日」と言わない。土日祝に開くと必ず
+     この形になります(落ち日が月曜なら、締め切りは前の金曜)。 */
+  test('ありえない日付を予定として受け取らない', () => {
+    const keep = state.raw, ki = state.interval;
+    state.interval = '1d';
+    const now = new Date();
+    const bs = [{t:now, o:1,h:1,l:1,c:1,v:1, k:dkey(now)}];
+    const ask = evs => {
+      state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo', events: evs};
+      return kenriAhead();
+    };
+    /* 「先の予定」なので、実行した日を基準に組み立てます */
+    const soon = new Date(now); soon.setDate(soon.getDate() + 30);
+    const far0 = new Date(now); far0.setDate(far0.getDate() + 730);
+    /* 2月31日は存在しません。new Date は黙って3月3日にします */
+    const bad = ask([{d: dkey(soon).slice(0,6) + '31', kind:'div', text:'x'}]);
+    const far = ask([{d: dkey(far0), kind:'div', text:'x'}]);   /* 2年先は「次」ではない */
+    const ok  = ask([{d: dkey(soon), kind:'div', text:'x'}]);   /* まともなものは通る */
+    state.raw = keep; state.interval = ki;
+    const m31 = dkey(soon).slice(0,6) + '31';
+    return eq(realDate('20260231'), null, '2月31日')
+        && eq(realDate('20260229'), null, '2026年は閏年ではない')
+        && !!realDate('20240229')
+        && eq(far, null, '2年先は受け取らない')
+        && eq(ok && ok.ex, dkey(soon), 'まともなものは通る')
+        /* その月に31日が無いときだけ、ありえない日付の検査になります */
+        && (realDate(m31) ? true : eq(bad, null, 'ありえない落ち日は受け取らない'));
+  });
+  test('過ぎた権利付最終日を「まだ間に合う」と書かない', () => {
+    const keep = state.raw, ki = state.interval;
+    state.interval = '1d';
+    /* 足の右端を金曜に置き、落ち日を翌月曜にします。
+       締め切り(金曜)は足の右端と同じ日=すでに過ぎています。 */
+    const bs = [];
+    for(const d of ['20260826','20260827','20260828']){
+      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
+    }
+    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260831', kind:'div', text:'配当 20.00'}]};
+    const a = kenriAhead();
+    state.raw = keep; state.interval = ki;
+    if(!a) return '何も出ませんでした';
+    /* 8/31(月)の1営業日前 = 8/28(金)。今日(実行日)より前なら「過ぎた」 */
+    const shouldPass = a.d < dkey(new Date());
+    return eq(a.d, '20260828', '前営業日')
+        && eq(a.passed, shouldPass, '過ぎたかどうかの判定')
+        && (a.passed ? true : (a.days >= 0 ? true : '過ぎていないのに残り日数が負: ' + a.days));
+  });
+
   test('権利付最終日は権利落ち日の1営業日前', () => {
     const keep = state.raw, ki = state.interval;
     state.interval = '1d';
@@ -18115,7 +18456,79 @@ function applyLayout(mode){
   document.body.classList.toggle('chart-full', layoutMode === 'full');
   const sel = $('#layoutSel');
   if(sel && sel.value !== layoutMode) sel.value = layoutMode;
-  requestAnimationFrame(() => { redraw(); paint(); });
+  placeSecBar();
+  syncHeadHeight();
+  requestAnimationFrame(() => { syncHeadHeight(); redraw(); paint(); });
+}
+
+/* 束のタブの置き場所。
+
+   カードの上に置いていたので、1カラム(スマホ・縦持ち)では
+   <b>画面2.4枚ぶん下</b>にありました(390x844 で実測 2030px)。
+   チャートを丸ごと通り越さないと切り替えられません。
+
+   1カラムのときはヘッダのすぐ下へ、2カラムのときは右の列の上へ戻します。
+   置き場所を2つ用意して<b>同じ要素を動かす</b>だけなので、押した束や
+   キーボードの位置は移動をまたいでも保たれます。 */
+/* ヘッダが実際にふさいでいる高さを測って --headh に入れます。
+   貼り付いていないとき(1カラム)は 0 です——そこへ貼り付けるものは
+   何も無いので、帯は画面のいちばん上に来ます。
+
+   折り返しの行数は幅・文字の大きさ・翻訳・端末の設定で変わります。
+   ResizeObserver で追いかけるので、回転しても文字を大きくしても合います。 */
+const HEAD_TALL = 90;      /* 1行なら61px、折り返すと112px以上。その間 */
+function syncHeadHeight(){
+  const h = $('header');
+  if(!h) return;
+  const box = Math.round(h.getBoundingClientRect().height);
+  /* 貼り付けを外しても<b>高さは変わりません</b>(position は箱の大きさに
+     効きません)。なので測ってから決めても、行ったり来たりしません。 */
+  if(box > 0) document.body.classList.toggle('headtall', box > HEAD_TALL);
+  const stuck = getComputedStyle(h).position === 'sticky';
+  const px = stuck ? box : 0;
+  const cur = document.documentElement.style.getPropertyValue('--headh');
+  const want = px + 'px';
+  if(cur !== want) document.documentElement.style.setProperty('--headh', want);
+}
+try {
+  if(typeof ResizeObserver === 'function'){
+    new ResizeObserver(() => syncHeadHeight()).observe(document.querySelector('header'));
+  }
+} catch(e){}
+
+function placeSecBar(){
+  const bar = $('#secBar');
+  if(!bar) return;
+  const host = document.body.classList.contains('two') ? $('#colSide') : $('#secBarHost');
+  if(!host || bar.parentElement === host) return;
+  /* 動かすと、その中に居たフォーカスは<b>捨てられます</b>。矢印キーで
+     束を選んでいる最中に画面を回すと、そこから先はキーが全部無反応に
+     なりました(キー操作を受けているのは帯そのものなので)。 */
+  const keep = bar.contains(document.activeElement) ? document.activeElement : null;
+  if(host.id === 'colSide') host.insertBefore(bar, host.firstChild);
+  else host.appendChild(bar);
+  if(keep){ try { keep.focus({preventScroll: true}); } catch(e){ keep.focus(); } }
+}
+
+/* 束を選んだら、その束のカードまで運びます。
+
+   タブが上に来た以上、これが無いと「押しても何も起きない」ように見えます
+   ——カードは画面2枚ぶん下にあるからです。すでにカードが見えていれば
+   動かしません(束を続けて見比べるときに画面が跳ねるので)。 */
+function scrollToCards(){
+  if(document.body.classList.contains('two')) return;   /* 横に並んでいるので不要 */
+  if(document.body.classList.contains('chart-full')) return;
+  const side = $('#colSide'), bar = $('#secBar');
+  if(!side) return;
+  const r = side.getBoundingClientRect();
+  const barH = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+  const hv = parseFloat(getComputedStyle(document.documentElement)
+               .getPropertyValue('--headh')) || 0;
+  const head = hv + barH + 8;
+  if(r.top >= head - 4 && r.top <= (window.innerHeight || 800) * 0.6) return;
+  const to = Math.max(0, r.top + window.scrollY - head);
+  try { window.scrollTo({top: to, behavior: 'smooth'}); }
+  catch(e){ window.scrollTo(0, to); }
 }
 
 $('#layoutSel').addEventListener('change', e => {
