@@ -747,6 +747,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="pivot" aria-pressed="false"><i class="sw" style="background:var(--ink-2)"></i>節目・ピボット</button>
     <button class="chip" data-t="session" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--cmp2),var(--ich1),var(--smooth))"></i>取引時間帯</button>
     <button class="chip" data-t="cot" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>円の建玉(CFTC)</button>
+    <button class="chip" data-t="sectorAvg" aria-pressed="false"><i class="sw" style="background:var(--ink-3)"></i>業種平均(PER/PBR)</button>
     <button class="chip" data-t="kenri" aria-pressed="false"><i class="sw" style="background:var(--warn)"></i>権利付最終日</button>
     <button class="chip" data-t="events" aria-pressed="true"><i class="sw" style="background:var(--ink-2)"></i>分割・配当</button>
     <button id="csvBtn" class="chip" aria-pressed="false" style="border-style:dashed">CSVを読み込む</button>
@@ -971,6 +972,24 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <p class="qsrc" id="kenriStat" style="margin:0 0 10px"></p>
     <div id="kenriBox"></div>
     <div class="links hide" id="kenriLinks" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card" id="sectorCard">
+    <h2>業種の平均(東証)</h2>
+    <p class="qsrc" style="margin:0 0 10px">「PER 52倍は高いのか」に答えるには<b>比べる相手</b>が要ります。
+      東証が毎月出している<b>33業種の平均</b>を使います。銘柄に紐づかないデータなので、
+      <b>一度取れば全部の銘柄で使えます</b>。
+      公表値は<b>月末の写真</b>です(分母の利益は決算のときしか変わらないのに、
+      分子の時価総額は毎日動くので、市場が動いた分だけ古くなります)。
+      月が変わったら自動で取り直します。<b>日本株だけ</b>です。</p>
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="sectorBtn">業種の平均を取得する</button>
+      <button class="chip" id="sectorFullBtn" style="border-style:dashed">過去5年分もまとめて</button>
+      <button class="chip" id="sectorPanelBtn" style="border-style:dashed">チャートに業種平均を出す</button>
+      <button class="chip hide" id="sectorClear" style="border-style:dashed">保有データを消す</button>
+    </div>
+    <p class="qsrc" id="sectorStat" style="margin:0 0 10px"></p>
+    <div id="sectorBox"></div>
   </div>
 
   <div class="card" id="rateCard">
@@ -1446,8 +1465,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v51';
-const APP_DATE = '2026-08-26';
+const APP_VER = 'v52';
+const APP_DATE = '2026-09-18';
 
 /* ============================================================
    1. Small helpers
@@ -3433,7 +3452,7 @@ const state = {
             fib:false, st:false, vwap:false, don:false, mtf:false, osgfc:false, lorentz:false,
             shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false,
             valuation:false, rates:false, cbank:false, pivot:false,
-            session:false, cot:false, kenri:false, events:true},
+            session:false, cot:false, kenri:false, sectorAvg:false, events:true},
   range: '1y', interval: '1d'
 };
 
@@ -3562,7 +3581,11 @@ function layout(){
     const one = !state.ind.fund || state.ind.fund.count < 2;
     const nm = vks.length === 2 ? 'PER(右) と PBR(左) の推移(倍'
              : vks[0] === 'pbr' ? 'PBRの推移(倍' : 'PERの推移(倍';
-    subs.push({key:'valuation', title: nm + (one ? '・いまの決算の数値で換算)' : ')')});
+    /* 業種平均を重ねているなら、<b>どの市場の</b>平均かを見出しに出します。
+       同じ業種でも市場で倍率が大きく違うので、業種名だけでは足りません。 */
+    const sc = (state.toggles.sectorAvg && state.ind.sector) ? state.ind.sector : null;
+    subs.push({key:'valuation', title: nm + (one ? '・いまの決算の数値で換算)' : ')')
+      + (sc ? ` ／ 破線=${sc.ind}の平均(${String(sc.mkt).replace('市場','')}・東証)` : '')});
   }
 
   /* 金利は銘柄に紐づかないので、まだ取っていなければ空の箱になります。
@@ -6533,9 +6556,9 @@ const JPX_SHORT_INDEX = 'https://www.jpx.co.jp/markets/public/short-selling/inde
 
 /* The index page arrives through a relay, so its links are untrusted input.
    Only URLs that resolve onto jpx.co.jp are ever fetched. */
-function jpxUrl(href){
+function jpxUrl(href, base){
   try{
-    const u = new URL(String(href), JPX_SHORT_INDEX);
+    const u = new URL(String(href), base || JPX_SHORT_INDEX);
     return (u.protocol === 'https:' && /(^|\.)jpx\.co\.jp$/.test(u.hostname)) ? u.href : null;
   }catch(e){ return null; }
 }
@@ -7330,6 +7353,13 @@ function alignExt(ind){
      redraw() しか走らず、パネルの出る条件(ind.cot)が never true でした。
      ind.rates と同じで、常に作って出すかどうかだけトグルで決めます。 */
   ind.cot = buildCotSeries(state.raw.bars);
+  /* 業種平均も銘柄に紐づくデータではありますが、対応表と平均が手元に
+     あるかどうかだけで決まるので、金利と同じ場所で作ります。 */
+  /* 月が変わったら黙って取り直します。書いたのに<b>どこからも呼んで
+     いませんでした</b>——「月が変わったら自動で」とカードに書いてあるのに、
+     実際は永久にボタン待ちでした(ドル円の fxTopUp と同じ置き場所です)。 */
+  sectorTopUp();
+  ind.sector = buildSectorSeries(state.raw.bars);
   if(!Ext.fresh()){
     ind.extShort = null; ind.extMargin = null; ind.fund = null;
     return ind;
@@ -7528,7 +7558,7 @@ function pctlOf(arr, qs){
    ============================================================ */
 const SECTIONS = [
   {k:'read',  label:'判定',    cards:['sigCard', 'histCard']},
-  {k:'fetch', label:'吸い出し', cards:['fundCard', 'rateCard', 'shortCard',
+  {k:'fetch', label:'吸い出し', cards:['fundCard', 'sectorCard', 'rateCard', 'shortCard',
                                       'marginCard', 'gyakuCard', 'earnCard', 'kenriCard']},
   {k:'cmp',   label:'比べる',   cards:['cmpPickCard', 'cmpCard', 'newsCard', 'linkCard']},
   {k:'view',  label:'表示',    cards:['viewCard']},
@@ -7635,7 +7665,7 @@ function showSection(k, quiet){
     try {
       if(k === 'cmp') renderCompareStats();
       if(k === 'view') renderViewCard();
-      if(k === 'fetch'){ renderFundCard(); renderRateCard(); renderKenri(); }
+      if(k === 'fetch'){ renderFundCard(); renderRateCard(); renderKenri(); renderSectorCard(); }
     } catch(e){}
   }
 }
@@ -7663,7 +7693,7 @@ const CHIP_GROUPS = [
   {label:'トレンド',       keys:['ma','bb','ichimoku','st','vwap','don','mtf','osgfc','lorentz','fib']},
   {label:'オシレーター',    keys:['rsi','macd','stoch','adx']},
   {label:'需給',          keys:['vol','shortPanel','marginPanel','flow','sizeflow','vprofile','cot']},
-  {label:'ファンダ・マクロ', keys:['valuation','rates','cbank','pivot','session','events','kenri']}
+  {label:'ファンダ・マクロ', keys:['valuation','sectorAvg','rates','cbank','pivot','session','events','kenri']}
 ];
 function buildChipGroups(){
   const first = document.querySelector('.chip[data-t]');
@@ -8569,6 +8599,32 @@ function buildCotSeries(bars){
 
 /* 足ごとの3本の系列。信用残と同じで「その日から先」に効かせます
    (日足の金利を15分足に貼るので、当日の値が一日じゅう平らになります)。 */
+/* 業種平均を足の並びに貼ります。月末の値なので、その月末から次の月末まで
+   横ばいの階段になります——<b>月に1点しかないものを、日ごとに滑らかな線に
+   見せない</b>ための形でもあります。 */
+function buildSectorSeries(bars){
+  if(!bars || !bars.length || !state.raw) return null;
+  const hit0 = sectorHit();
+  if(!hit0) return null;
+  const per = Sector.series(hit0.ind, hit0.mkt, 'wPer');
+  const pbr = Sector.series(hit0.ind, hit0.mkt, 'wPbr');
+  if(!per.length && !pbr.length) return null;
+  const n = bars.length;
+  const walk = pts => {
+    const out = new Array(n).fill(null);
+    let j = 0, carry = null;
+    for(let i = 0; i < n; i++){
+      const key = barKey(bars[i]);
+      while(j < pts.length && pts[j].d <= key){ carry = pts[j].v; j++; }
+      out[i] = carry;
+    }
+    return out;
+  };
+  const a = walk(per), b = walk(pbr);
+  return (a.some(isNum) || b.some(isNum))
+    ? {per: a, pbr: b, ind: hit0.ind, mkt: hit0.mkt} : null;
+}
+
 function buildRateSeries(bars){
   if(!bars || !bars.length) return null;
   if(!Macro.us10 && !Macro.jp10) return null;
@@ -9851,13 +9907,19 @@ function realDate(k){
    予定ではなく<b>壊れた日付</b>とみなします(2年先の「次の権利日」を
    案内しても、次ではありません)。 */
 const KENRI_AHEAD_MAX = 400;
-function kenriAhead(){
+/* asOf は自己テストが「その日に開いたら何が出るか」を固定するためのものです。
+
+   これを付けていなかったので、自己テストは 20260831 のような<b>その時点で
+   未来だった日付</b>を直に書いていました。日が経つとその日付が過去になり、
+   テストのほうが勝手に壊れます(実際4件そうなりました)。日付を外から
+   渡せるようにして、暦の答えを literal で確かめられるようにします。 */
+function kenriAhead(asOf){
   const raw = state.raw;
   if(!raw || !raw.bars || !raw.bars.length || !kenriOk()) return null;
   const code = raw.code;
   if(!code || code === 'DEMO' || code === 'CSV') return null;
   const jp = isJpCode(Ext.codeKey());
-  const today = dkey(new Date());
+  const today = dkey(asOf || new Date());
   const lastBar = barKey(raw.bars[raw.bars.length - 1]);
   const edge = lastBar > today ? lastBar : today;
   const fut = (raw.events || [])
@@ -9883,7 +9945,7 @@ function kenriAhead(){
   if(!jp) return null;
   const list = kenriDates();
   if(!list.length) return null;
-  const nx = kenriNext(kenriMonths(list), list, true);
+  const nx = kenriNext(kenriMonths(list), list, true, asOf);
   return nx ? {ex: '', d: nx.d, days: nx.days, known: false, jp: true, text: ''} : null;
 }
 
@@ -9904,7 +9966,7 @@ function kenriLinksHtml(){
 function renderKenriNote(){
   const box = $('#kenriNote');
   if(!box) return;
-  const a = kenriAhead();
+  const a = kenriAhead();      /* 画面では「いま」。asOf は自己テスト用です */
   if(!a){ box.classList.add('hide'); box.innerHTML = ''; return; }
   const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
   const inDays = n => n <= 0 ? '本日' : n === 1 ? '明日' : `あと${n}日`;
@@ -10295,6 +10357,444 @@ function displayBars(bars){
   return {bars: conv.bars, fac: conv.fac, cur: want};
 }
 
+/* ============================================================
+   18. 業種の平均(東証)
+   ------------------------------------------------------------
+   「PER 52倍は高いのか」に答えるには、比べる相手が要ります。
+   東証が毎月出している業種別の平均を使います。両方とも無料で、
+   機械が読める形で公開されているものです。
+
+   ・規模別・業種別PER・PBR … 33業種 × 市場区分の平均(1ファイル=1ヶ月)
+   ・東証上場銘柄一覧       … コード → 33業種・市場・規模
+
+   <b>2つ要ります。</b>平均の表だけでは「8267が何業種か」が分かりません。
+
+   公表値の作り方は 時価総額合計 ÷ 利益合計 です。
+   <b>分母の利益は決算のときしか変わらないのに、分子の時価総額は毎日
+   動きます。</b>だからこの数字は月末の写真で、そこから市場が動いた分だけ
+   そのまま古くなります。画面には必ず「2026年8月末」と添えます。
+
+   東証は<b>加重平均と単純平均の両方</b>を出しています。意味が違います。
+   ・加重平均(時価総額合計÷利益合計) … 報道の「小売業のPERは◯倍」はこれ
+   ・単純平均(株価合計÷一株利益合計) … 業種の《ふつうの会社》に近い
+   このツールは加重平均を主に出し、単純平均を併記します。
+   ============================================================ */
+
+const SEC_INDEX = 'https://www.jpx.co.jp/markets/statistics-equities/misc/04.html';
+const SEC_LIST_PAGE = 'https://www.jpx.co.jp/markets/statistics-equities/misc/01.html';
+const SEC_MONTHS_MAX = 60;          /* 初回に集める月数(5年) */
+
+/* 市場・商品区分(銘柄一覧)→ 市場区分名(平均の表)。
+   「プライム（内国株式）」と「プライム市場」を突き合わせます。
+   外国株・ETF・REIT・PRO Market には業種が付いていないので落ちます。 */
+function secMarket(v){
+  const t = String(v || '');
+  /* <b>内国株式だけ</b>です。「プライム（外国株式）」にも33業種が
+     付いていますが、東証の平均の集計には入っていません(スタンダードの
+     医薬品は8社＝内国株だけの数)。外国株に国内の同業の平均をぶつけると、
+     その会社が属していない集団と比べることになります。 */
+  if(!/内国株式/.test(t)) return '';
+  if(/^プライム/.test(t)) return 'プライム市場';
+  if(/^スタンダード/.test(t)) return 'スタンダード市場';
+  if(/^グロース/.test(t)) return 'グロース市場';
+  return '';
+}
+/* 業種名。平均の表のほうは「　　　　 1 水産・農林業」のように全角空白と
+   通し番号が付いています。銘柄一覧のほうは「水産・農林業」だけです。
+   どちらから来ても同じ名前になるように削ります。 */
+function secIndName(v){
+  return String(v || '').replace(/[\s　]+/g, '').replace(/^\d+/, '');
+}
+/* 「－」「-」「」は値なし。0 と取り違えないように null にします。 */
+function secNum(v){
+  if(typeof v === 'number') return isFinite(v) ? v : null;
+  const t = String(v == null ? '' : v).replace(/[,\s　]/g, '');
+  if(!t || /^[-－—―]+$/.test(t)) return null;
+  const n = parseFloat(t);
+  return isFinite(n) ? n : null;
+}
+
+/* --- 規模別・業種別PER・PBR の1ヶ月分 ---------------------------------
+   見出しは3行目、数字は5行目から。列の位置は決め打ちにせず、
+   見出しの文字で探します(東証が列を足しても壊れないように)。 */
+function parseSectorSheet(rows){
+  if(!Array.isArray(rows) || rows.length < 5) return null;
+  let hi = -1;
+  for(let i = 0; i < Math.min(8, rows.length); i++){
+    const r = (rows[i] || []).map(x => String(x == null ? '' : x));
+    if(r.some(c => /年月/.test(c)) && r.some(c => /単純.*PER/.test(c))){ hi = i; break; }
+  }
+  if(hi < 0) return null;
+  const head = (rows[hi] || []).map(x => String(x == null ? '' : x).replace(/[\s　]/g, ''));
+  const col = re => head.findIndex(c => re.test(c));
+  const cYm = col(/^年月$/), cMkt = col(/市場区分名/), cInd = col(/^種別$/);
+  const cN = col(/会社数/);
+  /* 見出しは「単純＿PER（倍）」。区切りの記号が変わっても拾えるように、
+     文字数に幅を持たせます(拾えないとファイルごと蹴ってしまいます)。 */
+  const cSPer = col(/^単純.{0,2}PER/), cSPbr = col(/^単純.{0,2}PBR/);
+  const cWPer = col(/^加重.{0,2}PER/), cWPbr = col(/^加重.{0,2}PBR/);
+  if(cYm < 0 || cMkt < 0 || cInd < 0 || cWPer < 0) return null;
+  const out = [];
+  let ym = '';
+  for(let i = hi + 1; i < rows.length; i++){
+    const r = rows[i] || [];
+    const y = String(r[cYm] == null ? '' : r[cYm]).replace(/[\s　]/g, '');
+    const m = /^(20\d{2})[\/.-]?(\d{1,2})$/.exec(y);
+    if(!m) continue;
+    ym = m[1] + String(+m[2]).padStart(2, '0');
+    const mkt = String(r[cMkt] == null ? '' : r[cMkt]).replace(/[\s　]/g, '');
+    const ind = secIndName(r[cInd]);
+    if(!ind) continue;
+    out.push({mkt, ind,
+      n: secNum(r[cN]), sPer: secNum(r[cSPer]), sPbr: secNum(r[cSPbr]),
+      wPer: secNum(r[cWPer]), wPbr: secNum(r[cWPbr])});
+  }
+  return out.length ? {ym, rows: out} : null;
+}
+
+/* --- 東証上場銘柄一覧 --------------------------------------------------
+   コード → 業種・市場・規模。名前は持ちません(4400件ぶんの社名を
+   抱えても、このツールは銘柄名を自前で持っているので要りません)。 */
+function parseSectorList(rows){
+  if(!Array.isArray(rows) || rows.length < 2) return null;
+  const head = (rows[0] || []).map(x => String(x == null ? '' : x).replace(/[\s　]/g, ''));
+  const col = re => head.findIndex(c => re.test(c));
+  const cCode = col(/^コード$/), cMkt = col(/市場.*商品区分/),
+        cInd = col(/33業種区分/), cSize = col(/規模区分/), cDate = col(/^日付$/);
+  if(cCode < 0 || cMkt < 0 || cInd < 0) return null;
+  const by = Object.create(null);
+  let ym = '';
+  for(let i = 1; i < rows.length; i++){
+    const r = rows[i] || [];
+    if(!ym && cDate >= 0){
+      const d = String(r[cDate] == null ? '' : r[cDate]).replace(/\D/g, '');
+      if(/^\d{8}$/.test(d)) ym = d.slice(0, 6);
+    }
+    const code = String(r[cCode] == null ? '' : r[cCode]).trim();
+    if(!/^[0-9A-Z]{4}$/.test(code)) continue;
+    const ind = secIndName(r[cInd]);
+    const mkt = secMarket(r[cMkt]);
+    if(!ind || ind === '-' || !mkt) continue;       /* ETF・REIT・外国株など */
+    by[code] = {i: ind, m: mkt, z: String(r[cSize] == null ? '' : r[cSize]).trim() || ''};
+  }
+  return Object.keys(by).length ? {ym, by} : null;
+}
+
+/* --- 手元の控え -------------------------------------------------------- */
+const Sector = {
+  map: null,          /* {ym, by:{コード:{i,m,z}}, at} */
+  avg: null,          /* {months:{YYYYMM:[{mkt,ind,...}]}, at} */
+  busy: false,
+  note: '',
+
+  async load(){
+    try { this.map = await DB.get('sector.map'); } catch(e){}
+    try { this.avg = await DB.get('sector.avg'); } catch(e){}
+    /* 途中で切れた記録を読むことがあります。中身の形だけは確かめます
+       ——「あるのに空」は、無いより厄介です。 */
+    if(this.avg && !this.avg.months) this.avg = null;
+    if(this.map && !this.map.by) this.map = null;
+  },
+  months(){ return this.avg && this.avg.months ? Object.keys(this.avg.months).sort() : []; },
+  latestYm(){ const m = this.months(); return m.length ? m[m.length - 1] : ''; },
+
+  /* コードから業種を引きます。日本株のコードだけです。 */
+  forCode(code){
+    const c = String(code || '').toUpperCase().replace(/\.T$/, '');
+    if(!this.map || !this.map.by) return null;
+    return Object.prototype.hasOwnProperty.call(this.map.by, c) ? this.map.by[c] : null;
+  },
+  /* その業種・市場の平均。年月を省くといちばん新しい月。 */
+  avgAt(ind, mkt, ym){
+    if(!this.avg || !this.avg.months) return null;
+    const key = ym || this.latestYm();
+    const rows = this.avg.months[key];
+    if(!rows) return null;
+    const hit = rows.find(r => r.ind === ind && r.mkt === mkt);
+    return hit ? Object.assign({ym: key}, hit) : null;
+  },
+  /* 業種の平均の推移。チャートに重ねる線に使います。 */
+  series(ind, mkt, kind){
+    const out = [];
+    for(const ym of this.months()){
+      const rows = this.avg.months[ym];
+      const hit = rows && rows.find(r => r.ind === ind && r.mkt === mkt);
+      /* その月をまだ取っていない = 何も言えないので、前の値を延ばします */
+      if(!hit) continue;
+      const v = hit[kind];
+      /* その月が「－」(赤字などで倍率が出ない) なら<b>線を切ります</b>。
+         点を置かずに飛ばすと、前の月の倍率がその先ずっと横ばいで
+         伸びます。カードは同じ月を「—」と出すので、画面の中で
+         食い違うことにもなります。 */
+      /* 月末の値なので、その月の末日に置きます */
+      out.push({d: ym + String(new Date(+ym.slice(0,4), +ym.slice(4,6), 0).getDate()),
+                v: isNum(v) ? v : null});
+    }
+    return out;
+  },
+  async saveAvg(){
+    this.avg.at = Date.now();
+    const rec = this.avg;
+    withKey('sector.avg', async () => { try { await DB.set('sector.avg', rec); } catch(e){} });
+  },
+  async clear(){
+    this.map = null; this.avg = null; this.note = '';
+    try { await DB.del('sector.map'); } catch(e){}
+    try { await DB.del('sector.avg'); } catch(e){}
+  }
+};
+
+/* 索引ページから「perpbr202608.xlsx」のリンクを全部拾います。
+   ディレクトリのidは月ごとに違う不規則な文字列なので、組み立てられません
+   ——空売り残高と同じで、ページから読むしかありません。 */
+function sectorLinks(html){
+  const out = new Map();
+  for(const m of String(html || '').matchAll(/href="([^"]*perpbr(\d{6})\.xlsx)"/gi)){
+    const abs = jpxUrl(m[1], SEC_INDEX);
+    if(abs && !out.has(m[2])) out.set(m[2], abs);
+  }
+  return [...out.entries()].sort((a, b) => b[0].localeCompare(a[0]));   /* 新しい順 */
+}
+function sectorListLink(html){
+  const m = String(html || '').match(/href="([^"]*data_j\.xlsx)"/i);
+  return m ? jpxUrl(m[1], SEC_LIST_PAGE) : null;
+}
+
+/* --- 取得 --------------------------------------------------------------
+   索引ページ → リンク一覧 → 要る月だけ。すでに持っている月は飛ばすので、
+   2回目からは1ファイルで済みます。 */
+async function loadSectorData(opts){
+  opts = opts || {};
+  if(Sector.busy) return false;
+  Sector.busy = true;
+  Sector.note = '';
+  const say = m => { Sector.note = m; try { renderSectorCard(); } catch(e){} };
+  try{
+    const XL = await loadXLSX();
+    freezeProto();
+    const toRows = buf => {
+      const wb = XL.read(new Uint8Array(buf), {type: 'array'});
+      return XL.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],
+                                    {header: 1, raw: true, defval: ''});
+    };
+    const msgs = [];
+
+    /* (1) 銘柄→業種の対応表。上場・廃止・業種変更でしか変わらないので、
+       手元にあって同じ月のものなら取り直しません。 */
+    const wantMapYm = ymOf(new Date());
+    if(opts.force || !Sector.map || !Sector.map.by
+       || (Sector.map.ym || '') < prevYm(wantMapYm)){
+      try{
+        say('東証の銘柄一覧を探しています…');
+        const html = await relayFetch(SEC_LIST_PAGE, {text: true, timeout: 12000});
+        const url = sectorListLink(html);
+        if(!url) throw new Error('ページにリンクが見つかりません');
+        say('銘柄一覧を読み込んでいます…');
+        const map = parseSectorList(toRows(await relayFetchBinary(url, 25000)));
+        if(!map) throw new Error('中身が読めませんでした');
+        Sector.map = {ym: map.ym, by: map.by, at: Date.now()};
+        await withKey('sector.map', async () => {
+          try { await DB.set('sector.map', Sector.map); } catch(e){}
+        });
+        msgs.push(`銘柄一覧 ${Object.keys(map.by).length}件(${fmtYm(map.ym)})`);
+      }catch(e){
+        msgs.push('銘柄一覧は取得できませんでした: ' + cleanText(e && e.message, 40));
+      }
+    }else{
+      msgs.push(`銘柄一覧 ${Object.keys(Sector.map.by).length}件(${fmtYm(Sector.map.ym)}・手元のまま)`);
+    }
+
+    /* (2) 業種平均。1ファイル=1ヶ月なので、足りない月だけ取ります。 */
+    say('業種平均のファイル一覧を確認しています…');
+    const html = await relayFetch(SEC_INDEX, {text: true, timeout: 12000});
+    const links = sectorLinks(html);
+    if(!links.length) throw new Error('JPXのページに業種平均のリンクが見つかりません');
+    if(!Sector.avg || !Sector.avg.months) Sector.avg = {months: {}, at: 0};
+    const want = (opts.full ? links.slice(0, SEC_MONTHS_MAX) : links.slice(0, 1))
+                   .filter(([ym]) => opts.force || !Sector.avg.months[ym]);
+    if(!want.length){
+      msgs.push(`業種平均は最新まで揃っています(${fmtYm(Sector.latestYm())}まで ${Sector.months().length}ヶ月)`);
+    }else{
+      let done = 0, failed = 0;
+      const had = new Set(Sector.months());
+      const queue = want.slice();
+      const worker = async () => {
+        while(queue.length){
+          const [ym, url] = queue.shift();
+          try{
+            const one = parseSectorSheet(toRows(await relayFetchBinary(url, 20000)));
+            if(!one) throw new Error('中身が読めませんでした');
+            /* ファイル名の年月ではなく<b>中身の年月</b>で入れます。
+               取り違えたファイルを静かに別の月として貯めないためです。 */
+            Sector.avg.months[one.ym] = one.rows;
+          }catch(e){ failed++; }
+          done++;
+          say(`業種平均を取得しています… ${done}/${want.length}${failed ? `(失敗 ${failed})` : ''}`);
+        }
+      };
+      await Promise.all([worker(), worker()]);
+      if(!Sector.months().length) throw new Error('どの月も取得できませんでした');
+      await Sector.saveAvg();
+      /* 取ったファイルの数ではなく<b>増えた月の数</b>を言います。
+         ファイル名と中身の年月が食い違っていると、同じ月に何度も
+         上書きすることがあり、「11ヶ月ぶん(手元に1ヶ月)」という
+         意味の通らない報せになっていました。 */
+      const added = Sector.months().filter(m => !had.has(m)).length;
+      msgs.push(`業種平均 ${added}ヶ月ぶん増えました(手元に ${Sector.months().length}ヶ月・`
+              + `${fmtYm(Sector.latestYm())}まで)`
+              + (failed ? ` ※${failed}件は取得できず` : '')
+              + (!added && !failed && done ? ' ※同じ月のファイルでした' : ''));
+    }
+    Sector.note = msgs.join('\n');
+    return true;
+  }catch(e){
+    Sector.note = '取得できませんでした: ' + cleanText(e && e.message, 80);
+    return false;
+  }finally{
+    Sector.busy = false;
+    /* recompute() は組み立てて<b>返す</b>だけです。state.ind に入れて
+       描き直すまでが1組——取得しても線が出ませんでした。 */
+    try { state.ind = recompute(); renderSectorCard(); renderFundCard(); redraw(); } catch(e){}
+  }
+}
+
+/* 「いま」はまだ公表されていない月かもしれません。東証が出すのは
+   第1営業日なので、月初の数日は前月ぶんが最新です。 */
+function ymOf(d){ return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0'); }
+function prevYm(ym){
+  const y = +ym.slice(0, 4), m = +ym.slice(4, 6);
+  return m === 1 ? (y - 1) + '12' : y + String(m - 1).padStart(2, '0');
+}
+function fmtYm(ym){
+  return /^\d{6}$/.test(String(ym || '')) ? `${ym.slice(0,4)}年${+ym.slice(4,6)}月末` : '—';
+}
+/* 手元の業種平均が古くなっていないか。月が変わって数日たっても
+   前月ぶんが無ければ、黙って取りに行きます(ドル円と同じ考え方)。 */
+let secTopAt = 0;
+function sectorTopUp(){
+  if(Sector.busy || navigator.onLine === false) return;
+  if(!Sector.avg || !Sector.months().length) return;    /* 一度も取っていないなら勝手に取らない */
+  const now = Date.now();
+  if(now - secTopAt < 12 * 3600 * 1000) return;
+  const today = new Date();
+  /* 月初の3日間はまだ出ていないことがあるので、そこは待ちます */
+  const wantYm = today.getDate() <= 3 ? prevYm(prevYm(ymOf(today))) : prevYm(ymOf(today));
+  if(Sector.latestYm() >= wantYm) return;
+  secTopAt = now;
+  setTimeout(() => { loadSectorData({}).catch(() => {}); }, 50);
+}
+
+/* --- 業種カード -------------------------------------------------------- */
+function renderSectorCard(){
+  const box = $('#sectorBox'), stat = $('#sectorStat');
+  if(!box || !stat) return;
+  const cl = $('#sectorClear');
+  if(cl) cl.classList.toggle('hide', !(Sector.map || (Sector.avg && Sector.months().length)));
+  const pb = $('#sectorPanelBtn');
+  if(pb){
+    const on = !!state.toggles.sectorAvg;
+    pb.setAttribute('aria-pressed', String(on));
+    pb.textContent = on ? 'チャートから業種平均を消す' : 'チャートに業種平均を出す';
+  }
+  for(const id of ['#sectorBtn', '#sectorFullBtn']){
+    const b = $(id);
+    if(b) b.disabled = !!Sector.busy;
+  }
+  if(Sector.busy){
+    stat.textContent = Sector.note || '取得しています…';
+    return;
+  }
+  const n = Sector.months().length;
+  stat.innerHTML = (Sector.note ? esc(Sector.note, 400).replace(/\n/g, '<br>') + '<br>' : '')
+    + (n ? `手元: 業種平均 <b>${n}ヶ月</b>(${esc(fmtYm(Sector.latestYm()), 16)}まで)`
+         + ` ・ 銘柄一覧 ${Sector.map && Sector.map.by
+               ? Object.keys(Sector.map.by).length + '件' : '未取得'}`
+       : 'まだ取得していません。「業種の平均を取得する」を押してください。');
+  const hit = sectorHit();
+  if(!hit){ box.innerHTML = ''; return; }
+  /* 業種名は<b>中継ごしに届いたファイルの中身</b>です。すぐ下では esc して
+     いるのに、ここだけ素通りしていました。IndexedDBに保存されるので、
+     一度入ると回線を切っても毎回動く形になります。 */
+  const indE = esc(hit.ind, 16);
+  box.innerHTML = '<div class="fgrid">'
+    + fundCell(`${indE} の平均PER`, '倍', hit.a.wPer, 1,
+        `加重平均(時価総額合計÷利益合計)。${esc(hit.mkt, 12)}の${hit.a.n || '—'}社`
+        + (isNum(hit.a.sPer) ? ` ・ 単純平均は ${hit.a.sPer.toFixed(1)}倍` : ''))
+    + fundCell(`${indE} の平均PBR`, '倍', hit.a.wPbr, 2,
+        `加重平均。${isNum(hit.a.sPbr) ? `単純平均は ${hit.a.sPbr.toFixed(2)}倍` : ''}`)
+    + '</div>'
+    + `<p class="qsrc" style="margin:8px 0 0;line-height:1.8">`
+    + `${esc(hit.code, 12)} は <b>${esc(hit.ind, 16)}</b> / ${esc(hit.mkt, 12)}`
+    + (hit.size ? ` / ${esc(hit.size, 16)}` : '')
+    + ` ・ 平均は <b>${esc(fmtYm(hit.a.ym), 16)}</b> 時点`
+    + (hit.stale ? '（<b>その後の値動きは入っていません</b>）' : '') + `</p>`;
+}
+
+/* 「出す」と言ったのに何も描けないときは、その場で理由を言います。
+   トグルは入っているのに絵が変わらない、がいちばん困る形です。 */
+function sectorDrawHint(){
+  if(!state.toggles.sectorAvg) return;
+  if(state.ind && state.ind.sector) return;
+  const hit = sectorHit();
+  if(!hit){
+    notice(Sector.map
+      ? 'この銘柄には東証の業種平均がありません(日本の内国株だけです)。'
+      : '先に「業種の平均(東証)」のカードで取得してください。', true);
+    return;
+  }
+  /* 業種は分かるのに線が引けない = 手元の平均が、表示している足より
+     あとの月しか無い(月末の値は、その月末より先の足にしか当たりません)。 */
+  notice(`手元の業種平均は ${fmtYm(Sector.latestYm())} ぶんだけなので、`
+       + `いま出している期間には重なりません。「過去5年分もまとめて」で`
+       + `過去の月を集めると線になります。`, true);
+}
+
+/* いま開いている銘柄の業種と、その平均。日本株で、対応表と平均の
+   両方が揃っているときだけ返します。 */
+function sectorHit(ym){
+  const raw = state.raw;
+  if(!raw || !raw.code || raw.code === 'DEMO' || raw.code === 'CSV') return null;
+  const code = Ext.codeKey();
+  if(!isJpCode(code)) return null;
+  const f = Sector.forCode(code);
+  if(!f) return null;
+  const a = Sector.avgAt(f.i, f.m, ym);
+  if(!a) return null;
+  /* 平均が2ヶ月以上前なら「その後の値動きは入っていない」と言います */
+  const now = ymOf(new Date());
+  return {code, ind: f.i, mkt: f.m, size: f.z, a,
+          stale: a.ym < prevYm(now)};
+}
+
+/* --- 逆算: このPERなら株価はいくら ------------------------------------
+   EPS も BPS も手元にあるので、掛け算だけです。「PER 15倍まで下がったら
+   いくら」が、いちばん知りたい形だと思います。 */
+function valueAtRatio(x, per){
+  return (isNum(x.eps) && x.eps > 0 && isNum(per)) ? x.eps * per : null;
+}
+/* 逆向き: いまの株価が目標のPERになるには、EPSがいくら必要か。 */
+function epsForRatio(x, per){
+  return (isNum(x.price) && isNum(per) && per > 0) ? x.price / per : null;
+}
+
+/* --- 益回り − 長期金利 -------------------------------------------------
+   PERの逆数(1÷PER)が益回りです。「その値段で買ったら、利益が何%分
+   ついてくるか」。国債の利回りと同じ土俵に乗るので、引き算ができます。
+   株はその差だけ余分に報われて当然、という古典的な見かたです。 */
+function yieldGap(x, code){
+  if(!isNum(x.per) || x.per <= 0) return null;
+  const ey = 100 / x.per;
+  /* 日経平均は4桁コードではないので isJpCode が false になり、
+     <b>米国債</b>と引き算していました。このツールでいちばん開かれる
+     日本の指標で、2.5ポイントずれたうえ債券の名前まで違っていました。 */
+  const jp = isJpCode(code) || isNikkei(code) || isNikkei(state.raw && state.raw.code);
+  const key = jp ? 'jp10' : 'us10';
+  const d = x.barDate || dkey(new Date());
+  const r = Macro.valueAt(key, d);
+  if(!isNum(r)) return {ey, gap: null, key, jp};
+  return {ey, gap: ey - r, rate: r, key, jp, at: (Macro.pointAt(key, d) || {}).d};
+}
+
 function isNikkei(code){ return String(code || '') === '^N225'; }
 
 /* 指数ベースの倍率から、1株あたりの数字に戻します。
@@ -10590,6 +11090,95 @@ function renderFundCard(){
       + `${x.per.toFixed(2)}倍 × ${x.roe.toFixed(2)}% = <b>${x.pbr.toFixed(2)}倍</b>。`
       + pbrStory(Math.round(x.per * 100) / 100, pbrS, roeS)
       + `</p>`;
+  }
+
+  /* --- 業種の平均と並べる ---
+     「52.5倍」だけでは高いのか安いのか決められません。同じ業種・同じ市場の
+     平均を横に置きます。倍率(何倍か)まで出すのは、倍率のほうが記憶に残って
+     しまうからではなく、2つの数を引き比べる手間を省くためです。 */
+  /* 比べる相手は<b>その足と同じ月</b>の平均です。過去にさかのぼって
+     見ているとき、いちばん新しい月の平均と比べると、別の日付の数字
+     どうしを並べることになります。その月が無ければいちばん新しい月に
+     落ちますが、そのときは下に日付が出ます。 */
+  const hit = sectorHit(x.barDate ? x.barDate.slice(0, 6) : '')
+           || sectorHit();
+  if(hit && (isNum(x.per) || isNum(x.pbr))){
+    const line = (label, mine, avg, dp) => {
+      if(!isNum(mine) || !isNum(avg) || !(avg > 0)) return '';
+      const r = mine / avg;
+      const how = r >= 1.3 ? `業種平均の<b>${r.toFixed(1)}倍</b>`
+                : r <= 0.77 ? `業種平均の<b>${r.toFixed(2)}倍</b>`
+                : '業種平均と<b>同じくらい</b>';
+      return `<br>${label} <b>${mine.toFixed(dp)}倍</b> ／ ${esc(hit.ind, 16)}の平均`
+           + ` <b>${avg.toFixed(dp)}倍</b> — ${how}`;
+    };
+    const body = line('PER', x.per, hit.a.wPer, 1) + line('PBR', x.pbr, hit.a.wPbr, 2);
+    if(body){
+      box.innerHTML += `<p class="qsrc" style="margin:8px 0 4px;line-height:1.8">`
+        + `<b>業種の平均と比べる</b>(東証・加重平均・${esc(fmtYm(hit.a.ym), 16)}時点)`
+        + body
+        + `<br><span style="opacity:.85">平均は<b>月末の写真</b>です。`
+        + `分母の利益は決算のときしか変わらないのに、分子の時価総額は毎日動くので、`
+        + `そこから市場が動いた分だけずれます。`
+        + (isNum(hit.a.sPer) ? `単純平均なら ${hit.a.sPer.toFixed(1)}倍です。` : '')
+        + `</span></p>`;
+    }
+  }else if(isJpCode(code) && (isNum(x.per) || isNum(x.pbr)) && !Sector.months().length){
+    box.innerHTML += `<p class="qsrc" style="margin:8px 0 4px">`
+      + `業種の平均と並べられます。「業種の平均(東証)」のカードで取得してください。</p>`;
+  }
+
+  /* --- 益回り − 長期金利 ---
+     PERの逆数を、国債の利回りと同じ土俵に乗せます。 */
+  const yg = yieldGap(x, code);
+  if(yg){
+    const nm = yg.jp ? '日本10年債' : '米国10年債';
+    box.innerHTML += `<p class="qsrc" style="margin:8px 0 4px;line-height:1.8">`
+      + `<b>益回り</b>(1÷PER) <b>${yg.ey.toFixed(2)}%</b>`
+      + (isNum(yg.gap)
+          ? ` − ${nm} ${yg.rate.toFixed(2)}% = <b>${yg.gap >= 0 ? '＋' : '−'}`
+            + `${Math.abs(yg.gap).toFixed(2)}%</b>`
+            + `<br><span style="opacity:.85">その値段で買うと利益が何%ぶん付いてくるか、を`
+            + `国債と比べた差です。<b>プラスなら株のほうが多く報われる計算</b>ですが、`
+            + `利益は国債の利息と違って<b>約束されていません</b>。`
+            + (yg.at ? `金利は ${esc(yg.at.slice(0,4) + '/' + yg.at.slice(4,6) + '/' + yg.at.slice(6,8), 12)} 時点。` : '')
+            + `</span>`
+          : `<br><span style="opacity:.85">${nm}の利回りがまだありません。`
+            + `「金利(日米10年債)」のカードで取得すると差が出ます。</span>`)
+      + `</p>`;
+  }
+
+  /* --- 逆算: このPERなら株価はいくら ---
+     「PERが◯倍まで戻ったら」を手で計算しなくて済むように。 */
+  if(isNum(x.eps) && x.eps > 0 && isNum(x.price)){
+    const marks = [];
+    for(const r of [10, 15, 20, 25, 30]) marks.push(r);
+    if(hit && isNum(hit.a.wPer) && hit.a.wPer > 0) marks.push(Math.round(hit.a.wPer * 10) / 10);
+    if(q && isNum(q[1])) marks.push(Math.round(q[1] * 10) / 10);
+    const seen = new Set(), rows = [];
+    for(const r of marks.sort((a2, b2) => a2 - b2)){
+      if(!(r > 0) || seen.has(r)) continue;
+      seen.add(r);
+      const px = valueAtRatio(x, r);
+      const diff = (px / x.price - 1) * 100;
+      const tag = (hit && Math.abs(r - Math.round(hit.a.wPer * 10) / 10) < 1e-9) ? '業種平均'
+                : (q && Math.abs(r - Math.round(q[1] * 10) / 10) < 1e-9) ? 'この銘柄の中央' : '';
+      rows.push(`<tr><td>${r.toFixed(1)}倍${tag ? `<span class="qsrc"> ${esc(tag, 12)}</span>` : ''}</td>`
+        + `<td style="text-align:right">${esc(fmtNum(px, cur), 20)}</td>`
+        + `<td style="text-align:right;color:${diff >= 0 ? 'var(--up)' : 'var(--down)'}">`
+        + `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%</td></tr>`);
+    }
+    box.innerHTML += `<details style="margin-top:10px"><summary><b>このPERなら株価はいくら</b>`
+      + `(EPS ${x.eps.toFixed(2)}${unit} で計算)</summary>`
+      + `<div class="tscroll" style="padding:0;margin-top:8px"><table><thead><tr>`
+      + `<th>PER</th><th style="text-align:right">株価</th>`
+      + `<th style="text-align:right">いまから</th></tr></thead><tbody>`
+      + rows.join('') + `</tbody></table></div>`
+      + `<p class="qsrc" style="margin:8px 0 0;line-height:1.8">`
+      + `<b>EPSが変わらなければ</b>、の話です。株価とEPSは一緒に動くことが多いので、`
+      + `「PERが戻れば株価もここまで戻る」とは限りません。`
+      + `逆に、いまの株価 ${esc(fmtNum(x.price, cur), 20)} がPER 15倍になるには`
+      + ` EPS ${esc(fmtNum(epsForRatio(x, 15), cur), 20)} が要ります。</p></details>`;
   }
   if(x.backfilled){
     box.innerHTML += `<p class="qsrc" style="margin:6px 0 4px;line-height:1.8">`
@@ -11689,8 +12278,17 @@ function drawValuation(g){
     const pad = Math.max((mx - mn) * 0.12, Math.abs(mx) * 0.02, 1e-6);
     return {mn: Math.max(0, mn - pad), mx: mx + pad};
   };
-  const perE = kinds.indexOf('per') >= 0 ? extent(f.per) : null;
-  const pbrE = kinds.indexOf('pbr') >= 0 ? extent(f.pbr) : null;
+  /* 業種平均を出すなら、その線も軸の計算に入れます。入れないと
+     枠の外に出て、見えない線を「出ている」と言うことになります。 */
+  const sec = (state.toggles.sectorAvg && state.ind && state.ind.sector) ? state.ind.sector : null;
+  const widen = (e, arr) => {
+    if(!e || !arr) return e;
+    const s2 = extent(arr);
+    return s2 ? {mn: Math.min(e.mn, s2.mn), mx: Math.max(e.mx, s2.mx)} : e;
+  };
+  let perE = kinds.indexOf('per') >= 0 ? extent(f.per) : null;
+  let pbrE = kinds.indexOf('pbr') >= 0 ? extent(f.pbr) : null;
+  if(sec){ perE = widen(perE, sec.per); pbrE = widen(pbrE, sec.pbr); }
   if(!perE && !pbrE){
     panelFrame(g, p);
     g.fillStyle = C.ink3;
@@ -11718,6 +12316,18 @@ function drawValuation(g){
   let drew = 0;
   if(q){
     g.save();
+    /* 真ん中の半分(25%〜75%)は<b>帯</b>で塗ります。線3本だと、
+       いま高いのか安いのかを目で拾うのに3本とも読む必要があります。
+       帯なら「中に居るか、外に出たか」が一目です。 */
+    const Ya = mainY(q[2]), Yb = mainY(q[0]);
+    if(isNum(Ya) && isNum(Yb)){
+      const top = Math.max(p.y, Math.min(Ya, Yb)), bot = Math.min(p.y + p.h, Math.max(Ya, Yb));
+      if(bot > top){
+        g.fillStyle = C.ink3; g.globalAlpha = .10;
+        g.fillRect(p.x, top, p.w, bot - top);
+        g.globalAlpha = 1;
+      }
+    }
     for(let k = 0; k < 3; k++){
       const Y = mainY(q[k]);
       if(Y < p.y + 2 || Y > p.y + p.h - 2) continue;
@@ -11745,6 +12355,25 @@ function drawValuation(g){
     for(const t of tk){
       gridline(g, p, mainY(t));
       yLabel(g, p, mainY(t), fmtTick(t, step, '倍'), COL[mainKind]);
+    }
+  }
+
+  /* 業種の平均。月末の値なので階段になります(月に1点しかないものを
+     日ごとの滑らかな線に見せないため、そのままの形で出します)。 */
+  if(sec){
+    const pairs = [['per', yPer, sec.per], ['pbr', yPbr, sec.pbr]];
+    for(const [kind, Y, arr] of pairs){
+      if(!Y || !arr || kinds.indexOf(kind) < 0 || !arr.some(isNum)) continue;
+      /* 破線にするのは、これが<b>その銘柄の線ではない</b>ことを
+         形で言うためです(色は同じ系列に揃えてあります)。 */
+      line(g, p, arr, Y, COL[kind], 1.5, [5, 3]);
+      /* canvas に書くので esc は要りません(むしろ &amp; がそのまま出ます) */
+      /* PERとPBRで<b>同じ文字</b>を出すと、色でしか見分けられません。
+         どちらの平均かを頭に書きます。市場名はパネルの見出しに出します
+         ——同じ業種でも市場で倍率が大きく違う(情報・通信業はグロース
+         48.5倍 / プライム12.5倍)ので、どこかには要ります。 */
+      endLabel(g, p, arr, Y, COL[kind],
+               `${kind === 'per' ? 'PER' : 'PBR'} ${String(sec.ind).slice(0, 8)}平均`);
     }
   }
 
@@ -17510,46 +18139,286 @@ async function runSelfTests(){
 
   /* 「未来にある権利日」。提供元が先の配当落ち日を配っていれば、それは
      見込みではなく決まった予定です。足の外にあるので暦で数えます。 */
+  /* ---- 業種の平均(東証) ------------------------------------------- */
+  /* 実物のファイルから起こした行。列の位置も全角空白も本物のままです。 */
+  const SEC_FIX = [
+    ['規模別・業種別　PER・PBR（連結）','','','','','(注)1.…'],
+    ['Average PER and PBR by','','','','','Notice 1.…'],
+    ['年月','市場区分名','Section','種別','Industry','会社数',
+     '単純＿PER（倍）','単純＿PBR（倍）','単純＿1株当たり\n当期純利益（円）',
+     '単純＿1株当たり\n純資産（円）','加重＿PER（倍）','加重＿PBR（倍）'],
+    ['Year/Month','','','','','No. of cos.','Average_PER(times)'],
+    ['2026/08','プライム市場','Prime','総合','Composite',1538,19.3,1.6,177.21,2179.3,20.8,1.8],
+    ['2026/08','プライム市場','Prime','　　　　　 製造業','　　　　 Manufacturing',673,22.1,1.6,189.16,2573.05,27.7,2.0],
+    ['2026/08','プライム市場','Prime','27 小売業','27 Retail Trade',126,23.5,2.0,90.1,1050.2,29.2,2.6],
+    ['2026/08','スタンダード市場','Standard','27 小売業','27 Retail Trade',166,18.8,1.4,80.0,900.0,25.4,1.8],
+    ['2026/08','－','－','大型株','Large',99,27.8,2.9,200,2000,20.9,2.0],
+    ['2026/08','プライム市場','Prime','28 銀行業','28 Banks',70,'－','－','－','－','－','－']
+  ];
+  const LIST_FIX = [
+    ['日付','コード','銘柄名','市場・商品区分','33業種コード','33業種区分',
+     '17業種コード','17業種区分','規模コード','規模区分'],
+    [20260831,'8267','イオン','プライム（内国株式）',6100,'小売業',14,'小売',2,'TOPIX Large70'],
+    [20260831,'9843','ニトリ','プライム（内国株式）',6100,'小売業',14,'小売',4,'TOPIX Mid400'],
+    [20260831,'1305','ETF','ETF・ETN','-','-','-','-','-','-'],
+    [20260831,'9999','PRO銘柄','PRO Market',6100,'小売業',14,'小売','-','-'],
+    [20260831,'3778','さくら','スタンダード（内国株式）',5250,'情報・通信業',10,'情報通信',7,'TOPIX Small 2'],
+    /* 外国株にも33業種は付いていますが、東証の平均の集計には入っていません */
+    [20260831,'4875','メディシノバ','スタンダード（外国株式）',3250,'医薬品',7,'医薬品','-','-'],
+    [20260831,'8951','日本ビルファンド','REIT・ベンチャーファンド・カントリーファンド・インフラファンド','-','-','-','-','-','-']
+  ];
+  const withSector = (avg, map, fn) => {
+    const ka = Sector.avg, km = Sector.map;
+    Sector.avg = avg; Sector.map = map;
+    try { return fn(); } finally { Sector.avg = ka; Sector.map = km; }
+  };
+
+  test('東証の業種平均ファイルを読む', () => {
+    const r = parseSectorSheet(SEC_FIX);
+    if(!r) return '読めませんでした';
+    const find = (m, i) => r.rows.find(x => x.mkt === m && x.ind === i);
+    const ret = find('プライム市場', '小売業');
+    const bank = find('プライム市場', '銀行業');
+    return eq(r.ym, '202608', '年月')
+        && eq(r.rows.length, 6, '行数')
+        && eq(ret && ret.wPer, 29.2, '加重PER')
+        && eq(ret && ret.sPer, 23.5, '単純PER')
+        && eq(ret && ret.wPbr, 2.6, '加重PBR')
+        && eq(ret && ret.n, 126, '会社数')
+        /* 全角空白と通し番号を落として、銘柄一覧と同じ名前にします */
+        && !!find('プライム市場', '製造業')
+        && !!find('－', '大型株')
+        /* 「－」は 0 ではなく「値なし」。0倍と取り違えたら大事故です */
+        && eq(bank && bank.wPer, null, '「－」は値なし')
+        && eq(bank && bank.n, 70, '会社数は生きている');
+  });
+  test('東証の銘柄一覧を読む', () => {
+    const r = parseSectorList(LIST_FIX);
+    if(!r) return '読めませんでした';
+    return eq(r.ym, '202608', '年月')
+        && eq(r.by['8267'] && r.by['8267'].i, '小売業')
+        && eq(r.by['8267'] && r.by['8267'].m, 'プライム市場', '市場区分の言い換え')
+        && eq(r.by['8267'] && r.by['8267'].z, 'TOPIX Large70')
+        && eq(r.by['3778'] && r.by['3778'].m, 'スタンダード市場')
+        /* 平均が存在しないものは入れません */
+        && eq(r.by['1305'], undefined, 'ETFは業種なし')
+        && eq(r.by['9999'], undefined, 'PRO Marketには平均が無い')
+        /* 外国株は業種欄が埋まっているので、市場名の頭だけを見ていると
+           通ってしまいます。国内の同業の平均をぶつけることになります。 */
+        && eq(r.by['4875'], undefined, '外国株は集計に入っていない')
+        && eq(r.by['8951'], undefined, 'REITも入っていない')
+        && eq(secMarket('プライム（外国株式）'), '', '外国株は市場名を返さない')
+        && eq(secMarket('プライム（内国株式）'), 'プライム市場');
+  });
+  test('業種の平均を銘柄から引く', () => withSector(
+    {months: {'202608': parseSectorSheet(SEC_FIX).rows,
+              '202607': parseSectorSheet(SEC_FIX).rows.map(r => Object.assign({}, r,
+                 {wPer: isNum(r.wPer) ? r.wPer - 1 : null}))}},
+    {ym: '202608', by: parseSectorList(LIST_FIX).by},
+    () => {
+      const a = Sector.avgAt('小売業', 'プライム市場');
+      const b = Sector.avgAt('小売業', 'プライム市場', '202607');
+      const ser = Sector.series('小売業', 'プライム市場', 'wPer');
+      return eq(Sector.latestYm(), '202608', 'いちばん新しい月')
+          && eq(a && a.wPer, 29.2, '既定はいちばん新しい月')
+          && eq(b && b.wPer, 28.2, '月を指定できる')
+          && eq(Sector.forCode('8267') && Sector.forCode('8267').i, '小売業')
+          && eq(Sector.forCode('8267.T') && Sector.forCode('8267.T').i, '小売業', '.T付きでも')
+          && eq(Sector.forCode('AAPL'), null, '日本株以外は無い')
+          && eq(Sector.forCode('constructor'), null, '特殊キーで拾わない')
+          && eq(ser.map(x => x.d + ':' + x.v).join(','), '20260731:28.2,20260831:29.2',
+                '推移は月末に置く');
+    }));
+  /* 「－」は「赤字などで倍率が出ない」という意味です。点を置かずに
+     飛ばすと、前の月の倍率が横ばいで先まで伸びます。 */
+  test('倍率の出ない月は線を切る', () => withSector(
+    {months: {
+      '202606': [{mkt:'プライム市場', ind:'機械', wPer:30, wPbr:1.5, sPer:28, sPbr:1.4, n:92}],
+      '202607': [{mkt:'プライム市場', ind:'機械', wPer:null, wPbr:1.6, sPer:null, sPbr:1.5, n:92}],
+      '202608': [{mkt:'プライム市場', ind:'機械', wPer:33, wPbr:1.7, sPer:31, sPbr:1.6, n:92}]
+    }}, {ym:'202608', by:{'6301':{i:'機械', m:'プライム市場', z:''}}},
+    () => {
+      const ser = Sector.series('機械', 'プライム市場', 'wPer');
+      /* 取っていない月(欠番)は前の値を延ばしてよいが、「－」は切ります */
+      const gap = withSector({months:{'202606': Sector.avg.months['202606'],
+                                      '202608': Sector.avg.months['202608']}},
+                             Sector.map, () => Sector.series('機械','プライム市場','wPer'));
+      return eq(ser.map(x => x.d + ':' + x.v).join(','),
+                '20260630:30,20260731:null,20260831:33', '「－」の月は null を置く')
+          && eq(gap.length, 2, '取っていない月は点を作らない')
+          && eq(Sector.avgAt('機械','プライム市場','202607').wPer, null, 'カードも「—」');
+    }));
+  test('日経平均は日本の金利と引き算する', () => {
+    const km = Macro.jp10, ku = Macro.us10, kr = state.raw;
+    Macro.jp10 = {points:[{d:'20260801', v:1.62}], at:0, src:'t'};
+    Macro.us10 = {points:[{d:'20260801', v:4.20}], at:0, src:'t'};
+    state.raw = {bars:[], code:'^N225', currency:'JPY', tz:'Asia/Tokyo', events:[]};
+    /* 日経平均は4桁コードではないので isJpCode が false です。
+       そこだけ見ていたので、米国債と引き算していました。 */
+    const nk = yieldGap({per: 17.5, barDate: '20260825'}, Ext.codeKey());
+    state.raw = {bars:[], code:'AAPL', currency:'USD', tz:'America/New_York', events:[]};
+    const us = yieldGap({per: 17.5, barDate: '20260825'}, 'AAPL');
+    Macro.jp10 = km; Macro.us10 = ku; state.raw = kr;
+    return eq(nk && nk.jp, true, '日経平均は日本扱い')
+        && near(nk && nk.rate, 1.62, 1e-9, '日本10年債')
+        && eq(us && us.jp, false, '米国株は米国扱い')
+        && near(us && us.rate, 4.20, 1e-9, '米国10年債');
+  });
+  test('業種名は画面に出す前に洗う', () => withSector(
+    {months: {'202608': [{mkt:'プライム市場', ind:'<img src=x onerror="window.__xssFired=1">',
+                          wPer:20, wPbr:2, sPer:19, sPbr:1.9, n:10}]}},
+    {ym:'202608', by:{'8267':{i:'<img src=x onerror="window.__xssFired=1">',
+                              m:'プライム市場', z:''}}},
+    () => {
+      const keep = state.raw;
+      state.raw = {bars:[{t:new Date(2026,7,20), o:1,h:1,l:1,c:1,v:1, k:'20260820'}],
+                   code:'8267.T', currency:'JPY', tz:'Asia/Tokyo', events:[]};
+      renderSectorCard();
+      const bad = noInjection('#sectorBox', '業種カード');
+      state.raw = keep;
+      try { renderSectorCard(); } catch(e){}
+      return bad;
+    }));
+  test('月次の取り直しの月合わせ', () => {
+    /* 東証が出すのは第1営業日なので、月初の数日は前月ぶんが最新です。
+       そこを詰めすぎると、まだ無いものを毎日取りに行きます。 */
+    const want = d => d.getDate() <= 3 ? prevYm(prevYm(ymOf(d))) : prevYm(ymOf(d));
+    return eq(want(new Date(2027, 0, 2)), '202611', '1月2日は11月ぶんまで')
+        && eq(want(new Date(2027, 0, 10)), '202612', '1月10日は12月ぶん')
+        && eq(want(new Date(2026, 8, 18)), '202608', '9月18日は8月ぶん')
+        && eq(typeof sectorTopUp, 'function', '呼べる形になっている');
+  });
+  test('業種平均のリンクはjpx.co.jpだけ', () => {
+    const html = `<a href="/markets/statistics-equities/misc/aaa-att/perpbr202608.xlsx">8</a>
+      <a href="https://www.jpx.co.jp/x/bbb-att/perpbr202607.xlsx">7</a>
+      <a href="https://evil.example/ccc-att/perpbr202606.xlsx">悪</a>
+      <a href="http://www.jpx.co.jp/d-att/perpbr202605.xlsx">平文</a>`;
+    const got = sectorLinks(html);
+    const hosts = got.map(([, u]) => new URL(u).hostname);
+    return eq(got.length, 2, '通るのは2本だけ')
+        && eq(got[0][0], '202608', '新しい順')
+        && eq(got[1][0], '202607')
+        && (hosts.every(h => /jpx\.co\.jp$/.test(h)) ? true : '外部ホスト: ' + hosts.join(','))
+        && eq(sectorListLink('<a href="https://evil.example/data_j.xlsx">x</a>'), null,
+              '銘柄一覧も同じ門')
+        && !!sectorListLink('<a href="/misc/zzz-att/data_j.xlsx">o</a>');
+  });
+  test('年月の計算', () =>
+    eq(prevYm('202601'), '202512', '年をまたぐ')
+    && eq(prevYm('202608'), '202607')
+    && eq(ymOf(new Date(2026, 0, 5)), '202601')
+    && eq(fmtYm('202608'), '2026年8月末')
+    && eq(fmtYm(''), '—'));
+  test('このPERなら株価はいくら', () => {
+    const x = {eps: 26.38, price: 1400, per: 53.07};
+    return near(valueAtRatio(x, 15), 395.7, 0.05, 'PER15倍の株価')
+        && near(valueAtRatio(x, 29.2), 770.3, 0.05, '業種平均の株価')
+        && eq(valueAtRatio({eps: -5, price: 100}, 15), null, '赤字では出さない')
+        && eq(valueAtRatio({eps: 0, price: 100}, 15), null, 'EPS0でも出さない')
+        && near(epsForRatio(x, 15), 93.33, 0.01, '15倍に必要なEPS')
+        && eq(epsForRatio(x, 0), null, '0倍は割れない');
+  });
+  test('益回り − 長期金利', () => {
+    const km = Macro.jp10, ku = Macro.us10;
+    Macro.jp10 = {points: [{d: '20260801', v: 1.62}], at: 0, src: 't'};
+    Macro.us10 = {points: [{d: '20260801', v: 4.20}], at: 0, src: 't'};
+    const jp = yieldGap({per: 20, barDate: '20260825'}, '8267');
+    const us = yieldGap({per: 20, barDate: '20260825'}, 'AAPL');
+    const none = yieldGap({per: null, barDate: '20260825'}, '8267');
+    const neg = yieldGap({per: -10, barDate: '20260825'}, '8267');
+    Macro.jp10 = km; Macro.us10 = ku;
+    return near(jp && jp.ey, 5, 1e-9, '益回り = 100÷PER')
+        && near(jp && jp.gap, 3.38, 1e-9, '日本株は日本の金利')
+        && near(us && us.gap, 0.80, 1e-9, '米国株は米国の金利')
+        && eq(none, null, 'PERが無ければ出さない')
+        && eq(neg, null, '赤字では出さない');
+  });
+  test('業種平均を足に貼る', () => withSector(
+    {months: {'202606': parseSectorSheet(SEC_FIX).rows,
+              '202607': parseSectorSheet(SEC_FIX).rows.map(r => Object.assign({}, r,
+                 {wPer: isNum(r.wPer) ? 30.5 : null}))}},
+    {ym: '202608', by: parseSectorList(LIST_FIX).by},
+    () => {
+      const keep = state.raw, ki = state.interval;
+      state.interval = '1d';
+      const bs = [];
+      for(const d of ['20260625','20260715','20260815','20260820']){
+        bs.push({t: new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8)),
+                 o:1, h:1, l:1, c:1, v:1, k:d});
+      }
+      state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo', events:[]};
+      const ser = buildSectorSeries(bs);
+      /* 6/30の値は7/15以降に効き、7/31の値は8/15以降に効きます。
+         月末より前の足に当てると、まだ公表されていない数字を過去に
+         貼ることになります。 */
+      const per = ser ? ser.per.map(v => v === null ? '-' : v).join(',') : 'なし';
+      state.raw = keep; state.interval = ki;
+      return eq(per, '-,29.2,30.5,30.5', '月末から先にだけ効く')
+          && eq(ser && ser.ind, '小売業');
+    }));
+  test('業種平均は日本株だけ', () => withSector(
+    {months: {'202608': parseSectorSheet(SEC_FIX).rows}},
+    {ym: '202608', by: parseSectorList(LIST_FIX).by},
+    () => {
+      const keep = state.raw;
+      const mk = code => {
+        state.raw = {bars:[{t:new Date(2026,7,20), o:1,h:1,l:1,c:1,v:1, k:'20260820'}],
+                     code, currency:'JPY', tz:'Asia/Tokyo', events:[]};
+        return sectorHit();
+      };
+      const jp = mk('8267.T'), us = mk('AAPL'), demo = mk('DEMO'), nk = mk('^N225');
+      state.raw = keep;
+      return eq(jp && jp.ind, '小売業')
+          && eq(us, null, '米国株')
+          && eq(demo, null, 'デモ')
+          && eq(nk, null, '指数');
+    }));
+
+  const kenriBars = ds => ds.map(d => ({
+    t: new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8)),
+    o:1, h:1, l:1, c:1, v:1, k:d}));
+  /* asOf を渡すので、この4件は<b>いつ走らせても同じ答え</b>になります。
+     以前は「そのとき未来だった日付」を直に書いていたので、日が経つと
+     テストのほうから壊れました(実際そうなりました)。 */
   test('先の配当落ち日から権利付最終日を出す', () => {
     const keep = state.raw, ki = state.interval;
     state.interval = '1d';
-    const bs = [];
-    for(const d of ['20260817','20260818','20260819','20260820','20260821']){
-      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
-      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
-    }
+    const bs = kenriBars(['20260817','20260818','20260819','20260820','20260821']);
+    const at = new Date(2026, 7, 21);            /* 2026/8/21 に開いた、とする */
+    const ask = (code, evs, on, bars) => {
+      state.raw = {bars: bars || bs, code, currency: code === 'AAPL' ? 'USD' : 'JPY',
+                   tz: code === 'AAPL' ? 'America/New_York' : 'Asia/Tokyo', events: evs};
+      return kenriAhead(on || at);
+    };
     /* 2026/8/31(月)が落ち日 → 前の営業日は 8/28(金) */
-    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
-                 events:[{d:'20260831', kind:'div', text:'配当 20.00'}]};
-    const a = kenriAhead();
-    /* 大納会をまたぐ場合: 2027/1/4(月)が落ち日 → 前の営業日は 2026/12/30(水) */
-    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
-                 events:[{d:'20270104', kind:'div', text:'x'}]};
-    const b = kenriAhead();
-    /* 米国株は日付を計算しない(休場日表が無いので) */
-    state.raw = {bars: bs, code:'AAPL', currency:'USD', tz:'America/New_York',
-                 events:[{d:'20260831', kind:'div', text:'x'}]};
-    const us = kenriAhead();
+    const a = ask('8267.T', [{d:'20260831', kind:'div', text:'配当 20.00'}]);
+    /* 2027/1/4(月)が落ち日 → 12/31は休場なので 2026/12/30(水)。
+       足の右端より先の落ち日しか拾わないので、足も合わせて置きます。 */
+    const b = ask('8267.T', [{d:'20270104', kind:'div', text:'x'}],
+                  new Date(2026, 11, 1), kenriBars(['20261127','20261130']));
+    /* 2026/4/30(木)が落ち日 → 4/29は昭和の日なので 4/28(火) */
+    const c = ask('8267.T', [{d:'20260430', kind:'div', text:'x'}],
+                  new Date(2026, 3, 1), kenriBars(['20260330','20260331']));
+    /* 米国株は日付を計算しません(休場日表が無いので) */
+    const us = ask('AAPL', [{d:'20260831', kind:'div', text:'x'}]);
     state.raw = keep; state.interval = ki;
     return eq(a && a.d, '20260828', '8/31の前営業日')
         && eq(a && a.known, true, '見込みではない')
+        && eq(a && a.passed, false, 'まだ過ぎていない')
         && eq(b && b.d, '20261230', '年末年始をまたぐ')
+        && eq(c && c.d, '20260428', '昭和の日をまたぐ')
         && eq(us && us.d, '', '米国株は日付を出さない')
         && eq(us && us.ex, '20260831', '落ち日は出す');
   });
   test('過ぎた配当落ち日は「次」に選ばない', () => {
     const keep = state.raw, ki = state.interval;
     state.interval = '1d';
-    const bs = [];
-    for(const d of ['20260817','20260818','20260819','20260820','20260821']){
-      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
-      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
-    }
-    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+    state.raw = {bars: kenriBars(['20260817','20260818','20260819','20260820','20260821']),
+                 code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
                  events:[{d:'20260302', kind:'div', text:'x'},
                          {d:'20261130', kind:'div', text:'x'},
                          {d:'20260901', kind:'div', text:'x'}]};
-    const a = kenriAhead();
+    const a = kenriAhead(new Date(2026, 7, 21));
     state.raw = keep; state.interval = ki;
     /* 足の右端より先で、いちばん近いもの = 9/1(火) → 前営業日 8/31(月) */
     return eq(a && a.ex, '20260901', 'いちばん近い先の落ち日')
@@ -17557,13 +18426,14 @@ async function runSelfTests(){
   });
   test('日足でなければ次の権利日も出さない', () => {
     const keep = state.raw, ki = state.interval;
-    const bs = [{t:new Date(2026,7,21), o:1,h:1,l:1,c:1,v:1, k:'20260821'}];
-    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
-                 events:[{d:'20260831', kind:'div', text:'x'}]};
-    state.interval = '1wk'; const wk = kenriAhead();
-    state.interval = '1d';  const dy = kenriAhead();
+    state.raw = {bars: kenriBars(['20260821']), code:'8267.T', currency:'JPY',
+                 tz:'Asia/Tokyo', events:[{d:'20260831', kind:'div', text:'x'}]};
+    const at = new Date(2026, 7, 21);
+    state.interval = '1wk'; const wk = kenriAhead(at);
+    state.interval = '1mo'; const mo = kenriAhead(at);
+    state.interval = '1d';  const dy = kenriAhead(at);
     state.raw = keep; state.interval = ki;
-    return eq(wk, null, '週足') && eq(dy && dy.d, '20260828', '日足');
+    return eq(wk, null, '週足') && eq(mo, null, '月足') && eq(dy && dy.d, '20260828', '日足');
   });
   test('優待リンクは日本株のときだけ', () => {
     const keep = state.raw;
@@ -17653,23 +18523,29 @@ async function runSelfTests(){
   test('過ぎた権利付最終日を「まだ間に合う」と書かない', () => {
     const keep = state.raw, ki = state.interval;
     state.interval = '1d';
-    /* 足の右端を金曜に置き、落ち日を翌月曜にします。
-       締め切り(金曜)は足の右端と同じ日=すでに過ぎています。 */
-    const bs = [];
-    for(const d of ['20260826','20260827','20260828']){
-      const t = new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
-      bs.push({t, o:1, h:1, l:1, c:1, v:1, k:d});
-    }
-    state.raw = {bars: bs, code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+    /* 落ち日は 8/31(月)。締め切りは 8/28(金)。
+       土日に開くと、落ち日はまだ先なのに締め切りは過ぎている——
+       この形が<b>毎週必ず</b>起きます。 */
+    state.raw = {bars: kenriBars(['20260826','20260827','20260828']),
+                 code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
                  events:[{d:'20260831', kind:'div', text:'配当 20.00'}]};
-    const a = kenriAhead();
+    const fri = kenriAhead(new Date(2026, 7, 28));   /* 金曜 = 当日 */
+    const sat = kenriAhead(new Date(2026, 7, 29));   /* 土曜 = もう遅い */
+    const sun = kenriAhead(new Date(2026, 7, 30));   /* 日曜 = もう遅い */
+    /* 敬老の日の連休。落ち日 9/24(木) → 締め切り 9/18(金)。
+       9/21(月)に開くと、次に取引できるのは落ち日当日です。 */
+    state.raw = {bars: kenriBars(['20260917','20260918']),
+                 code:'8267.T', currency:'JPY', tz:'Asia/Tokyo',
+                 events:[{d:'20260924', kind:'div', text:'x'}]};
+    const hol = kenriAhead(new Date(2026, 8, 21));
     state.raw = keep; state.interval = ki;
-    if(!a) return '何も出ませんでした';
-    /* 8/31(月)の1営業日前 = 8/28(金)。今日(実行日)より前なら「過ぎた」 */
-    const shouldPass = a.d < dkey(new Date());
-    return eq(a.d, '20260828', '前営業日')
-        && eq(a.passed, shouldPass, '過ぎたかどうかの判定')
-        && (a.passed ? true : (a.days >= 0 ? true : '過ぎていないのに残り日数が負: ' + a.days));
+    return eq(fri && fri.d, '20260828', '前営業日')
+        && eq(fri && fri.passed, false, '当日はまだ間に合う')
+        && eq(fri && fri.days, 0, '当日は残り0日')
+        && eq(sat && sat.passed, true, '土曜はもう遅い')
+        && eq(sun && sun.passed, true, '日曜はもう遅い')
+        && eq(hol && hol.d, '20260918', '連休前の金曜が締め切り')
+        && eq(hol && hol.passed, true, '敬老の日に開いたらもう遅い');
   });
 
   test('権利付最終日は権利落ち日の1営業日前', () => {
@@ -18630,6 +19506,12 @@ $$('.chip[data-t]').forEach(btn => {
     /* 金利と建玉のカードにも同じ切り替えボタンがあります */
     if(k === 'rates' || k === 'cot') renderRateCard();
     if(k === 'kenri') renderKenri();
+    if(k === 'sectorAvg'){
+      /* チップから入れたときも、重ねる先のパネルが要ります */
+      if(state.toggles.sectorAvg && !state.toggles.valuation) setToggle('valuation', true);
+      renderSectorCard();
+      sectorDrawHint();
+    }
     renderChipSummary();
     /* 並びの一覧は redraw() のなかで出し直します(LAY を組んだあと)。
        ここではボタンの文言だけそろえます。 */
@@ -19944,6 +20826,30 @@ $('#curSel').addEventListener('change', async e => {
 });
 $('#fundClear').addEventListener('click', () => Ext.clear('fund'));
 $('#rateGet').addEventListener('click', () => loadRates(false));
+$('#sectorBtn').addEventListener('click', () => { loadSectorData({}); });
+$('#sectorFullBtn').addEventListener('click', () => { loadSectorData({full: true}); });
+$('#sectorPanelBtn').addEventListener('click', () => {
+  if(!Sector.months().length){
+    notice('先に「業種の平均を取得する」を押してください。', true);
+    return;
+  }
+  setToggle('sectorAvg', !state.toggles.sectorAvg);
+  /* 業種平均はPER・PBRのパネルに重ねるので、そのパネル自体が出ていないと
+     押しても何も起きません。無ければ一緒に出します。 */
+  if(state.toggles.sectorAvg && !state.toggles.valuation) setToggle('valuation', true);
+  renderSectorCard();
+  /* setToggle は描き直しません(他のボタンも自分で描き直しています)。
+     これが無いと、ボタンの文字だけ変わって絵は前のまま——押しても
+     何も起きていないように見えます。 */
+  redraw(); renderSignals();
+  sectorDrawHint();
+});
+$('#sectorClear').addEventListener('click', async () => {
+  if(!confirm('業種の平均と銘柄一覧を手元から消します。よろしいですか。')) return;
+  await Sector.clear();
+  state.ind = recompute();
+  renderSectorCard(); renderFundCard(); redraw();
+});
 $('#kenriPanelBtn').addEventListener('click', () => {
   setToggle('kenri', !state.toggles.kenri);
   renderKenri();
@@ -20250,6 +21156,11 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
     /* 金利は銘柄に紐づかないので、復元より前に一度だけ読みます。
        読むだけで、取りにはいきません(通信は押されたときだけ)。 */
     try { await Macro.load(); renderRateCard(); } catch(e){}
+    try {
+      await Sector.load();
+      if(state.raw) state.ind = recompute();
+      renderSectorCard(); renderFundCard(); redraw();
+    } catch(e){}
     let restored = false;
     try { restored = await restoreWorkspace(); }
     catch(e){ restored = false; }
