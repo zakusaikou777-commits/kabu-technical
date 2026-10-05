@@ -98,21 +98,33 @@ self.addEventListener('fetch', event => {
   const isDoc = req.mode === 'navigate' || req.destination === 'document'
              || /(^\/|\/|\/index\.html)$/.test(url.pathname);
   if (isDoc) {
+    /* no-store でブラウザ自身のHTTPキャッシュも飛び越える。
+       GitHub Pages は10分間キャッシュを許すので、これがないと
+       「ネットワークから取った古い版」を掴みます。
+
+       取りにいくのは respondWith の外で始め、waitUntil で最後まで待ちます。
+       以前は3秒で打ち切ったあとに届いた新しい版を捨てていたので、
+       回線の遅い端末では、いつまでも古い版がキャッシュから出続けました。 */
+    const fresh = new Request(url.href, {cache: 'no-store', credentials: 'same-origin'});
+    let saved = Promise.resolve();
+    const net = fetch(fresh).then(res => {
+      if (res && res.ok) {
+        const copy = res.clone();
+        saved = caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+      }
+      return res;
+    });
+    event.waitUntil(net.then(() => saved, () => {}));
     event.respondWith((async () => {
       const cache = await caches.open(CACHE);
+      let timer = null;
       try {
-        /* no-store でブラウザ自身のHTTPキャッシュも飛び越える。
-           GitHub Pages は10分間キャッシュを許すので、これがないと
-           「ネットワークから取った古い版」を掴みます */
-        const fresh = new Request(url.href, {cache: 'no-store', credentials: 'same-origin'});
         const res = await Promise.race([
-          fetch(fresh),
-          new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 3000))
+          net,
+          new Promise((_, rj) => { timer = setTimeout(() => rj(new Error('timeout')), 3000); })
         ]);
-        if (res && res.ok) {
-          cache.put(req, res.clone()).catch(() => {});
-          return res;
-        }
+        clearTimeout(timer);
+        if (res && res.ok) return res;
         /* 404 や 502 も「応答」なので例外にはならず、そのまま表示されて
            いました。デプロイ中の一瞬の404や、プロキシの502で、完全な版が
            キャッシュにあるのに GitHub のエラーページが出ます。下の
@@ -121,6 +133,7 @@ self.addEventListener('fetch', event => {
         err.res = res;          /* キャッシュが空なら、これを見せます */
         throw err;
       } catch (e) {
+        clearTimeout(timer);
         const hit = await cache.match(req)
                  || await cache.match('./index.html')
                  || await cache.match('./');

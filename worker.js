@@ -34,6 +34,16 @@
    空文字のままなら、どこからでも使えます(取得先の制限は残ります)。 */
 const ALLOW_ORIGIN = '';
 
+/* 公開URLをそのまま貼っても効くように、生成元(https://ホスト名)だけにそろえます。
+   ブラウザが送る Origin にはパスも末尾の / も付かないので、
+   'https://xxxx.github.io/repo/' のまま比べると、自分のページからでも
+   すべて 403 になっていました。 */
+const OWN_ORIGIN = (() => {
+  if (!ALLOW_ORIGIN) return '';
+  try { return new URL(ALLOW_ORIGIN).origin; }
+  catch (e) { return String(ALLOW_ORIGIN).trim().replace(/\/+$/, ''); }
+})();
+
 /* 中継してよい相手。ツールが使う先だけです。
    ここに載っていないホストは 403 で断ります。 */
 const ALLOW = [
@@ -69,7 +79,7 @@ function allowed(host) {
 
 function cors(origin) {
   return {
-    'Access-Control-Allow-Origin': ALLOW_ORIGIN || origin || '*',
+    'Access-Control-Allow-Origin': OWN_ORIGIN || origin || '*',
     'Access-Control-Allow-Methods': 'GET,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
@@ -110,7 +120,7 @@ export default {
        Origin ヘッダが無い相手(curl・スクリプト・サーバ間)も断ります。
        以前は origin が空だと素通りしていたので、URLさえ知っていれば
        ブラウザ以外からは誰でも使えていました。 */
-    if (ALLOW_ORIGIN && origin !== ALLOW_ORIGIN) {
+    if (OWN_ORIGIN && origin !== OWN_ORIGIN) {
       return deny('origin not allowed', 403, origin);
     }
 

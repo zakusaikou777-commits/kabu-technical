@@ -11,7 +11,7 @@
      *.workers.dev is there so a relay you deploy yourself can be reached
      without editing this line; a relay on your own domain needs that domain
      added here by hand (the app says so when you save one). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://cdn.finra.org https://data.sec.gov https://www.sec.gov https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src 'self' data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://accounts.google.com; style-src 'unsafe-inline' https://accounts.google.com; connect-src https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://stooq.com https://news.google.com https://www.jpx.co.jp https://www.taisyaku.jp https://cdn.finra.org https://data.sec.gov https://www.sec.gov https://publicreporting.cftc.gov https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.workers.dev https://www.googleapis.com https://accounts.google.com wss://streamer.finance.yahoo.com; img-src 'self' data:; frame-src https://accounts.google.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <!-- strict-origin rather than no-referrer: Google's sign-in needs to see which
      origin is asking, but the ticker you are looking at lives in the path and
      query, and those are never sent. -->
@@ -1465,8 +1465,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v52';
-const APP_DATE = '2026-09-18';
+const APP_VER = 'v55';
+const APP_DATE = '2026-10-05';
 
 /* ============================================================
    1. Small helpers
@@ -1837,10 +1837,14 @@ const TA = {
   },
 
   /* Ichimoku Kinko Hyo — conversion 9, base 26, span B 52, displacement 26.
-     Leading spans are plotted 26 bars into the future, so the returned
-     arrays are `len + disp` long. */
+     「26日先」は<b>当日を1日目と数えた26日目</b>、つまり25本先です
+     (遅行スパンも同じく25本前)。TradingView の標準(offset = 26 − 1)や
+     国内証券のチャートと同じ数え方です。26本ずらしていたので、雲も遅行線も
+     1本ずれ、雲抜け・遅行スパン好転の日付が他のツールと1日食い違っていました。
+     The returned arrays are `len + shift` long, and `disp` is that shift. */
   ichimoku(h, l, c, p1, p2, p3, disp){
     const len = c.length;
+    disp = Math.max(0, Math.round(disp) - 1);
     const mid = n => {
       const o = new Array(len).fill(null);
       for(let i=n-1;i<len;i++){
@@ -2803,6 +2807,7 @@ function stooqSymbol(sym){
   if(sym === '^GSPC') return '^spx';
   if(sym === '^DJI')  return '^dji';
   if(sym === '^IXIC') return '^ndq';
+  if(sym === '^TPX')  return '^tpx';      /* TOPIX。Yahoo に無いとき、ここが唯一の取得先 */
   if(/^\^/.test(sym)) return null;
   return sym.toLowerCase() + '.us';
 }
@@ -3110,6 +3115,10 @@ function parseJPDate(s){
   if(m) return new Date(+m[1], +m[2]-1, +m[3]);
   m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
   if(m) return new Date(+m[3], +m[1]-1, +m[2]);
+  /* m/d/yy。Excel の組み込み日付書式(14番)を SheetJS はこの形で文字にします。
+     下の new Date() に任せると、2桁の年の読み方がブラウザごとに違います。 */
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if(m) return new Date(2000 + +m[3], +m[1]-1, +m[2]);
   const d = new Date(s);
   return isNaN(d) ? null : d;
 }
@@ -3184,7 +3193,10 @@ async function readCSVFile(file){
   }
   const {bars, name} = parseCSV(text);
   if(bars.length < 30) throw new Error('データが少なすぎます(30本以上必要)');
-  const jp = /[ぁ-んァ-ン一-龥]/.test(text.slice(0, 400));
+  /* 英語の見出しでも、ファイル名が 7203.T.csv のような東証の銘柄なら円です
+     (Yahoo Finance の英語版から落としたCSVがこの形です) */
+  const jp = /[ぁ-んァ-ン一-龥]/.test(text.slice(0, 400))
+          || /(^|[^0-9A-Za-z])(\d{4}|\d{3}[A-Za-z])\.T([^A-Za-z]|$)/i.test(file.name);
   stampBars(bars, null);       /* imported dates are already calendar dates */
   return {bars, name: name || file.name.replace(/\.[^.]+$/,''), code: 'CSV', tz: null,
           currency: jp ? 'JPY' : 'USD', source: 'CSV: ' + file.name};
@@ -5291,7 +5303,7 @@ function buildSignals(){
   if(state.toggles.ichimoku && isNum(d.ich.tenkan[n]) && isNum(d.ich.kijun[n]) && isNum(A) && isNum(B)){
     const aboveCloud = d.c[n] > Math.max(A,B), belowCloud = d.c[n] < Math.min(A,B);
     const tk = d.ich.tenkan[n] > d.ich.kijun[n];
-    const ci = n - P.ichimoku[3];
+    const ci = n - d.ich.disp;          /* 遅行スパンを描いた位置と同じずらし */
     const chikou = ci >= 0 ? d.c[n] > d.c[ci] : null;
     const good = aboveCloud && tk && chikou === true;
     const bad  = belowCloud && !tk && chikou === false;
@@ -5901,7 +5913,7 @@ const Tabs = {
       t.label = t.symbol || '新規';
       return;
     }
-    t.raw = state.raw; t.ind = state.ind;
+    t.raw = state.raw; t.ind = state.ind; t.indCur = dispCur;
     t.i0 = state.i0; t.i1 = state.i1;
     t.yZoom = state.yZoom || 1;      /* the price scale is part of the view */
     t.label = state.raw.code && state.raw.code !== 'DEMO' ? state.raw.code : (t.symbol || '新規');
@@ -5934,8 +5946,10 @@ const Tabs = {
          落ちたあとは下の loadCache にも到達しないので、前の銘柄の決算が
          新しい銘柄の名前で表示されつづけ、そこで保存すると<b>別の銘柄の
          記録として書き込まれて</b>いました。 */
-      state.ind = t.ind || recompute(t.raw.bars, t.toggles || state.toggles, t.interval);
-      t.ind = state.ind;
+      const shown = displayBars(t.raw.bars);
+      if(t.ind && t.indCur === shown.cur){ state.ind = t.ind; convFac = shown.fac; dispCur = shown.cur; }
+      else state.ind = recompute(t.raw.bars, t.toggles || state.toggles, t.interval);
+      t.ind = state.ind; t.indCur = dispCur;
       state.i0 = t.i0; state.i1 = t.i1;
       state.yZoom = isNum(t.yZoom) ? t.yZoom : 1;
       setTickTz(t.raw.tz);
@@ -9717,7 +9731,7 @@ function kenriDates(){
     const last = barKey(bars[i - 1]);          /* = 権利付最終日 */
     if(seen.has(last)) continue;
     seen.add(last);
-    out.push({last, ex: barKey(bars[i]), text: e.text || ''});
+    out.push({last, ex: barKey(bars[i]), exd: e.d, text: e.text || ''});
   }
   out.sort((a, b) => a.last.localeCompare(b.last));
   kenriCache = {key: ck, list: out};
@@ -9726,13 +9740,35 @@ function kenriDates(){
 
 /* 例年どの月に権利が確定しているか。2回以上出てきた月だけを「例年」と
    呼びます。1回きりの記念配当を毎年の予定として出さないためです。 */
-function kenriMonths(list){
-  const c = new Map();
-  for(const x of list){
-    const m = +x.last.slice(4, 6);
-    c.set(m, (c.get(m) || 0) + 1);
+/* 記録は「付最終日が暦のどのあたりか」で束ねます(前後10日以内なら同じ回)。
+   月で束ねると、月初めの締め日(11/5 など)は付最終日が 10/31 の年と 11/2 の年に
+   割れて、どちらの月も「1回きり」になり、次の見込みが出ませんでした。
+   束の名前は、いちばん新しい記録の付最終日の月です。 */
+function kenriClusters(list){
+  const recs = (list || []).filter(x => x && /^\d{8}$/.test(x.last));
+  if(!recs.length) return [];
+  const doy = x => Math.round((Date.UTC(2001, +x.last.slice(4, 6) - 1, +x.last.slice(6, 8))
+                              - Date.UTC(2001, 0, 1)) / 86400000);
+  const s = recs.map(x => ({x, p: doy(x)})).sort((a, b) => a.p - b.p);
+  const gap = i => (i + 1 < s.length ? s[i + 1].p : s[0].p + 365) - s[i].p;
+  /* いちばん大きな切れ目のあとから一周します */
+  let start = 0, big = -1;
+  for(let i = 0; i < s.length; i++) if(gap(i) > big){ big = gap(i); start = (i + 1) % s.length; }
+  const out = [];
+  let cur = [];
+  for(let k = 0; k < s.length; k++){
+    const i = (start + k) % s.length;
+    cur.push(s[i].x);
+    if(gap(i) > 10 || k === s.length - 1){ out.push(cur); cur = []; }
   }
-  return [...c.entries()].filter(([, n]) => n >= 2).map(([m]) => m).sort((a, b) => a - b);
+  return out.map(recs => {
+    const newest = recs.reduce((a, b) => a.last > b.last ? a : b);
+    return {m: +newest.last.slice(4, 6), recs};
+  });
+}
+function kenriMonths(list){
+  return [...new Set(kenriClusters(list).filter(c => c.recs.length >= 2).map(c => c.m))]
+    .sort((a, b) => a - b);
 }
 
 /* 次の見込み。土日・祝日・年末年始は数えますが、臨時の休場までは
@@ -9772,17 +9808,29 @@ function jpHolidays(y){
   const days = [
     new Date(y, 0, 1),                        /* 元日 */
     nth(1, 1, 2),                             /* 成人の日 */
-    new Date(y, 1, 11), new Date(y, 1, 23),   /* 建国記念の日・天皇誕生日 */
+    new Date(y, 1, 11),                       /* 建国記念の日 */
     new Date(y, 2, vernal),                   /* 春分の日 */
     new Date(y, 3, 29),                       /* 昭和の日 */
     new Date(y, 4, 3), new Date(y, 4, 4), new Date(y, 4, 5),
-    nth(7, 1, 3),                             /* 海の日 */
-    new Date(y, 7, 11),                       /* 山の日 */
     nth(9, 1, 3),                             /* 敬老の日 */
     new Date(y, 8, autumnal),                 /* 秋分の日 */
-    nth(10, 1, 2),                            /* スポーツの日 */
     new Date(y, 10, 3), new Date(y, 10, 23)   /* 文化の日・勤労感謝の日 */
   ];
+  /* 規則どおりでない年。<b>過去の権利日から締め日を割り出す</b>ときに
+     2019〜2021年の記録も読むので、その年の休場日が違うと日にちを読み違えます。 */
+  if(y >= 2020) days.push(new Date(y, 1, 23));          /* 天皇誕生日(2020年から) */
+  else if(y <= 2018) days.push(new Date(y, 11, 23));    /* 〜2018年は12/23。2019年は無し */
+  if(y === 2020){                                       /* 東京五輪で移動 */
+    days.push(new Date(2020, 6, 23), new Date(2020, 6, 24), new Date(2020, 7, 10));
+  }else if(y === 2021){
+    days.push(new Date(2021, 6, 22), new Date(2021, 6, 23), new Date(2021, 7, 8));
+  }else{
+    days.push(nth(7, 1, 3), nth(10, 1, 2));             /* 海の日・スポーツの日 */
+    if(y >= 2016) days.push(new Date(y, 7, 11));        /* 山の日(2016年から) */
+  }
+  if(y === 2019)                                        /* 即位の日の前後と即位礼正殿の儀 */
+    days.push(new Date(2019, 3, 30), new Date(2019, 4, 1), new Date(2019, 4, 2),
+              new Date(2019, 9, 22));
   const set = new Set(days.map(mdKey));
   /* 振替休日: 日曜と重なったら、次の平日が休みになります */
   for(const d of days){
@@ -9805,51 +9853,176 @@ function jpHolidays(y){
 function isJpxShut(d){
   return isWknd(d) || jpHolidays(d.getFullYear()).has(mdKey(d));
 }
+/* 東証の営業日で n 日進める(負なら戻す) */
+function bizStep(d, n){
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const s = n >= 0 ? 1 : -1;
+  let k = Math.abs(n), guard = 0;
+  while(k > 0 && guard++ < 400){
+    t.setDate(t.getDate() + s);
+    if(!isJpxShut(t)) k--;
+  }
+  return t;
+}
+/* その日が休みなら、前の営業日へ */
+function bizOnOrBefore(d){
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  for(let i = 0; i < 20 && isJpxShut(t); i++) t.setDate(t.getDate() - 1);
+  return t;
+}
+/* 実際に使われている締め日。'E' は末日 */
+const KENRI_COMMON = ['E', 20, 15, 10, 25, 5];
+/* この約定日から受け渡しが T+2(それまでは T+3) */
+const KENRI_T2_FROM = '20190716';
+
+/* 権利確定日(基準日)が「何日」なら、その年の権利付最終日はいつか。
+   基準日が休みなら、株主が確定するのはその前の営業日の受け渡し分です。
+   そこから2営業日前が付最終日。D = 'E' は末日。 */
+function kenriLastFor(y, m, D){
+  const len = new Date(y, m, 0).getDate();
+  const day = D === 'E' ? len : Math.min(D, len);
+  return bizStep(bizOnOrBefore(new Date(y, m - 1, day)), -2);
+}
+
+/* 過去の1回ぶんから、基準日としてありうる日を出します。
+
+   受渡日 S = 付最終日の2営業日あと(2019/7/16 より前の約定は3営業日あと)。
+   基準日 D は <b>S 以上で、S の次の営業日より前</b>のどれかです
+   (D が土日祝なら、その前の営業日が S になるため)。
+   例: 2024年2月は付最終日 2/16(金) → S = 2/20(火)、次の営業日 2/21 → D は 20日だけ。
+
+   日は「付最終日の月(m)から何か月目か:日にち」で表します('0:20' '1:5')。
+   月初めの締め日(1/5 など)は付最終日が前の月に来るので、翌月('1:')になります。
+   範囲が月末にかかっていれば「末日締め」('0:E')もありえます。
+
+   付最終日は足の1本前ではなく<b>提供元の権利落ち日の前の営業日</b>から取ります。
+   取引の無かった日の足が抜けている銘柄では、足の1本前が実際より前の日になるためです。 */
+function kenriDayRange(x, m){
+  let L = null;
+  const ex = realDate(x && (x.exd || x.ex));
+  if(ex) L = bizStep(ex, -1);
+  else{
+    L = realDate(x && x.last);
+    if(!L || isJpxShut(L)) return null;           /* 休みの日を付最終日とは読めない */
+  }
+  const S = bizStep(L, dkey(L) >= KENRI_T2_FROM ? 2 : 3);
+  const N = bizStep(S, 1);
+  const tokens = [];
+  const t = new Date(S);
+  for(let i = 0; i < 20 && t < N; i++){
+    let off = (t.getMonth() + 1 - m + 12) % 12;
+    if(off === 11) off = -1;
+    if(off > 1) return null;
+    tokens.push(off + ':' + t.getDate());
+    if(t.getDate() === new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate())
+      tokens.push(off + ':E');
+    t.setDate(t.getDate() + 1);
+  }
+  return tokens.length ? {tokens, y: S.getFullYear()} : null;
+}
+
+/* 同じ月の記録を<b>新しい順に</b>重ねて、基準日の候補を絞ります。
+   重ねると空になる記録が出たら、そこで止めます。締め日を変えた会社
+   (古い記録は前の締め日)や、臨時の休場が混じった年を、新しい側を信じて
+   切り捨てるためです。直近8年ぶんまで。 */
+function kenriInferDay(past, m){
+  const recs = past.slice().sort((a, b) => String(b.exd || b.ex || b.last)
+                                   .localeCompare(String(a.exd || a.ex || a.last)));
+  let cand = null, used = 0, newest = 0;
+  for(const x of recs){
+    const r = kenriDayRange(x, m);
+    if(!r) continue;
+    if(newest && r.y < newest - 8) break;
+    const one = new Set(r.tokens);
+    const next = cand ? new Set([...cand].filter(t => one.has(t))) : one;
+    if(!next.size) break;
+    cand = next; used++;
+    if(!newest) newest = r.y;
+  }
+  return cand ? {cand: [...cand], used} : null;
+}
+/* '1:5' → 付最終日の月 m から見た基準日の年・月・日 */
+function kenriTokenDate(tok, y, m){
+  const [o, d] = String(tok).split(':');
+  const mm = m + (+o);
+  return {y: mm > 12 ? y + 1 : mm < 1 ? y - 1 : y, m: mm > 12 ? mm - 12 : mm < 1 ? mm + 12 : mm,
+          D: d === 'E' ? 'E' : +d};
+}
+
 function kenriNext(months, list, jp, asOf){
   if(!jp || !months || !months.length) return null;
   const now = asOf || new Date();        /* asOf は自己テストが年を固定するため */
   const y0 = now.getFullYear();
+  const today = dkey(now);
   const cand = [];
   for(const m of months){
-    const past = (list || []).filter(x => x && /^\d{8}$/.test(x.last) && +x.last.slice(4, 6) === m);
-    /* 月末締めの会社か、日にちが決まっている会社か。過去の権利付最終日が
-       いつも月末から5日以内なら月末締めとみなします。ニトリ(20日)や
-       ツルハ(15日)のように月なかばで締める会社があり、そこへ月末の
-       数え方を当てると<b>10日も違う日付</b>が出ていました。 */
+    const cl = kenriClusters(list).find(c => c.m === m);
+    const past = cl ? cl.recs
+      : (list || []).filter(x => x && /^\d{8}$/.test(x.last) && +x.last.slice(4, 6) === m);
+
+    /* まず<b>締め日そのもの</b>を割り出します。過去の付最終日の日にちを
+       そのまま使うと、曜日の並びで毎年1〜2日動くので、ぴったりには
+       なりません(20日締めの会社で、付最終日は 16日・18日・17日…と動きます)。 */
+    const inf = kenriInferDay(past, m);
+    if(inf){
+      /* 候補が1つに絞れないとき(基準日が金曜で、土日のどちらでも同じ記録に
+         なる年しか無い、など)は、<b>実際に使われている締め日</b>を優先します。
+         末日・20日・15日・10日・25日・5日以外の締め日はまず見ないためです。
+         それも無ければ、いちばん<b>早い</b>付最終日(遅いと権利が付かない)。 */
+      let pref;
+      for(const p of KENRI_COMMON){
+        pref = ['0:' + p, '1:' + p, '-1:' + p].find(t => inf.cand.includes(t));
+        if(pref) break;
+      }
+      const at = (tok, y) => {
+        const q = kenriTokenDate(tok, y, m);
+        return {k: dkey(kenriLastFor(q.y, q.m, q.D)), m: q.m, D: q.D};
+      };
+      for(const y of [y0, y0 + 1]){
+        const all = inf.cand.map(t => at(t, y));
+        const keys = [...new Set(all.map(x => x.k))].sort();
+        if(keys.length === 1){
+          /* どの候補でも同じ日。名前は「よくある締め日」があればそれで呼びます */
+          const rep = pref ? at(pref, y) : all[0];
+          const day = pref || inf.cand.length === 1 ? rep.D : null;
+          cand.push({d: keys[0], basis: 'exact', used: inf.used, m: rep.m, day});
+        }else if(pref){
+          const q = at(pref, y);
+          cand.push({d: q.k, basis: 'assumed', used: inf.used, m: q.m, day: q.D, alt: keys[0]});
+        }else{
+          cand.push({d: keys[0], basis: 'earliest', used: inf.used, m: all[0].m, day: null});
+        }
+      }
+      continue;
+    }
+
+    /* 割り出せないとき(記録が無い・読めない)は、これまでの見当のつけ方です。
+       過去の付最終日がいつも月末から5日以内なら月末締め、そうでなければ
+       過去の日にちの真ん中の<b>手前側</b>(外すなら早いほうへ)。 */
     const endish = past.length > 0 && past.every(x => {
       const y = +x.last.slice(0, 4), mm = +x.last.slice(4, 6), dd = +x.last.slice(6, 8);
       return new Date(y, mm, 0).getDate() - dd <= 5;
     });
     const days = past.map(x => +x.last.slice(6, 8)).sort((a, b) => a - b);
-    /* 真ん中の<b>手前側</b>を採ります。外すなら早いほうへ外したい
-       ——早すぎる日に買っても権利は付きますが、遅い日に買うと付きません。 */
     const mid = days.length ? days[(days.length - 1) >> 1] : 0;
     for(const y of [y0, y0 + 1]){
       let d;
       if(endish || !mid){
-        d = new Date(y, m, 0);                       /* その月の末日 */
-        /* <b>先に</b>月末の営業日まで戻します。ここを飛ばして末日から
-           2営業日数えていたので、月末が休みの月は答えが1営業日あと
-           ——つまり<b>権利落ち日</b>——になっていました。
-           その日に買っても権利は付きません。いちばん悪い向きの誤りです。 */
-        while(isJpxShut(d)) d.setDate(d.getDate() - 1);
-        let back = 2;                                /* 確定日→落ち日→付最終日 */
-        while(back > 0){
-          d.setDate(d.getDate() - 1);
-          if(!isJpxShut(d)) back--;
-        }
+        /* <b>先に</b>月末の営業日まで戻してから2営業日。末日から数えると、
+           月末が休みの月は権利落ち日が出ます。 */
+        d = kenriLastFor(y, m, 'E');
       }else{
         const lastDay = new Date(y, m, 0).getDate();
-        d = new Date(y, m - 1, Math.min(mid, lastDay));
-        while(isJpxShut(d)) d.setDate(d.getDate() - 1);
+        d = bizOnOrBefore(new Date(y, m - 1, Math.min(mid, lastDay)));
       }
-      cand.push(dkey(d));
+      cand.push({d: dkey(d), basis: 'legacy', used: 0, m, day: endish || !mid ? 'E' : null});
     }
   }
-  cand.sort();
-  const today = dkey(now);
-  const d = cand.find(x => x >= today);
-  return d ? {d, days: daysBetweenKeys(today, d)} : null;
+  cand.sort((a, b) => a.d.localeCompare(b.d));
+  const hit = cand.find(x => x.d >= today);
+  return hit ? {d: hit.d, days: daysBetweenKeys(today, hit.d), basis: hit.basis,
+                exact: hit.basis === 'exact' || hit.basis === 'assumed',
+                used: hit.used, m: hit.m, day: hit.day, alt: hit.alt || ''} : null;
 }
 
 /* チャートに縦線。分割・配当と同じ場所から呼ばれます。 */
@@ -9903,6 +10076,12 @@ function realDate(k){
   const dt = new Date(y, m - 1, d);
   return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? dt : null;
 }
+/* 「3月末日」「2月20日」のような言い方。日にちが1つに決まらないときは月だけ */
+function kenriDayLabel(m, day){
+  if(day === 'E') return `${m}月末日`;
+  if(isNum(day)) return `${m}月${day}日`;
+  return `${m}月`;
+}
 /* 先の予定として受け取る上限。1年と少し。これを超える配当落ち日は、
    予定ではなく<b>壊れた日付</b>とみなします(2年先の「次の権利日」を
    案内しても、次ではありません)。 */
@@ -9946,7 +10125,9 @@ function kenriAhead(asOf){
   const list = kenriDates();
   if(!list.length) return null;
   const nx = kenriNext(kenriMonths(list), list, true, asOf);
-  return nx ? {ex: '', d: nx.d, days: nx.days, known: false, jp: true, text: ''} : null;
+  return nx ? {ex: '', d: nx.d, days: nx.days, known: false, jp: true, text: '',
+                exact: !!nx.exact, basis: nx.basis, alt: nx.alt || '',
+                used: nx.used || 0, m: nx.m, day: nx.day} : null;
 }
 
 /* 優待・配当のリンク。日本株のときだけ出します。 */
@@ -9986,11 +10167,25 @@ function renderKenriNote(){
     big = `配当落ち日 <b>${esc(fm(a.ex), 12)}</b>(${esc(inDays(a.days), 8)})`;
     sub = `この<b>前の営業日</b>までに買うと権利が付きます。`
         + `日本株ではないので、休場日を数えた日付は出していません。`;
+  }else if(a.exact){
+    big = `次の権利付最終日は <b>${esc(fm(a.d), 12)}</b>(${esc(inDays(a.days), 8)})`;
+    sub = (a.basis === 'assumed'
+          ? `過去${a.used}回の権利日だけでは締め日が1日に決まらないので、よくある`
+            + `<b>${esc(a.day === 'E' ? '末日' : a.day + '日', 4)}締め</b>とみなして数えた日付です`
+            + `(ほかの締め日だった場合のいちばん早い日は ${esc(fm(a.alt), 12)})。`
+          : `過去${a.used}回の権利日から、権利確定日を<b>毎年${esc(kenriDayLabel(a.m, a.day), 12)}</b>と`
+            + `割り出して数えた日付です(土日・祝日・年末年始は数えています)。`)
+        + `会社が締め日を変えた場合と臨時の休場は分からないので、月に入ったら`
+        + `証券会社の表示で確かめてください。`;
   }else{
     big = `次の権利付最終日は <b>${esc(fm(a.d), 12)}</b> ごろ(${esc(inDays(a.days), 8)})`;
-    sub = `例年の権利確定月から立てた<b>見込み</b>です。土日・祝日・年末年始は`
-        + `数えていますが、臨時の休場までは見ていません。月に入ったら`
-        + `証券会社の表示で確かめてください。`;
+    sub = `例年の権利確定月から立てた<b>見込み</b>です。`
+        + (a.basis === 'earliest'
+          ? `過去の記録からは締め日を1日に絞りきれなかったので、ありうる中で`
+            + `<b>いちばん早い日</b>を出しています(早めに買っても権利は付きます)。`
+          : '')
+        + `土日・祝日・年末年始は数えていますが、臨時の休場までは見ていません。`
+        + `月に入ったら証券会社の表示で確かめてください。`;
   }
   const links = kenriLinksHtml();
   box.classList.toggle('past', !!a.passed);
@@ -10061,10 +10256,16 @@ function renderKenri(){
   box.innerHTML = '<div class="fgrid">'
     + fundCell('直近の権利付最終日', '日前', isNum(ago) && ago >= 0 ? ago : null, 0,
         `<b>${esc(fm(recent[0].last), 12)}</b>(権利落ち ${esc(fm(recent[0].ex), 12)})`)
-    + (nx ? fundCell('次の見込み', '日', nx.days, 0,
-        `<b>${esc(fm(nx.d), 12)}</b> ごろ。土日・祝日・年末年始は数えて`
-        + `いますが、<b>臨時の休場までは見ていません</b>`
-        + `。月に入ったら証券会社の表示で確かめてください`)
+    + (nx ? fundCell(nx.exact ? '次の権利付最終日' : '次の見込み', '日', nx.days, 0,
+        nx.exact
+          ? `<b>${esc(fm(nx.d), 12)}</b>。権利確定日を<b>毎年${esc(kenriDayLabel(nx.m, nx.day), 12)}</b>と`
+            + (nx.basis === 'assumed' ? `みなして` : `割り出して`)
+            + `数えています(過去${nx.used}回から)。締め日の変更と`
+            + `<b>臨時の休場までは見ていません</b>`
+          : `<b>${esc(fm(nx.d), 12)}</b> ごろ。`
+            + (nx.basis === 'earliest' ? `締め日を1日に絞りきれないので、いちばん早い日です。` : '')
+            + `土日・祝日・年末年始は数えていますが、<b>臨時の休場までは見ていません</b>`
+            + `。月に入ったら証券会社の表示で確かめてください`)
       : '')
     + '</div>'
     + `<p class="qsrc" style="margin:8px 0 0;line-height:1.8">`
@@ -13805,6 +14006,11 @@ function loadGSI(){
     s.onerror = () => resolve(false);
     document.head.appendChild(s);
     setTimeout(() => resolve(!!(window.google && window.google.accounts && window.google.accounts.oauth2)), 12000);
+  }).then(ok => {
+    /* 読み込めなかった結果を覚え続けると、一度オフラインで失敗しただけで
+       再読み込みまで二度と接続できません。失敗は次の呼び出しでやり直します。 */
+    if(!ok) gsiPromise = null;
+    return ok;
   });
   return gsiPromise;
 }
@@ -13830,7 +14036,10 @@ async function initTokenClient(){
   if(!(await loadGSI())) return null;
   try{
     tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: driveClientId(), scope: DRIVE_SCOPE, callback: onToken
+      client_id: driveClientId(), scope: DRIVE_SCOPE, callback: onToken,
+      /* ポップアップが開けなかった・閉じられた、は callback に来ません。
+         これが無いと、ブロックされたときに25秒待ってから失敗を出していました。 */
+      error_callback: err => onToken({error: (err && err.type) || 'popup_error'})
     });
   }catch(e){ tokenClient = null; }
   return tokenClient;
@@ -14645,7 +14854,7 @@ function relayInCSP(url){
     if(!m) return true;
     return m[1].trim().split(/\s+/).some(src => {
       const h = src.replace(/^https?:\/\//, '');
-      if(h.startsWith('*.')) return host === h.slice(2) || host.endsWith(h.slice(1));
+      if(h.startsWith('*.')) return host.endsWith(h.slice(1));   /* CSP の *. は親ドメイン自体を含みません */
       return host === h;
     });
   }catch(e){ return false; }
@@ -15065,58 +15274,78 @@ function notifyAbility(){
    true for 200 bars running is one event, not 200. */
 const RULES = [
   {k: 'gc', t: 'ゴールデンクロス', dir: 1, fn: d =>
-    edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i]) && d.ma[0][i] > d.ma[1][i])},
+    edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i]) && d.ma[0][i] > d.ma[1][i],
+          i => cmpOk(d.ma[0][i], d.ma[1][i]))},
   {k: 'dc', t: 'デッドクロス', dir: -1, fn: d =>
-    edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i]) && d.ma[0][i] < d.ma[1][i])},
+    edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i]) && d.ma[0][i] < d.ma[1][i],
+          i => cmpOk(d.ma[0][i], d.ma[1][i]))},
   {k: 'po', t: 'パーフェクトオーダー(上)', dir: 1, fn: d =>
     edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i], d.ma[2][i])
-      && d.ma[0][i] > d.ma[1][i] && d.ma[1][i] > d.ma[2][i])},
+      && d.ma[0][i] > d.ma[1][i] && d.ma[1][i] > d.ma[2][i],
+          i => cmpOk(d.ma[0][i], d.ma[1][i], d.ma[2][i]))},
   {k: 'poD', t: 'パーフェクトオーダー(下)', dir: -1, fn: d =>
     edges(d, i => cmpOk(d.ma[0][i], d.ma[1][i], d.ma[2][i])
-      && d.ma[0][i] < d.ma[1][i] && d.ma[1][i] < d.ma[2][i])},
+      && d.ma[0][i] < d.ma[1][i] && d.ma[1][i] < d.ma[2][i],
+          i => cmpOk(d.ma[0][i], d.ma[1][i], d.ma[2][i]))},
   {k: 'rsiLo', t: 'RSIが30を割る', dir: 1, fn: d =>
-    edges(d, i => isNum(d.rsi[i]) && d.rsi[i] <= 30)},
+    edges(d, i => isNum(d.rsi[i]) && d.rsi[i] <= 30, i => isNum(d.rsi[i]))},
   {k: 'rsiHi', t: 'RSIが70を超える', dir: -1, fn: d =>
-    edges(d, i => isNum(d.rsi[i]) && d.rsi[i] >= 70)},
+    edges(d, i => isNum(d.rsi[i]) && d.rsi[i] >= 70, i => isNum(d.rsi[i]))},
   {k: 'macdUp', t: 'MACDがシグナルを上抜け', dir: 1, fn: d =>
-    edges(d, i => cmpOk(d.macd.line[i], d.macd.signal[i]) && d.macd.line[i] > d.macd.signal[i])},
+    edges(d, i => cmpOk(d.macd.line[i], d.macd.signal[i]) && d.macd.line[i] > d.macd.signal[i],
+          i => cmpOk(d.macd.line[i], d.macd.signal[i]))},
   {k: 'macdDn', t: 'MACDがシグナルを下抜け', dir: -1, fn: d =>
-    edges(d, i => cmpOk(d.macd.line[i], d.macd.signal[i]) && d.macd.line[i] < d.macd.signal[i])},
+    edges(d, i => cmpOk(d.macd.line[i], d.macd.signal[i]) && d.macd.line[i] < d.macd.signal[i],
+          i => cmpOk(d.macd.line[i], d.macd.signal[i]))},
   {k: 'bbUp', t: 'ボリンジャー+2σを上抜け', dir: -1, fn: d =>
-    edges(d, i => cmpOk(d.c[i], d.bb.upper[i]) && d.c[i] > d.bb.upper[i])},
+    edges(d, i => cmpOk(d.c[i], d.bb.upper[i]) && d.c[i] > d.bb.upper[i],
+          i => cmpOk(d.c[i], d.bb.upper[i]))},
   {k: 'bbDn', t: 'ボリンジャー−2σを下抜け', dir: 1, fn: d =>
-    edges(d, i => cmpOk(d.c[i], d.bb.lower[i]) && d.c[i] < d.bb.lower[i])},
+    edges(d, i => cmpOk(d.c[i], d.bb.lower[i]) && d.c[i] < d.bb.lower[i],
+          i => cmpOk(d.c[i], d.bb.lower[i]))},
   {k: 'stUp', t: 'スーパートレンドが上向きに', dir: 1, fn: d =>
-    d.st ? edges(d, i => d.st.dir[i] > 0) : []},
+    d.st ? edges(d, i => d.st.dir[i] > 0, i => isNum(d.st.dir[i])) : []},
   {k: 'stDn', t: 'スーパートレンドが下向きに', dir: -1, fn: d =>
-    d.st ? edges(d, i => d.st.dir[i] < 0) : []},
+    d.st ? edges(d, i => d.st.dir[i] < 0, i => isNum(d.st.dir[i])) : []},
   {k: 'cloudUp', t: '雲を上抜け', dir: 1, fn: d =>
     d.ich ? edges(d, i => cmpOk(d.c[i], d.ich.spanA[i], d.ich.spanB[i])
-      && d.c[i] > Math.max(d.ich.spanA[i], d.ich.spanB[i])) : []},
+      && d.c[i] > Math.max(d.ich.spanA[i], d.ich.spanB[i]),
+          i => cmpOk(d.c[i], d.ich.spanA[i], d.ich.spanB[i])) : []},
   {k: 'cloudDn', t: '雲を下抜け', dir: -1, fn: d =>
     d.ich ? edges(d, i => cmpOk(d.c[i], d.ich.spanA[i], d.ich.spanB[i])
-      && d.c[i] < Math.min(d.ich.spanA[i], d.ich.spanB[i])) : []},
+      && d.c[i] < Math.min(d.ich.spanA[i], d.ich.spanB[i]),
+          i => cmpOk(d.c[i], d.ich.spanA[i], d.ich.spanB[i])) : []},
   {k: 'stochLo', t: 'ストキャス%Kが20を割る', dir: 1, fn: d =>
-    d.stoch ? edges(d, i => isNum(d.stoch.k[i]) && d.stoch.k[i] <= 20) : []},
+    d.stoch ? edges(d, i => isNum(d.stoch.k[i]) && d.stoch.k[i] <= 20, i => isNum(d.stoch.k[i])) : []},
   {k: 'stochHi', t: 'ストキャス%Kが80を超える', dir: -1, fn: d =>
-    d.stoch ? edges(d, i => isNum(d.stoch.k[i]) && d.stoch.k[i] >= 80) : []},
+    d.stoch ? edges(d, i => isNum(d.stoch.k[i]) && d.stoch.k[i] >= 80, i => isNum(d.stoch.k[i])) : []},
   {k: 'lor', t: 'Lorentzianが買いに転換', dir: 1, fn: d =>
-    d.lorentz ? edges(d, i => d.lorentz.sig[i] > 0) : []},
+    d.lorentz ? edges(d, i => d.lorentz.sig[i] > 0, i => isNum(d.lorentz.pred[i])) : []},
   {k: 'lorS', t: 'Lorentzianが売りに転換', dir: -1, fn: d =>
-    d.lorentz ? edges(d, i => d.lorentz.sig[i] < 0) : []}
+    d.lorentz ? edges(d, i => d.lorentz.sig[i] < 0, i => isNum(d.lorentz.pred[i])) : []}
 ];
 
 const cmpOk = (...v) => v.every(isNum);
 
-/* rising edges of a predicate: true now, not true on the previous bar */
-function edges(d, pred){
+/* rising edges of a predicate: true now, not true on the previous bar.
+
+   `ready(i)` says whether the inputs existed on bar i. A bar where they did
+   not is "unknown", not "false": without this, the first bar on which MA25
+   (or MA75, the MACD signal, the cloud…) came into existence was counted as
+   a cross whenever the condition already held — one invented event per rule,
+   sitting in every sample. */
+function edges(d, pred, ready){
   const out = [];
   const n = d.c.length;
   let prev = false;
   for(let i = 1; i < n; i++){
     let now = false;
     try { now = !!pred(i); } catch(e){ now = false; }
-    if(now && !prev) out.push(i);
+    if(now && !prev){
+      let known = true;
+      if(ready){ try { known = !!ready(i - 1); } catch(e){ known = false; } }
+      if(known) out.push(i);
+    }
     prev = now;
   }
   return out;
@@ -15261,6 +15490,16 @@ const WORKER_SRC = `/* =========================================================
    空文字のままなら、どこからでも使えます(取得先の制限は残ります)。 */
 const ALLOW_ORIGIN = '';
 
+/* 公開URLをそのまま貼っても効くように、生成元(https://ホスト名)だけにそろえます。
+   ブラウザが送る Origin にはパスも末尾の / も付かないので、
+   'https://xxxx.github.io/repo/' のまま比べると、自分のページからでも
+   すべて 403 になっていました。 */
+const OWN_ORIGIN = (() => {
+  if (!ALLOW_ORIGIN) return '';
+  try { return new URL(ALLOW_ORIGIN).origin; }
+  catch (e) { return String(ALLOW_ORIGIN).trim().replace(/\\/+$/, ''); }
+})();
+
 /* 中継してよい相手。ツールが使う先だけです。
    ここに載っていないホストは 403 で断ります。 */
 const ALLOW = [
@@ -15296,7 +15535,7 @@ function allowed(host) {
 
 function cors(origin) {
   return {
-    'Access-Control-Allow-Origin': ALLOW_ORIGIN || origin || '*',
+    'Access-Control-Allow-Origin': OWN_ORIGIN || origin || '*',
     'Access-Control-Allow-Methods': 'GET,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
@@ -15337,7 +15576,7 @@ export default {
        Origin ヘッダが無い相手(curl・スクリプト・サーバ間)も断ります。
        以前は origin が空だと素通りしていたので、URLさえ知っていれば
        ブラウザ以外からは誰でも使えていました。 */
-    if (ALLOW_ORIGIN && origin !== ALLOW_ORIGIN) {
+    if (OWN_ORIGIN && origin !== OWN_ORIGIN) {
       return deny('origin not allowed', 403, origin);
     }
 
@@ -15469,7 +15708,9 @@ async function findKessanFiles(){
 /* Header cells are merged and contain newlines, and there are title rows
    above the header, so the header row is located by content. */
 function parseKessanSheet(XLSX, buf){
-  const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
+  /* 日付のセルは yyyy/mm/dd で文字にします。指定しないと、Excel の組み込み
+     日付書式は SheetJS の既定で "10/30/26" になり、年が2桁のまま渡ります。 */
+  const wb = XLSX.read(new Uint8Array(buf), {type: 'array', cellDates: true, dateNF: 'yyyy/mm/dd'});
   const map = new Map();
   for(const name of wb.SheetNames.slice(0, 6)){
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: false, defval: ''});
@@ -15605,7 +15846,9 @@ function marketDaysAhead(fromKey, targetKey){
   let n = 0;
   while(n < 400){
     t.setDate(t.getDate() + 1);
-    if(t.getDay() === 0 || t.getDay() === 6) continue;
+    /* 決算予定は日本株だけなので、東証の休場日(祝日・年末年始)も飛ばします。
+       平日だけで数えると、間に祝日がある分だけ印が右へずれていました。 */
+    if(isJpxShut(t)) continue;
     n++;
     if(dkey(t) >= String(targetKey)) return n;
   }
@@ -15620,8 +15863,8 @@ function extendForEarnings(){
 }
 
 function futureSlots(){
-  let cloud = state.toggles.ichimoku ? P.ichimoku[3] : 0;
-  /* The cloud reaches 26 bars ahead. On a long series that is a sliver; on a
+  let cloud = state.toggles.ichimoku ? Math.max(0, P.ichimoku[3] - 1) : 0;
+  /* The cloud reaches 25 bars ahead (26th day counting today). On a long series that is a sliver; on a
      three-month FX chart it is nearly half the width, and the candles end up
      squashed into the left with an empty right-hand side.
 
@@ -15735,8 +15978,11 @@ const PASTE_COLS = {
 function pasteDate(v){
   /* quotes survive a quoted-CSV split; they are packaging, not content */
   const s = String(v == null ? '' : v).replace(/^\s*"|"\s*$/g, '').trim()
-    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
-  let m = /^(\d{4})\s*[\/\-年.]\s*(\d{1,2})\s*[\/\-月.]\s*(\d{1,2})/.exec(s);
+    .replace(/[０-９／－．]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  /* 和暦(令和)で書かれた表もあります。令和元年 = 2019年 */
+  let m = /^令和\s*(元|\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})/.exec(s);
+  if(m) return mkDate(2018 + (m[1] === '元' ? 1 : +m[1]), +m[2], +m[3]);
+  m = /^(\d{4})\s*[\/\-年.]\s*(\d{1,2})\s*[\/\-月.]\s*(\d{1,2})/.exec(s);
   if(m) return mkDate(+m[1], +m[2], +m[3]);
   m = /^(\d{2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{1,2})/.exec(s);
   if(m) return mkDate(2000 + +m[1], +m[2], +m[3]);
@@ -15831,6 +16077,15 @@ function parsePasted(text){
     });
     if(cand.date !== undefined &&
        (cand.buy !== undefined || cand.sell !== undefined || cand.gyaku !== undefined)){
+      /* 単位が見出しにだけ書かれている表(「信用買残(千株)」)。数字の側には
+         何も付かないので、見出しの単位を掛けないと1000分の1で入ります。 */
+      const unit = {};
+      for(const k of ['buy', 'sell']){
+        const h = al.cells.find(x => x.i === cand[k]);
+        const t = h ? h.c : '';
+        unit[k] = /[（(]千株?[)）]/.test(t) ? 1e3 : /[（(]万株?[)）]/.test(t) ? 1e4 : 1;
+      }
+      cand.unit = unit;
       map = cand; start = i + 1;
       out.head = al.cells.map(x => x.c).filter(Boolean).slice(0, 8).join(' / ');
       if(al.fixed) out.note = '見出しの「(解説)」などの余分な列を除いて、数字の並びに合わせました。';
@@ -15850,8 +16105,11 @@ function parsePasted(text){
     const t = pasteDate(c[map.date]);
     if(!t){ out.skipped++; continue; }
     const pt = {d: dkey(t)};
-    const buy   = map.buy   !== undefined ? pasteNum(c[map.buy])   : null;
-    const sell  = map.sell  !== undefined ? pasteNum(c[map.sell])  : null;
+    const u = map.unit || {};
+    /* 残高はマイナスになりません。△が付いているのは前週比の列です */
+    const bal = (v, mul) => isNum(v) && v >= 0 ? v * (mul || 1) : null;
+    const buy   = map.buy   !== undefined ? bal(pasteNum(c[map.buy]),  u.buy)  : null;
+    const sell  = map.sell  !== undefined ? bal(pasteNum(c[map.sell]), u.sell) : null;
     let   ratio = map.ratio !== undefined ? pasteNum(c[map.ratio]) : null;
     const gy    = map.gyaku !== undefined ? pasteNum(c[map.gyaku]) : null;
     if(isNum(buy))  pt.buy = buy;
@@ -16096,10 +16354,33 @@ async function runSelfTests(){
     const h = new Array(20).fill(110), l = new Array(20).fill(100), c = new Array(20).fill(105);
     return near(last(TA.atr(h, l, c, 14)), 10, 1e-9);
   });
-  test('一目の先行スパンが26本先まで伸びる', () => {
+  test('貼り付け: 見出しの単位(千株)・全角の日付・令和・△の残高', () => {
+    const a = parsePasted('日付\t信用買残(千株)\t信用売残(千株)\n2026/09/26\t1,234\t567').rows[0] || {};
+    const b = parsePasted('日付\t信用買残\t信用売残\n２０２６／０９／２６\t１，２３４，０００\t５６７，０００').rows[0] || {};
+    const c = parsePasted('日付\t信用買残\t信用売残\n令和8年9月26日\t1,234,000\t567,000').rows[0] || {};
+    const d = parsePasted('日付\t信用買残\t信用売残\n2026/09/26\t△1,200\t300').rows[0] || {};
+    return eq(a.buy, 1234000, '千株') && eq(b.d, '20260926', '全角') && eq(c.d, '20260926', '令和')
+      && eq(d.buy, undefined, '△の買残') && eq(d.sell, 300, '売残');
+  });
+  test('日付: m/d/yy(Excelの組み込み書式)を2000年代として読む', () => {
+    const d = parseJPDate('10/30/26');
+    return d ? eq(dkey(d), '20261030') : '読めません';
+  });
+  test('シグナル検証: 指標が出そろった最初の足を「クロス」と数えない', () => {
+    /* MA が定義される前は「不明」。最初から MA5 > MA25 でもクロスではない */
+    const n = 60, ma0 = [], ma1 = [];
+    for(let i = 0; i < n; i++){ ma0.push(i < 4 ? null : 110); ma1.push(i < 24 ? null : (i < 40 ? 100 : 120)); }
+    const d = {c: new Array(n).fill(100), ma: [ma0, ma1, new Array(n).fill(null)]};
+    const gc = RULES.find(r => r.k === 'gc').fn(d), dc = RULES.find(r => r.k === 'dc').fn(d);
+    return eq(gc.length, 0, 'GC') && eq(dc.join(','), '40', 'DC');
+  });
+  test('一目の先行スパンが当日を含めて26本目(25本先)に来る', () => {
     const n = 100, a = Array.from({length:n}, (_,i)=> 100+i);
     const ich = TA.ichimoku(a, a, a, 9, 26, 52, 26);
-    return eq(ich.spanA.length, n + 26);
+    /* 最後の足の(転換線+基準線)/2 は、最後の足から25本先に置かれる */
+    const lastA = (ich.tenkan[n-1] + ich.kijun[n-1]) / 2;
+    return eq(ich.spanA.length, n + 25, '長さ') && eq(ich.disp, 25, 'ずらし')
+      && eq(ich.spanA[n-1+25], lastA, '位置') && eq(ich.chikou[n-1-25], a[n-1], '遅行');
   });
   test('スーパースムーザーが定数列を保つ', () =>
     near(last(TA.superSmoother(new Array(50).fill(7), 10)), 7, 1e-9));
@@ -16933,7 +17214,7 @@ async function runSelfTests(){
   test('信用残: データの無い期間に「0株」と書かない', () => {
     /* 期間を広げて信用残のある範囲より前まで見ると、目盛りの最大が0のまま
        「0株」とだけ書かれた空のパネルになり、残高ゼロに読めていました。 */
-    const keep = {raw: state.raw, m: Ext.margin, c: Ext.code,
+    const keep = {raw: state.raw, ind: state.ind, m: Ext.margin, c: Ext.code,
                   i0: state.i0, i1: state.i1, t: state.toggles.marginPanel};
     const bars = Array.from({length:120}, (_, i) => ({t: new Date(2026,0,1+i),
       o:1400, h:1400, l:1400, c:1400, v:1}));
@@ -16950,7 +17231,7 @@ async function runSelfTests(){
     const ot = CanvasRenderingContext2D.prototype.fillText;
     CanvasRenderingContext2D.prototype.fillText = function(t){ texts.push(String(t)); return ot.apply(this,arguments); };
     try { redraw(); } finally { CanvasRenderingContext2D.prototype.fillText = ot; }
-    state.raw = keep.raw; Ext.margin = keep.m; Ext.code = keep.c;
+    state.raw = keep.raw; state.ind = keep.ind; Ext.margin = keep.m; Ext.code = keep.c;
     state.i0 = keep.i0; state.i1 = keep.i1; state.toggles.marginPanel = keep.t;
     if(texts.some(t => t === '0株')) return '「0株」と書いています';
     return texts.some(t => /データがありません/.test(t)) ? true : '説明が出ていません';
@@ -18590,9 +18871,11 @@ async function runSelfTests(){
   test('月末が土日でも権利落ち日を出さない', () => {
     /* 「その月の1日に立って次を訊く」形で kenriNext そのものを呼びます。
        過去の履歴は月末締め(末日から5日以内)にしてあります。 */
+    /* 履歴は<b>実際にありうる</b>月末締めの付最終日にします(前年・前々年)。
+       以前は 27日・28日 と決め打ちで、日曜の「付最終日」が混じっていました。
+       締め日を割り出すようになったので、ありえない履歴は読めません。 */
     const ask = (y, m) => {
-      const hist = [{last: (y-1) + String(m).padStart(2,'0') + '27'},
-                    {last: (y-2) + String(m).padStart(2,'0') + '28'}];
+      const hist = [y - 1, y - 2].map(yy => ({last: dkey(kenriLastFor(yy, m, 'E'))}));
       const nx = kenriNext([m], hist, true, new Date(y, m - 1, 1));
       return nx ? nx.d : 'なし';
     };
@@ -18607,9 +18890,11 @@ async function runSelfTests(){
      12月は大納会が30日で31日は休場、4月は29日が昭和の日です。
      答えは各社が公表している一覧と突き合わせています。 */
   test('年末年始と昭和の日を数える', () => {
+    /* 履歴は<b>実際にありうる</b>月末締めの付最終日にします(前年・前々年)。
+       以前は 27日・28日 と決め打ちで、日曜の「付最終日」が混じっていました。
+       締め日を割り出すようになったので、ありえない履歴は読めません。 */
     const ask = (y, m) => {
-      const hist = [{last: (y-1) + String(m).padStart(2,'0') + '27'},
-                    {last: (y-2) + String(m).padStart(2,'0') + '28'}];
+      const hist = [y - 1, y - 2].map(yy => ({last: dkey(kenriLastFor(yy, m, 'E'))}));
       const nx = kenriNext([m], hist, true, new Date(y, m - 1, 1));
       return nx ? nx.d : 'なし';
     };
@@ -18637,11 +18922,62 @@ async function runSelfTests(){
   });
   /* ニトリ(20日締め)やツルハ(15日締め)に月末の数え方を当てると、
      10日ちかく違う日付が出ます。過去の日にちから見当をつけます。 */
-  test('月末締めでない会社は過去の日にちに寄せる', () => {
-    const nx = kenriNext([2], [{last:'20240216'},{last:'20250218'}], true);
-    if(!nx) return 'なし';
-    const dd = +nx.d.slice(6, 8);
-    return dd >= 14 && dd <= 20 ? true : '出た日=' + nx.d + ' (期待 14〜20日ごろ)';
+  test('月末締めでない会社は締め日を割り出してぴったり出す', () => {
+    /* 20日締め: 2024/2/16(金)・2025/2/18(火) → 基準日は20日。
+       2027/2/20 は土曜 → 受渡 2/19(金) → 付最終日 2/17(水)。 */
+    const a = kenriNext([2], [{last:'20240216'},{last:'20250218'}], true, new Date(2026, 9, 5));
+    /* 15日締め: 2025/5/13(火)・2024/5/13(月)。2026/5/15 は金曜 → 5/13(水) */
+    const b = kenriNext([5], [{last:'20250513'},{last:'20240513'}], true, new Date(2026, 3, 1));
+    /* 権利落ち日(exd)があれば、そちらから付最終日を取る(足の抜けに強い) */
+    const c = kenriNext([2], [{last:'20240215', exd:'20240219'}, {last:'20250218', exd:'20250219'}],
+                        true, new Date(2026, 9, 5));
+    return eq(a && a.d, '20270217', '20日締め') && eq(a && a.exact, true, '1日に決まる')
+        && eq(a && a.day, 20, '基準日')
+        && eq(b && b.d, '20260513', '15日締め') && eq(b && b.exact, true, '15日も決まる')
+        && eq(c && c.d, '20270217', '落ち日から');
+  });
+  test('締め日が1日に決まらないときは、よくある締め日、無ければいちばん早い日', () => {
+    /* 2024/5/16(木) → 受渡 5/20(月)… ではなく、5/15(水) → 受渡 5/17(金)、
+       次の営業日は 5/20(月)。基準日は 17・18・19日のどれもありうる。
+       よくある締め日が無いので、いちばん早い日: 2026年は 17日(日)→5/13 */
+    const a = kenriNext([5], [{last:'20240515'}], true, new Date(2026, 3, 1));
+    /* 2022/11/16(水) → 受渡 11/18(金)、次の営業日 11/21(月) → 18〜20日。
+       20日締めとみなす: 2026/11/20(金) → 11/18(水)。18日締めなら 11/16 */
+    const b = kenriNext([11], [{last:'20221116'}], true, new Date(2026, 3, 1));
+    return eq(a && a.d, '20260513', '早いほう') && eq(a && a.basis, 'earliest', '幅あり')
+        && eq(b && b.d, '20261118', '20日とみなす') && eq(b && b.basis, 'assumed', 'みなし')
+        && eq(b && b.day, 20, '20日') && eq(b && b.alt, '20261116', 'いちばん早い場合');
+  });
+  test('月初めの締め日(付最終日が前の月に来る)', () => {
+    /* 1月5日締め: 付最終日は 2024/12/26・2023/12/29。
+       2027/1/5(火) → 受渡 1/5 → 2営業日前は 1/4(月)・12/30(水)
+       (12/31〜1/3 は休場) → 付最終日 2026/12/30 */
+    const a = kenriNext([12], [{last:'20241226'},{last:'20231229'}], true, new Date(2026, 9, 5));
+    return eq(a && a.d, '20261230', '1/5締め') && eq(a && a.m, 1, '基準日は1月')
+        && eq(a && a.day, 5, '5日');
+  });
+  test('付最終日が月をまたいで揺れる会社も束ねる', () => {
+    /* 11月5日締め: 付最終日は 2025/10/31(金)・2024/11/1(金)。月で束ねると両方1回きり */
+    const list = [{last:'20251031'}, {last:'20241101'}];
+    const months = kenriMonths(list);
+    const a = kenriNext(months, list, true, new Date(2026, 9, 5));
+    /* 2026/11/5(木) → 2営業日前: 11/4(水)・11/2(月)(11/3 は文化の日) */
+    return eq(months.join(','), '10', '1つの束') && eq(a && a.d, '20261102', '11/5締め')
+        && eq(a && a.day, 5, '5日');
+  });
+  test('締め日を変えた会社は新しい記録を信じる', () => {
+    /* 昔は20日締め(2023/2/16)、いまは末日締め(2024/2/27・2025/2/26) */
+    const a = kenriNext([2], [{last:'20230216'},{last:'20240227'},{last:'20250226'}],
+                        true, new Date(2026, 0, 5));
+    return eq(a && a.d, '20260225', '末日締めとして') && eq(a && a.day, 'E', '末日');
+  });
+  test('2019〜2021年の祝日の移動を数える', () => {
+    const has = (y, k) => jpHolidays(y).has(k);
+    return eq(has(2019, '0430'), true, '2019/4/30') && eq(has(2019, '1022'), true, '即位礼正殿の儀')
+        && eq(has(2019, '1223'), false, '2019年は天皇誕生日なし')
+        && eq(has(2020, '0724'), true, '2020 スポーツの日') && eq(has(2020, '1012'), false, '2020/10/12は平日')
+        && eq(has(2021, '0809'), true, '2021 山の日の振替') && eq(has(2021, '0811'), false, '2021/8/11は平日')
+        && eq(has(2018, '1224'), true, '2018/12/23が日曜→振替');
   });
   test('日本株でなければ次の見込みを出さない', () =>
     eq(kenriNext([2, 8], [{last:'20250226'}], false), null));
@@ -18697,6 +19033,11 @@ async function runSelfTests(){
   await new Promise(r => setTimeout(r, 60));
   tgroup('XSS(表示部への注入)');
   test('注入コードが一度も実行されていない', () => eq(window.__xssFired, 0));
+  /* 途中のテストが state.ind を差し替えても、利用者の画面は元の足で組み直す */
+  if(state.raw === saved.raw && state.raw){
+    try { state.ind = recompute(); state.i0 = saved.i0; state.i1 = saved.i1;
+          redraw(); renderSignals(); renderTable(); applyQuoteStrip(); } catch(e){}
+  }
   return T.list;
 }
 
@@ -18847,6 +19188,7 @@ function fillTab(tab, data){
      balances. Tabs.restore aligns it against its own cache when the tab
      is brought to the front. */
   tab.ind = computeAll(data.bars, tab.toggles || state.toggles, tab.interval || '1d');
+  tab.indCur = data.currency || null;
   P = keepP;
   tab.pristine = false;
   tab.code = data.code;
@@ -19628,8 +19970,19 @@ function segWire(sel, attr, apply){
     apply(b.dataset[attr]);
   });
 }
-segWire('#rangeSeg', 'r', v => { state.range = v; run(); });   /* Compare.refresh runs inside run() */
+/* CSVを開いているあいだ、足種・期間のボタンは<b>取り直し</b>になります。入力欄には
+   CSVの前に見ていた銘柄が残っているので、押した瞬間にその銘柄の足で
+   CSVが黙って置き換わり、読み込んだデータが消えていました。 */
+function csvLocked(){
+  if(!(state.raw && state.raw.code === 'CSV')) return false;
+  syncControls();                     /* 押された見た目を元に戻す */
+  notice('読み込み済みのCSVには足種・期間の切り替えは使えません(CSVは1種類の足で固定です)。'
+       + ' 別の足種で見るには銘柄コードを入れて「分析」を押してください。', true);
+  return true;
+}
+segWire('#rangeSeg', 'r', v => { if(csvLocked()) return; state.range = v; run(); });   /* Compare.refresh runs inside run() */
 segWire('#ivSeg',   'i', v => {
+  if(csvLocked()) return;
   const prev = state.interval;
   state.interval = v;
   setPreset(v);
@@ -19794,7 +20147,8 @@ function quoteRowFromState(){
     return {code: state.raw.code, name: state.raw.name, currency: state.raw.currency,
             error: '日足以外を表示中のため、この画面からは判定しません'};
   const n = state.raw.bars.length - 1;
-  const d = state.ind;
+  /* 表示通貨を換算中なら、判定は元の通貨の足で組み直した値で(アラートの閾値は元の通貨) */
+  const d = convFac ? computeAll(state.raw.bars, {}, '1d') : state.ind;
   const prev = n > 0 ? d.c[n-1] : d.c[n];
   return {
     code: state.raw.code, name: state.raw.name, currency: state.raw.currency,
@@ -19865,9 +20219,9 @@ function onTick(tick){
     requestAnimationFrame(() => {
       tickPending = false;
       const n = state.raw.bars.length - 1;
-      state.ind.c[n] = state.raw.bars[n].c;
-      state.ind.h[n] = state.raw.bars[n].h;
-      state.ind.l[n] = state.raw.bars[n].l;
+      state.ind.c[n] = toShown(state.raw.bars[n].c, n);
+      state.ind.h[n] = toShown(state.raw.bars[n].h, n);
+      state.ind.l[n] = toShown(state.raw.bars[n].l, n);
       renderBase(); paint(); applyQuoteStrip();
     });
   }
@@ -20578,6 +20932,21 @@ $('#shSyncLoad').addEventListener('click', async () => {
 });
 
 /* ---- Google Drive sync ------------------------------------------------ */
+/* 「接続」を押してから Google のスクリプトを読み込むと、読み込みを待つあいだに
+   クリックの効力が切れ、iPhone の Safari では同意画面のポップアップが
+   ブロックされます(1回目は必ず失敗し、2回目で通る)。
+   起動時には読みません(接続していない人は Google と通信しない、は守ります)。
+   ボタンが画面に入った時点で先に読んでおきます。 */
+(function preloadGsiNearButton(){
+  const btn = $('#drvConnect');
+  if(!btn || typeof IntersectionObserver !== 'function') return;
+  const io = new IntersectionObserver(entries => {
+    if(!entries.some(e => e.isIntersecting)) return;
+    io.disconnect();
+    if(driveUsable() && !tokenClient) initTokenClient().catch(() => {});
+  });
+  io.observe(btn);
+})();
 $('#drvConnect').addEventListener('click', async () => {
   if(!driveUsable()){
     driveStatus('この開き方ではGoogleに接続できません。下の「準備と、うまくいかないとき」をご覧ください。', 'err');
