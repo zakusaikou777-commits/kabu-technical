@@ -1465,8 +1465,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v55';
-const APP_DATE = '2026-10-05';
+const APP_VER = 'v56';
+const APP_DATE = '2026-10-07';
 
 /* ============================================================
    1. Small helpers
@@ -3581,7 +3581,8 @@ function layout(){
     title: shortIsUs() ? '空売り比率(報告出来高に占める %)' : '空売り残高(報告合計 %)'});
   if(state.toggles.marginPanel) subs.push({key:'marginPanel',
     title: (Ext.margin && Ext.margin.kind === 'loan')
-      ? '貸借残(融資 / 貸株・日証金)' : '信用残(買残 / 売残)'});
+      ? '貸借残(融資 / 貸株・日証金)'
+      : (state.ind && state.ind.extLend ? '信用残(買残 / 売残・週次)' : '信用残(買残 / 売残)')});
   /* 出来高と同じで、決算の数値を入れていない銘柄では空の箱になるだけなので
      データがあるときだけ出します。赤字でPERが引けない銘柄はPBRに切り替え、
      どちらも引けなければ出しません。 */
@@ -3622,7 +3623,8 @@ function layout(){
      multiplier the user sets by dragging the divider under a panel, kept
      per panel key so it survives a redraw, a tab switch and a reload. */
   const scaleOf = k => clamp(+(panelScale[k] || 1), 0.4, 3.5);
-  const hOf = k => Math.round(subH * scaleOf(k));
+  const twoUp = k => k === 'marginPanel' && state.ind && state.ind.extLend;
+  const hOf = k => Math.round(subH * scaleOf(k) * (twoUp(k) ? 1.6 : 1));
   const subsH = subs.reduce((t, sp) => t + hOf(sp.key) + gap, 0);
   let mainH;
   if(full){
@@ -4853,6 +4855,11 @@ function showTip(i, X, Y){
     if(isNum(d.extMargin.sell[i])) extra.push([ln ? '貸株残' : '信用売残', fmtVol(d.extMargin.sell[i]) + '株']);
     if(isNum(d.extMargin.ratio[i])) extra.push([ln ? '貸借倍率' : '信用倍率', d.extMargin.ratio[i].toFixed(2) + '倍']);
   }
+  if(T.marginPanel && d.extLend){
+    if(isNum(d.extLend.buy[i]))  extra.push(['融資残(日証金)', fmtVol(d.extLend.buy[i]) + '株']);
+    if(isNum(d.extLend.sell[i])) extra.push(['貸株残(日証金)', fmtVol(d.extLend.sell[i]) + '株']);
+    if(isNum(d.extLend.ratio[i])) extra.push(['貸借倍率', d.extLend.ratio[i].toFixed(2) + '倍']);
+  }
   /* PERとPBRは片方だけをチャートに描いているので、読み取りには両方出します。
      決算より前の区間は当てはめた値なので、そこだけ「参考」と断ります。 */
   if(T.valuation && d.fund){
@@ -4988,8 +4995,10 @@ function renderLegend(){
   if(T.shortPanel) L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>`
     + `${shortIsUs() ? '空売り比率(FINRA 報告出来高に対する%)' : '空売り残高(報告0.5%以上の合計)'}</span>`);
   if(T.marginPanel){
-    L.push(`<span class="li"><i class="k" style="background:var(--up)"></i>信用買残</span>`);
-    L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>信用売残</span>`);
+    const ln = Ext.margin && Ext.margin.kind === 'loan';
+    L.push(`<span class="li"><i class="k" style="background:var(--up)"></i>${ln ? '融資残' : '信用買残'}</span>`);
+    L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>${ln ? '貸株残' : '信用売残'}</span>`);
+    if(state.ind && state.ind.extLend) L.push(`<span class="li">下段: 日証金の融資残・貸株残(別の目盛り)</span>`);
   }
   if(T.session && isIntradayIv(state.interval)){
     L.push(`<span class="li"><i class="kb" style="background:var(--cmp2);opacity:.5"></i>東京(9-15時)</span>`);
@@ -6815,7 +6824,8 @@ function renderMarginStatus(status){
   if(status && status.ok){
     bits.push(status.loanOnly
       ? `<p class="qsrc">「${esc(status.name, 80)}」は<b>貸借残(日証金)</b>でした。`
-        + `すでにある<b>信用残</b>とは別の統計なので、チャートには重ねず下に並べて出します。</p>`
+        + `すでにある<b>信用残</b>とは別の統計なので、信用残の線には混ぜず、`
+        + `チャートの信用残パネルの<b>下段</b>に別の目盛りで描きます。</p>`
       : `<p class="qsrc">「${esc(status.name, 80)}」から ${+status.added || 0} 件を取り込みました。`
         + (status.replaced ? '以前の貸借残(日証金)は、別の統計なので置き換えました。' : '') + `</p>`);
   }
@@ -6849,11 +6859,38 @@ function renderMarginStatus(status){
       + `桁の合わない ${marginDropped} 件を外しました`
       + `(これが「取り込んだ表と違う」原因です)。</p>`);
   }
+  if(marginMoved){
+    bits.push(`<p class="qsrc" style="margin:5px 0 0">`
+      + `信用残の記録に<b>日証金の貸借残 ${marginMoved} 件</b>が混ざっていたので(以前の版で`
+      + `日証金の表を貼り付けると、信用残として入っていました)、貸借残のほうへ移しました。`
+      + `値は消していません。チャートでは信用残パネルの下段に出ています。</p>`);
+  }
+  /* 日証金の貸借残の履歴(信用残の下段) */
+  if(!loanKind && Ext.lend && Ext.lend.points.length){
+    const lp = Ext.lend.points, g = lp[lp.length - 1];
+    const fm = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
+    /* 同じ日の数字が、日証金の当日ファイルと大きく違うとき。貼り付けた表の
+       列の読み違い(新規と残高など)のことが多いので、黙って並べずに言います。 */
+    const jf = Ext.loan, same = jf && jf.d === g.d && isNum(jf.buy) && isNum(g.buy) && g.buy > 0;
+    const off = same && (jf.buy / g.buy > 1.5 || g.buy / jf.buy > 1.5);
+    bits.push(`<div class="pprev" style="margin-top:9px">`
+      + `<b>日証金の貸借残(日次)</b> ${fm(g.d)} 時点`
+      + ` ・ 融資残 ${isNum(g.buy) ? fmtVol(g.buy) + '株' : '—'}`
+      + ` ・ 貸株残 ${isNum(g.sell) ? fmtVol(g.sell) + '株' : '—'}`
+      + ` ・ 貸借倍率 ${isNum(g.ratio) ? g.ratio.toFixed(2) + '倍' : '—'}`
+      + `<br><span class="qsrc">保有 ${fm(lp[0].d)} 〜 ${fm(g.d)} の ${lp.length} 日分`
+      + `(${esc(Ext.lend.src || '日証金', 40)})。上の信用残とは<b>別の統計</b>(日証金を通した分だけ)`
+      + `なので、チャートでは信用残パネルの<b>下段</b>に別の目盛りで描いています。</span>`
+      + (off ? `<br><span class="qsrc" style="color:var(--critical)">同じ ${fm(g.d)} の融資残が、`
+             + `日証金の当日ファイル(${fmtVol(jf.buy)}株)と大きく違います。貼り付けた表なら、`
+             + `融資残・貸株残の<b>列</b>(新規・返済ではなく残高か)を確かめてください。</span>` : '')
+      + `</div>`);
+  }
 
   /* The JSF daily figure, when it is NOT the series. It is roughly a tenth
      of the market-wide balance, so drawing it on the same axis produced a
      line that fell off a cliff — it belongs beside the series, not in it. */
-  if(!loanKind && Ext.loan && (isNum(Ext.loan.buy) || isNum(Ext.loan.sell))){
+  if(!loanKind && !(Ext.lend && Ext.lend.points.length) && Ext.loan && (isNum(Ext.loan.buy) || isNum(Ext.loan.sell))){
     const g = Ext.loan;
     bits.push(`<div class="pprev" style="margin-top:9px">`
       + `<b>日証金の貸借残(日次)</b> ${g.d.slice(0,4)}/${g.d.slice(4,6)}/${g.d.slice(6,8)} 時点`
@@ -6913,6 +6950,9 @@ const Ext = {
   margin: null,    /* {points:[{d:'YYYYMMDD', buy, sell, ratio}], src} */
   usvol:  null,    /* {points:[{d:'YYYYMMDD', short, exempt, total, ratio}], src} */
   fund:   null,    /* {points:[{d:'YYYYMMDD', eps, bps, dps, eqr}], src} */
+  /* 日証金の貸借残(日次)の履歴。本体(margin)が信用残(週次)のときだけ持ちます。
+     本体が貸借残なら本体に入るので、こちらは空です。 */
+  lend:   null,    /* {points:[{d:'YYYYMMDD', buy, sell, ratio}], src} */
 
   /* いま持っている4つが「どの銘柄のものか」。
 
@@ -6931,9 +6971,9 @@ const Ext = {
   fresh(){ return this.code === this.codeKey(); },
   forget(){
     this.gen++;                                  /* 飛んでいる読み込みを捨てる */
-    this.short = this.margin = this.usvol = this.fund = this.loan = null;
+    this.short = this.margin = this.usvol = this.fund = this.loan = this.lend = null;
     this.code = '';
-    marginDropped = 0; legacyRescaled = false;
+    marginDropped = 0; marginMoved = 0; legacyRescaled = false;
   },
 
   /* --- cache: repeated use accumulates a longer history ---------------- */
@@ -6943,10 +6983,12 @@ const Ext = {
     const mine = ++this.gen;
     this.short = this.margin = null;
     this.loan = null;
+    this.lend = null;
     this.usvol = null;
     this.fund = null;
     this.code = '';
     marginDropped = 0;
+    marginMoved = 0;
     /* per-stock, like marginDropped beside it. Left standing, one stock with
        an old cache made every stock opened afterwards claim its percentages
        had been stored a hundredfold small — and invite the user to delete
@@ -7013,6 +7055,65 @@ const Ext = {
         if(cleaned.dropped || m.kind !== kind) await this.saveMargin(k);
       }
     }
+    /* 日証金の貸借残の履歴(信用残を本体に持つ銘柄だけ) */
+    const ld = cached.lend;
+    let lendPts = ld && Array.isArray(ld.points) ? normLendPoints(ld.points) : [];
+    let lendSrc = cleanText((ld && ld.src) || '', 60);
+    let writeMain = false, dropLend = false;
+    /* 以前の版で、貼り付けた日証金の表が<b>信用残として</b>入っている記録を直します。
+       週次の信用残(数百万株)の続きに日次の貸借残(十数万株)が並ぶと、信用残の線が
+       崖のように落ちます。捨てずに貸借残のほうへ移します(取り込んだ値は残ります)。 */
+    if(this.margin && this.margin.kind === 'credit'){
+      const sp = splitMixedMargin(this.margin.points, 'credit');
+      if(sp){
+        this.margin = Object.assign({}, this.margin, {points: sp.keep});
+        lendPts = unionByDate(lendPts, normLendPoints(sp.foreign));
+        lendSrc = lendSrc || '日証金 貸借残';
+        marginMoved = sp.foreign.length;
+        writeMain = true;
+      }
+    }
+    if(lendPts.length && this.margin && this.margin.kind === 'loan'){
+      /* 本体がすでに貸借残なら、1本にまとめます(同じ日は本体の値) */
+      this.margin = Object.assign({}, this.margin, {points:
+        unionByDate(lendPts.map(p => ({...p, k: 'loan'})), this.margin.points).slice(-400)});
+      lendPts = []; writeMain = true; dropLend = true;
+    } else if(lendPts.length && !this.margin){
+      this.margin = {points: lendPts.map(p => ({...p, k: 'loan'})).slice(-400),
+                     src: lendSrc || '日証金 貸借残', kind: 'loan'};
+      lendPts = []; writeMain = true; dropLend = true;
+    }
+    this.lend = lendPts.length ? {points: lendPts.slice(-400), src: lendSrc || '日証金 貸借残'} : null;
+    if(writeMain && this.margin) await this.saveMargin(k);
+    if(marginMoved && this.lend) await this.saveLend(k);
+    if(dropLend) await this.dropRecord('lend', k);
+  },
+  /* 1つの記録を消す(順番待ちの中で) */
+  dropRecord(kind, code){
+    const key = kind + '.' + code;
+    return withKey(key, async () => {
+      try { await DB.del(key); } catch(e){}
+      Store.del(key); Store.del('extAt.' + key);
+    });
+  },
+  saveLend(code){
+    return this.saveRecord('lend', code, this.lend, (cur, rec) => ({
+      points: unionByDate(normLendPoints(cur.points), rec.points || []).slice(-400),
+      src: rec.src || cleanText(cur.src, 60)}));
+  },
+  /* 貸借残の点を足す。同じ日なら新しいほうで置き換えます。足した件数を返します。 */
+  mergeLend(points, src, code){
+    const k = code || this.codeKey();
+    const inc = normLendPoints(points);
+    if(!inc.length) return 0;
+    const base = (this.code === k && this.lend) ? this.lend.points : [];
+    const had = new Set(base.map(p => p.d));
+    const all = unionByDate(base, inc).slice(-400);
+    this.lend = {points: all,
+                 src: cleanText(src, 60) || (this.lend && this.lend.src) || '日証金 貸借残'};
+    this.code = k;
+    this.saveLend(k);
+    return inc.filter(p => !had.has(p.d)).length;
   },
   /* 保存は「鍵の中で、ディスクを読んでから混ぜて、書く」。
 
@@ -7070,6 +7171,10 @@ const Ext = {
            手元の記録をそのまま書きます。ここで種類を決め直すのは筋違いです。 */
         if(cleaned.flip) return rec;
         points = cleaned.points;
+        /* 札が同じでも桁と頻度が違う点(信用残の記録に入った貸借残)。
+           手元ではもう分けてあるので、ディスクから戻ってきたぶんを外します。 */
+        const sp = splitMixedMargin(points, rec.kind);
+        if(sp) points = sp.keep;
       }
       const out = {points, src: rec.src};
       if(rec.kind) out.kind = rec.kind;
@@ -7167,14 +7272,18 @@ const Ext = {
     const cur = (this.code === k) ? this.margin : null;
     const curKind = cur ? (cur.kind || 'credit') : null;
     if(cur && curKind !== kind){
-      /* the market-wide series wins; the JSF daily figure does not overwrite it */
-      if(kind === 'loan') return {kept: curKind};
+      /* 本体は市場全体の信用残のまま。日証金の貸借残は捨てずに、別の系列
+         (パネルの下段)として持ちます。以前は最新の1日ぶんだけ数字で出して、
+         履歴は捨てていました。 */
+      if(kind === 'loan') return {kept: curKind, lend: this.mergeLend(points, src, k)};
+      /* 信用残が来た。それまで本体だった貸借残は、下段へ移します */
+      const moved = this.mergeLend(cur.points, cur.src, k);
       this.margin = {points: points.map(p => ({...p, k: kind}))
                        .sort((a,b)=> a.d.localeCompare(b.d)).slice(-400), src, kind};
       marginDropped = 0;
       this.code = k;
       this.saveMargin(k);
-      return {replaced: curKind};
+      return {replaced: curKind, lend: moved};
     }
     /* every point records which statistic it is, so a cache can never go
        back to being a mixture nobody can untangle */
@@ -7182,11 +7291,19 @@ const Ext = {
     for(const p of points) map.set(p.d, {...p, k: kind});
     const all = [...map.values()].sort((a,b)=> a.d.localeCompare(b.d)).slice(-400);
     const cleaned = dropForeignPoints(all, kind);
-    this.margin = {points: cleaned.points, src, kind};
+    let keep = cleaned.points, moved = 0;
+    /* 札は信用残なのに、桁も頻度も違う点が混ざっている(見出しで見分けられない
+       日証金の表を貼った、など)。信用残の線を崩さないよう、貸借残へ分けます。 */
+    const sp = splitMixedMargin(keep, kind);
+    if(sp){
+      keep = sp.keep;
+      if(kind === 'credit') moved = this.mergeLend(sp.foreign, '', k);
+    }
+    this.margin = {points: keep, src, kind};
     marginDropped = cleaned.dropped;
     this.code = k;
     this.saveMargin(k);
-    return {merged: true, dropped: cleaned.dropped};
+    return {merged: true, dropped: cleaned.dropped, lend: moved};
   },
 
   /* the latest JSF daily figure, kept for display when it is not the series */
@@ -7215,7 +7332,7 @@ const Ext = {
       this.usvol = null; drop('usvol');
     }
     else if(which === 'fund'){ this.fund = null; drop('fund'); }
-    else { this.margin = null; drop('margin'); }
+    else { this.margin = null; drop('margin'); this.lend = null; drop('lend'); }
     renderExtStatus();
     /* the card body too. Only the 「保有データ … 消す」 line was being redrawn,
        so the table of holders and the latest figure stayed on screen after the
@@ -7232,6 +7349,71 @@ const Ext = {
 /* How many points the last cache clean-up threw away, for the card to
    mention rather than quietly changing the numbers. */
 let marginDropped = 0;
+/* 信用残の記録から貸借残のほうへ移した件数(カードで知らせます) */
+let marginMoved = 0;
+
+/* 貸借残の点を、保存・同期・表示に使う形にそろえます */
+function normLendPoints(list){
+  return (Array.isArray(list) ? list : []).filter(p => p && /^\d{8}$/.test(String(p.d))).map(p => {
+    const buy = isNum(p.buy) ? p.buy : null, sell = isNum(p.sell) ? p.sell : null;
+    return {d: String(p.d), buy, sell,
+            ratio: isNum(p.ratio) ? p.ratio : (isNum(buy) && isNum(sell) && sell > 0 ? buy / sell : null)};
+  }).filter(marginHasData);
+}
+/* 日付で足す。同じ日はあとの配列が勝ちます。 */
+function unionByDate(a, b){
+  const map = new Map((a || []).map(p => [p.d, p]));
+  for(const p of (b || [])) map.set(p.d, p);
+  return [...map.values()].sort((x, y) => String(x.d).localeCompare(String(y.d)));
+}
+
+/* 2つの統計が<b>同じ札のまま</b>混ざっているか。
+
+   信用残(週次・市場全体)と貸借残(日次・日証金を通した分だけ)は桁が1つほど違い、
+   しかも日付がぶつからないので、札(k)が同じだと見分ける手がかりは桁しかありません。
+   ただ、桁だけで決めると<b>株式分割</b>(ある日を境に残高が何倍にもなる)を
+   取り違えます。そこで次の両方がそろうときだけ「混ざっている」とします。
+   ・買残が4倍以上離れた2つの塊に分かれる
+   ・その2つが<b>日付の上で入り組んでいる</b>(週次の点のあいだに日次の点が挟まる)か、
+     片方が日次・もう片方が週次の間隔で並んでいる
+   分割・併合は境の日を1回またぐだけなので、どちらにも当たりません。
+   返すのは、残す点と、別の統計とみなした点。 */
+function splitMixedMargin(points, kind){
+  const pts = (points || []).filter(p => p && /^\d{8}$/.test(String(p.d)));
+  const vals = pts.map(p => p.buy).filter(v => isNum(v) && v > 0).sort((a, b) => a - b);
+  if(vals.length < 6) return null;
+  let best = 1, at = -1;
+  for(let i = 0; i + 1 < vals.length; i++){
+    const r = vals[i + 1] / vals[i];
+    if(r > best){ best = r; at = i; }
+  }
+  if(at < 0 || best < FOREIGN_FACTOR) return null;
+  const thr = Math.sqrt(vals[at] * vals[at + 1]);
+  const sorted = pts.slice().sort((a, b) => String(a.d).localeCompare(String(b.d)));
+  const side = p => isNum(p.buy) && p.buy > 0 ? (p.buy < thr ? 'L' : 'H') : null;
+  const lo = sorted.filter(p => side(p) === 'L'), hi = sorted.filter(p => side(p) === 'H');
+  if(lo.length < 2 || hi.length < 2) return null;
+  let sw = 0, prev = null;
+  for(const p of sorted){
+    const sd = side(p);
+    if(!sd) continue;
+    if(prev && sd !== prev) sw++;
+    prev = sd;
+  }
+  const medGap = arr => {
+    const g = [];
+    for(let i = 1; i < arr.length; i++) g.push(daysBetweenKeys(arr[i - 1].d, arr[i].d));
+    g.sort((a, b) => a - b);
+    return g.length ? g[g.length >> 1] : null;
+  };
+  const gl = medGap(lo), gh = medGap(hi);
+  const cadence = isNum(gl) && isNum(gh) && Math.min(gl, gh) <= 2 && Math.max(gl, gh) >= 5;
+  if(sw < 3 && !cadence) return null;
+  /* 貸借残は信用残の一部なので、小さいほうが貸借残です */
+  const foreign = kind === 'loan' ? 'H' : 'L';
+  return {keep: sorted.filter(p => side(p) !== foreign),
+          foreign: sorted.filter(p => side(p) === foreign)};
+}
 
 /* 日証金 is the only 貸借残 source this app has; everything else it reads is
    the market-wide 信用残. */
@@ -7375,7 +7557,7 @@ function alignExt(ind){
   sectorTopUp();
   ind.sector = buildSectorSeries(state.raw.bars);
   if(!Ext.fresh()){
-    ind.extShort = null; ind.extMargin = null; ind.fund = null;
+    ind.extShort = null; ind.extMargin = null; ind.extLend = null; ind.fund = null;
     return ind;
   }
   const bars = state.raw.bars;
@@ -7412,6 +7594,14 @@ function alignExt(ind){
     sell:  build(Ext.margin.points, p => p.sell),
     ratio: build(Ext.margin.points, p => p.ratio),
     rows:  build(Ext.margin.points, p => p)
+  } : null;
+  /* 本体が信用残のときの、日証金の貸借残(日次)。同じ軸には載せません */
+  const lendOn = Ext.lend && Ext.lend.points && Ext.lend.points.length
+              && !(Ext.margin && Ext.margin.kind === 'loan');
+  ind.extLend = lendOn ? {
+    buy:   build(Ext.lend.points, p => p.buy),
+    sell:  build(Ext.lend.points, p => p.sell),
+    ratio: build(Ext.lend.points, p => p.ratio)
   } : null;
   ind.fund = buildFundSeries(bars);
   return ind;
@@ -12143,6 +12333,8 @@ function renderExtStatus(){
     : '';
   if(m) m.innerHTML = Ext.margin
     ? `保有データ: ${esc(cover(Ext.margin.points), 60)}(${esc(Ext.margin.src, 60)}) `
+      + (Ext.lend && Ext.lend.points.length
+        ? `／ 貸借残(日証金): ${esc(cover(Ext.lend.points), 60)} ` : '')
       + `<button class="chip" id="marginClear" style="border-style:dashed;min-height:28px;padding:2px 9px">消す</button>`
     : '';
   const sc = $('#shortClear'), mc = $('#marginClear');
@@ -12284,28 +12476,50 @@ function drawMarginPanel(g){
   const p = panel('marginPanel'); if(!p) return;
   const e = state.ind.extMargin;
   if(!e){ panelFrame(g, p); return; }
+  const L = state.ind.extLend;
+  /* 信用残(週次・市場全体)と貸借残(日次・日証金)。桁が1つ違うので同じ目盛りに
+     載せると貸借残は底に貼りつき、混ぜると線が崖のように落ちます。
+     上下に分けて、それぞれの目盛りで描きます。 */
+  if(L && p.h >= 64){
+    const hTop = Math.round(p.h * 0.55);
+    const top = Object.assign({}, p, {h: hTop});
+    const bot = Object.assign({}, p, {y: p.y + hTop, h: p.h - hTop, title: '貸借残(日証金・日次)'});
+    drawMarginPair(g, top, e, false, Ext.margin && Ext.margin.points);
+    state._marginY = state._pairY;
+    drawMarginPair(g, bot, L, true, Ext.lend && Ext.lend.points);
+    return;
+  }
+  const ln = Ext.margin && Ext.margin.kind === 'loan';
+  drawMarginPair(g, p, e, ln, Ext.margin && Ext.margin.points);
+  state._marginY = state._pairY;
+}
+
+/* 買残(融資残)と売残(貸株残)の2本を、1つの枠に1つの目盛りで */
+function drawMarginPair(g, p, e, ln, held){
   let mx = 0;
   for(let i=Math.max(0,state.i0);i<=Math.min(state.i1, state.raw.bars.length-1);i++){
     for(const a of [e.buy, e.sell]) if(isNum(a[i]) && a[i] > mx) mx = a[i];
   }
-  const ln = Ext.margin && Ext.margin.kind === 'loan';
   /* 表示している期間にデータが1本も無いとき。目盛りの最大が0のままなので
      「0株」とだけ書かれた空のパネルになり、<b>残高がゼロ</b>に読めます。
      期間を広げて、信用残のある範囲より前まで見たときに必ずこうなります。
      数字ではなく、無いことを書きます。 */
   if(!(mx > 0)){
+    resetSlots();
     panelFrame(g, p);
     g.fillStyle = C.ink3;
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
-    const has = Ext.margin && Ext.margin.points && Ext.margin.points.length;
+    const has = held && held.length;
     g.fillText(has ? 'この期間には' + (ln ? '貸借残' : '信用残') + 'のデータがありません(あるのは直近だけです)'
                    : (ln ? '貸借残' : '信用残') + 'のデータがまだありません',
-               p.x + 6, p.y + p.h / 2);
-    state._marginY = null;
+               p.x + 6, p.y + p.h / 2 + 6);
+    state._pairY = null;
     return;
   }
-  const y = makeY(p, 0, mx * 1.12, 14, 0);
+  /* 下段(貸借残)は売残が買残の数%しかないことが多く、底に貼りつくと
+     名札(貸株残)が枠の外と判定されて出ません。少しだけ底を上げます。 */
+  const y = makeY(p, 0, mx * 1.12, 14, ln && state.ind && state.ind.extLend ? 5 : 0);
   resetSlots();
   gridline(g, p, y(mx)); yLabel(g, p, y(mx), fmtVol(mx) + '株');
   /* both series are share counts, so one axis is honest here */
@@ -12314,7 +12528,7 @@ function drawMarginPanel(g){
   endLabel(g, p, e.buy,  y, C.up,   ln ? '融資残' : '信用買残');
   endLabel(g, p, e.sell, y, C.down, ln ? '貸株残' : '信用売残');
   panelFrame(g, p);
-  state._marginY = y;
+  state._pairY = y;
 }
 
 /* PER(または PBR)の推移。
@@ -12898,13 +13112,13 @@ async function restoreWorkspace(){
 
 /* ---- Ext caches move to IndexedDB, with a one-time lift from localStorage */
 async function extLoadFromDB(code){
-  const out = {short: null, margin: null, usvol: null, fund: null};
+  const out = {short: null, margin: null, usvol: null, fund: null, lend: null};
   if(!code) return out;
   /* `usvol` is a separate key on purpose. It is a different statistic with a
      different shape, and keeping it out of `short.*` means the JP migrations
      and the sync path can never try to fold it into filings it does not have.
      `fund` (決算の数値) is separate for the same reason. */
-  for(const kind of ['short','margin','usvol','fund']){
+  for(const kind of ['short','margin','usvol','fund','lend']){
     let v = null;
     try { v = await DB.get(kind + '.' + code); } catch(e){}
     if(!v){
@@ -12989,12 +13203,13 @@ function buildBundle(opts){
 function collectSupply(){
   const out = Object.create(null);
   const here = Ext.codeKey();
-  if(here && (Ext.short || Ext.margin || Ext.usvol || Ext.fund)){
+  if(here && (Ext.short || Ext.margin || Ext.usvol || Ext.fund || Ext.lend)){
     out[here] = Object.create(null);
     if(Ext.short)  out[here].short  = Ext.short;
     if(Ext.margin) out[here].margin = Ext.margin;
     if(Ext.usvol)  out[here].usvol  = Ext.usvol;
     if(Ext.fund)   out[here].fund   = Ext.fund;
+    if(Ext.lend)   out[here].lend   = Ext.lend;
   }
   return out;
 }
@@ -13008,7 +13223,7 @@ async function collectSupplyAll(){
          up to 250 downloads' worth — was silently absent from every backup
          and every sync, while the checkbox beside it said 「空売り・信用の
          蓄積データも含める」. */
-      const m = /^(short|margin|usvol|fund)\.(.+)$/.exec(String(k));
+      const m = /^(short|margin|usvol|fund|lend)\.(.+)$/.exec(String(k));
       if(!m) continue;
       const code = cleanSymbol(m[2]);
       if(!code) continue;                      /* '__proto__' and friends */
@@ -13808,9 +14023,17 @@ function cleanSupply(sup){
   for(const raw of Object.keys(sup).slice(0, 2000)){
     const code = cleanSymbol(raw);
     if(!code) continue;
-    for(const kind of ['short','margin','usvol','fund']){
+    for(const kind of ['short','margin','usvol','fund','lend']){
       const inc = sup[raw] && sup[raw][kind];
       if(!inc) continue;
+      /* 日証金の貸借残(信用残の銘柄の下段)。統計は1種類なので札は要りません */
+      if(kind === 'lend'){
+        const points = normLendPoints(inc.points).slice(-400);
+        if(!points.length) continue;
+        out[code] = out[code] || Object.create(null);
+        out[code].lend = {points, src: cleanText(inc.src, 60)};
+        continue;
+      }
       /* 決算の数値。cleanPoint の margin 形に落ちると buy/sell/ratio に
          作り替えられて中身が消えるので、専用の正規化を通します。 */
       if(kind === 'fund'){
@@ -13947,6 +14170,21 @@ async function mergeSupplyIn(raw0){
           n += added; touched = true;
         }catch(e){}
       }
+    });
+    /* lend: 日付の和集合。すでにある日は上書きしません(usvol と同じ) */
+    const le = sup[code].lend;
+    if(le) await withKey('lend.' + code, async () => {
+      let cur = null;
+      try { cur = await DB.get('lend.' + code); } catch(e){}
+      const have = normLendPoints(cur && cur.points);
+      const days = new Set(have.map(p => p.d));
+      const add = le.points.filter(p => !days.has(p.d));
+      if(!add.length) return;
+      try{
+        await DB.set('lend.' + code, {points: unionByDate(have, add).slice(-400),
+          src: cleanText(le.src, 60) || (cur && cur.src) || ''});
+        n += add.length; touched = true;
+      }catch(e){}
     });
     for(const kind of ['margin']){
       const inc = sup[code][kind];
@@ -14661,9 +14899,15 @@ function reportFacts(){
     put(d.extShort.us ? '空売り比率(FINRA 報告出来高比%)' : '空売り残高(合計%)',
         rptNum(d.extShort.ratio[n], 2));
   if(d.extMargin){
-    if(isNum(d.extMargin.buy[n]))  put('信用買残', String(Math.round(d.extMargin.buy[n])));
-    if(isNum(d.extMargin.sell[n])) put('信用売残', String(Math.round(d.extMargin.sell[n])));
-    if(isNum(d.extMargin.ratio[n])) put('信用倍率', rptNum(d.extMargin.ratio[n], 2));
+    const ln = Ext.margin && Ext.margin.kind === 'loan';
+    if(isNum(d.extMargin.buy[n]))  put(ln ? '融資残(日証金)' : '信用買残', String(Math.round(d.extMargin.buy[n])));
+    if(isNum(d.extMargin.sell[n])) put(ln ? '貸株残(日証金)' : '信用売残', String(Math.round(d.extMargin.sell[n])));
+    if(isNum(d.extMargin.ratio[n])) put(ln ? '貸借倍率' : '信用倍率', rptNum(d.extMargin.ratio[n], 2));
+  }
+  if(d.extLend){
+    if(isNum(d.extLend.buy[n]))  put('融資残(日証金)', String(Math.round(d.extLend.buy[n])));
+    if(isNum(d.extLend.sell[n])) put('貸株残(日証金)', String(Math.round(d.extLend.sell[n])));
+    if(isNum(d.extLend.ratio[n])) put('貸借倍率', rptNum(d.extLend.ratio[n], 2));
   }
   /* 決算の数値。AIに読ませたときに「割安か」を自分で確かめられるよう、
      出所と、その数値がどの決算のものかも一緒に出します。 */
@@ -16034,8 +16278,28 @@ function pasteNum(v){
    to agree, that is said on screen — a wrong column is worse than no import. */
 const PASTE_NOISE = /^[（(\[]?(解説|説明|詳細|グラフ|チャート|比較|参考|注)?[)）\]]?$/;
 
-function alignHeader(cells, width){
+function alignHeader(cells, width, body){
   const idx = cells.map((c, i) => ({c, i}));
+  /* 見出しのほうが<b>狭い</b>表。日証金の銘柄ページは、日付のあとに見出しの無い
+     「日証金」の列があり、コピーすると見出しが1列ずつ左にずれます
+     (貸株残の見出しの下に逆日歩の「－」が来る)。中身がいつも同じ文字の列を
+     見つけて、そこに空の見出しを挟みます。 */
+  if(width && idx.length < width && Array.isArray(body) && body.length){
+    const need = width - idx.length;
+    const label = [];
+    for(let j = 1; j < width; j++){
+      const vals = body.map(r => String(r[j] == null ? '' : r[j]).replace(/^\s*"|"\s*$/g, '').trim());
+      const word = vals.every(v => v !== '' && /[^\s\-－—–ー―‐]/.test(v)
+                                    && pasteNum(v) === null && !pasteDate(v));
+      if(word && new Set(vals).size === 1) label.push(j);
+    }
+    if(label.length === need){
+      const out = [];
+      let h = 0;
+      for(let j = 0; j < width; j++) out.push({c: label.includes(j) ? '' : (idx[h++] || {c: ''}).c, i: j});
+      return {cells: out, fixed: true, inserted: true};
+    }
+  }
   if(!width || idx.length <= width)
     return {cells: idx.map((x, i) => ({c: x.c, i})), fixed: false};
   for(const keep of [x => x.c !== '' && !PASTE_NOISE.test(x.c), x => x.c !== '']){
@@ -16069,7 +16333,7 @@ function parsePasted(text){
     const raw = pasteSplit(lines[i]).map(c => String(c).replace(/[\s"]/g, ''));
     /* how wide are the DATA rows below this one */
     const body = lines.slice(i + 1, i + 12).map(pasteSplit).filter(r => pasteDate(r[0]));
-    const al = alignHeader(raw, modalWidth(body));
+    const al = alignHeader(raw, modalWidth(body), body);
     const cand = {};
     al.cells.forEach(h => {
       for(const k in PASTE_COLS)
@@ -16088,7 +16352,18 @@ function parsePasted(text){
       cand.unit = unit;
       map = cand; start = i + 1;
       out.head = al.cells.map(x => x.c).filter(Boolean).slice(0, 8).join(' / ');
-      if(al.fixed) out.note = '見出しの「(解説)」などの余分な列を除いて、数字の並びに合わせました。';
+      if(al.fixed) out.note = al.inserted
+        ? '見出しの無い列(「日証金」など)を挟んで、数字の並びに合わせました。'
+        : '見出しの「(解説)」などの余分な列を除いて、数字の並びに合わせました。';
+      /* どちらの統計か。融資残・貸株残は<b>日証金の貸借残</b>(日次・日証金を通した分だけ)、
+         信用買残・信用売残は<b>市場全体の信用残</b>(週次)。同じ線に載せると、
+         桁が1つ違うので線が崖のように落ちます。見出しで決め、見出しが曖昧なら
+         行の中の「日証金」を手がかりにします。 */
+      const hOf = k => ((al.cells.find(x => x.i === cand[k]) || {}).c) || '';
+      const hbs = hOf('buy') + ' ' + hOf('sell');
+      const allHead = al.cells.map(x => x.c).join(' ');
+      if(/融資|貸株/.test(hbs) || (/貸借倍率/.test(allHead) && !/信用/.test(hbs))) out.stat = 'loan';
+      else if(/信用/.test(hbs)) out.stat = 'credit';
       if(al.mismatch) out.note = '見出しと数字の列数が合いません。読めた分だけ表示しています。';
       break;
     }
@@ -16098,6 +16373,10 @@ function parsePasted(text){
   if(!map){
     map = {date: 0, buy: 1, sell: 2};
     out.note = '見出しが見つからなかったので、左から「日付・信用買残・信用売残」とみなしました。';
+  }
+  if(!out.stat){
+    const body = lines.slice(start, start + 40).join('\n');
+    out.stat = /日証金|貸借取引/.test(body) ? 'loan' : 'credit';
   }
 
   for(let i = start; i < lines.length; i++){
@@ -16133,14 +16412,24 @@ function parsePasted(text){
 }
 
 /* What was understood, before anything is written. */
-function renderPastePreview(res, done){
+function renderPastePreview(res, done, r){
   const box = $('#pasteBox2');
   if(!box) return;
   if(!res){ box.innerHTML = ''; return; }
+  const loan = res.stat === 'loan';
   if(done){
-    box.innerHTML = `<div class="pprev"><b>${res.rows.length}件</b>を`
-      + `${esc(state.raw ? (state.raw.name || state.raw.code) : '', 40)}に取り込みました。`
-      + `チャートの信用残パネルに反映しています。</div>`;
+    r = r || {};
+    const who = esc(state.raw ? (state.raw.name || state.raw.code) : '', 40);
+    box.innerHTML = `<div class="pprev"><b>${res.rows.length}件</b>を${who}の`
+      + (loan
+        ? (r.kept
+          ? `<b>貸借残(日証金・日次)</b>として取り込みました。市場全体の信用残(週次)とは別の統計なので、`
+            + `チャートの信用残パネルの<b>下段</b>に、別の目盛りで描いています。`
+          : `<b>貸借残(日証金・日次)</b>として取り込みました。チャートの貸借残パネルに出しています。`)
+        : `信用残として取り込みました。チャートの信用残パネルに反映しています。`
+          + (r.replaced === 'loan' ? 'それまでの貸借残(日証金)は消さずに、パネルの下段へ移しました。' : '')
+          + (r.lend ? `桁が1つ違う ${r.lend} 件は貸借残(日証金)とみなして、下段に分けました。` : ''))
+      + `</div>`;
     return;
   }
   if(!res.rows.length){
@@ -16159,9 +16448,12 @@ function renderPastePreview(res, done){
     + ` ・ ${fmtD(res.rows[0].d)} 〜 ${fmtD(res.rows[res.rows.length-1].d)}`
     + (res.head ? `<br>見出し: ${esc(res.head, 90)}` : '')
     + (res.note ? `<br>${esc(res.note, 140)}` : '')
+    + (loan ? `<br><b>日証金の貸借残(融資残・貸株残)</b>として読みました。市場全体の信用残(週次)とは`
+            + `別の統計なので、信用残の線には混ぜずに別の線で出します。` : '')
     + `</div>`
     + `<div class="tscroll" style="padding:0;margin-top:8px"><table class="wtab"><thead><tr>`
-    + `<th class="wl">日付</th><th>信用買残</th><th>信用売残</th><th>信用倍率</th>`
+    + (loan ? `<th class="wl">日付</th><th>融資残</th><th>貸株残</th><th>貸借倍率</th>`
+            : `<th class="wl">日付</th><th>信用買残</th><th>信用売残</th><th>信用倍率</th>`)
     + (res.kind === 'gyaku' ? '<th>逆日歩</th>' : '')
     + `</tr></thead><tbody>`
     + show.map(r => `<tr><td class="wl">${fmtD(r.d)}</td>`
@@ -16198,15 +16490,20 @@ function pasteImport(){
     sell: isNum(r.sell) ? r.sell : null,
     ratio: isNum(r.ratio) ? r.ratio : null
   })).filter(marginHasData);
+  /* 融資残・貸株残の表は日証金の貸借残。以前はどの表も信用残として入れていたので、
+     週次の信用残(数百万株)の続きに日次の貸借残(十数万株)が並び、信用残の線が
+     崖のように落ちていました。 */
+  const loan = res.stat === 'loan';
+  let r = null;
   if(pts.length){
-    /* a pasted 信用残 table is the market-wide statistic */
-    Ext.mergeMargin(pts, '貼り付け(手入力)', code, 'credit');
+    r = Ext.mergeMargin(pts, loan ? '日証金 貸借残(貼り付け)' : '貼り付け(手入力)', code,
+                        loan ? 'loan' : 'credit');
     afterExtUpdate();
   }
   /* the newest 逆日歩 on the paste, shown in its own card */
   const g = res.rows.filter(r => isNum(r.gyaku)).pop();
   if(g) renderShina({ok: true, code, rate: g.gyaku, date: g.d, src: '貼り付け(手入力)'});
-  renderPastePreview(res, true);
+  renderPastePreview(res, true, r);
   renderMarginStatus(null);
 }
 /* ============================================================
@@ -16361,6 +16658,83 @@ async function runSelfTests(){
     const d = parsePasted('日付\t信用買残\t信用売残\n2026/09/26\t△1,200\t300').rows[0] || {};
     return eq(a.buy, 1234000, '千株') && eq(b.d, '20260926', '全角') && eq(c.d, '20260926', '令和')
       && eq(d.buy, undefined, '△の買残') && eq(d.sell, 300, '売残');
+  });
+  /* 日証金の銘柄ページの表(「日証金」の列に見出しが無い)。以前は信用残として
+     入り、週次の信用残の続きに日次の貸借残が並んで、線が崖のように落ちました。 */
+  const jsfPaste = blank => (blank ? '日付\t\t' : '日付\t') + '逆日歩（円）\t日歩日数（日）\t貸株残（株）\t融資残（株）\n'
+    + ['10/6（火）\t日証金\t－\t－\t7,200\t119,400', '10/5（月）\t日証金\t－\t－\t8,400\t130,900',
+       '10/2（金）\t日証金\t－\t－\t7,300\t146,700'].join('\n');
+  test('貼り付け: 日証金の表は貸借残として読む(見出しの無い列も合わせる)', () => {
+    const a = parsePasted(jsfPaste(true)), b = parsePasted(jsfPaste(false));
+    const c = parsePasted('日付\t信用買残\t信用売残\t信用倍率\n2026/10/02\t6,500,000\t400,000\t16.25');
+    const la = a.rows[a.rows.length - 1] || {}, lb = b.rows[b.rows.length - 1] || {};
+    return eq(a.stat, 'loan', '見出しあり') && eq(la.buy, 119400, '融資残') && eq(la.sell, 7200, '貸株残')
+        && eq(b.stat, 'loan', '見出しずれ') && eq(lb.buy, 119400, 'ずれても融資残') && eq(lb.sell, 7200, 'ずれても貸株残')
+        && eq(c.stat, 'credit', '信用残の表');
+  });
+  test('信用残に混ざった貸借残を見分ける(分割とは取り違えない)', () => {
+    const wk = [], dy = [];
+    const d = new Date(2026, 1, 13);
+    while(d <= new Date(2026, 9, 2)){ wk.push({d: dkey(d), buy: 6500000, sell: 400000, k: 'credit'}); d.setDate(d.getDate() + 7); }
+    const t = new Date(2026, 8, 4);
+    while(dy.length < 20){ if(!isJpxShut(t)) dy.push({d: dkey(t), buy: 120000, sell: 7200, k: 'credit'}); t.setDate(t.getDate() + 1); }
+    const mixed = splitMixedMargin(wk.concat(dy), 'credit');
+    /* 分割: ある週を境に4倍。週次のまま、入り組みもしない */
+    const sp = wk.map((p, i) => ({...p, buy: i < 15 ? 1600000 : 6400000}));
+    return eq(mixed && mixed.foreign.length, 20, '日次の20件') && eq(mixed && mixed.keep.length, wk.length, '週次は残す')
+        && eq(splitMixedMargin(sp, 'credit'), null, '分割は混ざりではない');
+  });
+  test('貸借残は信用残に混ぜず、下段の系列へ', () => {
+    const keep = {m: Ext.margin, l: Ext.lend, c: Ext.code, sm: Ext.saveMargin, sl: Ext.saveLend, md: marginDropped};
+    Ext.saveMargin = Ext.saveLend = () => Promise.resolve();    /* 利用者の記録には書かない */
+    try{
+      const wk = [];
+      const d = new Date(2026, 1, 13);
+      while(d <= new Date(2026, 9, 2)){ wk.push({d: dkey(d), buy: 6500000, sell: 400000}); d.setDate(d.getDate() + 7); }
+      Ext.margin = null; Ext.lend = null; Ext.code = 'zz9';
+      Ext.mergeMargin(wk, '日経', 'zz9', 'credit');
+      const r1 = Ext.mergeMargin([{d: '20261006', buy: 119400, sell: 7200}, {d: '20261005', buy: 130900, sell: 8400}],
+                                 '日証金 貸借残(貼り付け)', 'zz9', 'loan');
+      const a = {main: Ext.margin.kind, n: Ext.margin.points.length, lend: Ext.lend && Ext.lend.points.length};
+      /* 貸借残しか無かった銘柄に信用残が来たら、貸借残は下段へ移る */
+      Ext.margin = null; Ext.lend = null;
+      Ext.mergeMargin([{d: '20261005', buy: 130900, sell: 8400}, {d: '20261006', buy: 119400, sell: 7200}], '日証金', 'zz9', 'loan');
+      const r2 = Ext.mergeMargin(wk, '日経', 'zz9', 'credit');
+      const b = {main: Ext.margin.kind, lend: Ext.lend && Ext.lend.points.length};
+      return eq(r1.kept, 'credit', '本体は信用残のまま') && eq(a.n, wk.length, '信用残の点は増えない')
+          && eq(a.lend, 2, '貸借残は下段に2件') && eq(r2.replaced, 'loan', '入れ替わり')
+          && eq(b.main, 'credit', '本体は信用残') && eq(b.lend, 2, '前の貸借残は下段へ');
+    } finally {
+      Ext.margin = keep.m; Ext.lend = keep.l; Ext.code = keep.c;
+      Ext.saveMargin = keep.sm; Ext.saveLend = keep.sl; marginDropped = keep.md;
+    }
+  });
+  test('信用残パネルを上下に分けて描ける', () => {
+    const keep = {raw: state.raw, ind: state.ind, m: Ext.margin, l: Ext.lend, c: Ext.code,
+                  i0: state.i0, i1: state.i1, t: state.toggles.marginPanel};
+    const bars = Array.from({length: 60}, (_, i) => ({t: new Date(2026, 7, 1 + i), o: 1, h: 1, l: 1, c: 1, v: 1}));
+    stampBars(bars, 'Asia/Tokyo');
+    const texts = [];
+    const ot = CanvasRenderingContext2D.prototype.fillText;
+    try{
+      state.raw = {bars, name: 'x', code: '8267.T', tz: 'Asia/Tokyo', currency: 'JPY', source: 'x', events: []};
+      Ext.code = '8267';
+      Ext.margin = {points: [{d: barKey(bars[2]), buy: 6500000, sell: 400000, k: 'credit'}], src: 't', kind: 'credit'};
+      Ext.lend = {points: [{d: barKey(bars[40]), buy: 119400, sell: 7200, ratio: 16.6}], src: '日証金'};
+      state.toggles.marginPanel = true;
+      state.ind = recompute();
+      state.i0 = 0; state.i1 = 59;
+      CanvasRenderingContext2D.prototype.fillText = function(t){ texts.push(String(t)); return ot.apply(this, arguments); };
+      sizeCanvas(); redraw();
+    } finally {
+      CanvasRenderingContext2D.prototype.fillText = ot;
+      state.raw = keep.raw; state.ind = keep.ind; Ext.margin = keep.m; Ext.lend = keep.l; Ext.code = keep.c;
+      state.i0 = keep.i0; state.i1 = keep.i1; state.toggles.marginPanel = keep.t;
+      try { sizeCanvas(); redraw(); } catch(e){}
+    }
+    return (texts.includes('融資残') ? true : '融資残の名札がありません')
+        && (texts.includes('信用買残') ? true : '信用買残の名札がありません')
+        && (texts.some(t => /貸借残\(日証金・日次\)/.test(t)) ? true : '下段の見出しがありません');
   });
   test('日付: m/d/yy(Excelの組み込み書式)を2000年代として読む', () => {
     const d = parseJPDate('10/30/26');
