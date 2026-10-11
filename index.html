@@ -1514,7 +1514,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v58';
+const APP_VER = 'v59';
 const APP_DATE = '2026-10-11';
 
 /* ============================================================
@@ -16922,58 +16922,134 @@ function kessanUrl(href){
 
 /* The filenames carry a publication date and change, so the links are read
    off the page rather than guessed. */
-async function findKessanFiles(){
-  const html = await relayFetch(JPX_KESSAN_INDEX, {text: true, timeout: 12000});
-  const seen = new Set(), out = [];
-  for(const m of html.matchAll(/href="([^"]*kessan[^"]*\.xlsx?)"/gi)){
-    const h = kessanUrl(m[1]);
+/* ページの中の Excel へのリンク。
+
+   JPX は<b>決算期末の月ごと</b>にファイルを分けて載せています(8月期・9月期…)。
+   以前は「kessan を含む .xlsx」を先頭から4件だけ取りにいっていたので、
+   ページの並び次第で、いま必要な月のファイルを取り逃していました
+   (イオンのような2月期決算の会社の中間決算は「8月期」のファイルにあります)。
+   このページの Excel はどれも予定表なので、名前は問わず全部拾います
+   (kessan を含むものを先に)。引用符は ' でも " でも。 */
+const KESSAN_MAX_FILES = 12;
+function kessanLinks(html){
+  const seen = new Set(), hit = [], rest = [];
+  for(const m of String(html || '').matchAll(/href\s*=\s*["']([^"'#?]+\.xlsx?)(?:[?#][^"']*)?["']/gi)){
+    const h = kessanUrl(m[1].replace(/&amp;/g, '&'));
     if(!h || seen.has(h)) continue;
     seen.add(h);
-    out.push(h);
+    (/kessan/i.test(h) ? hit : rest).push(h);
   }
-  if(!out.length) throw new Error('JPXのページに決算発表予定のファイルが見つかりません');
   /* the plain kessan.xlsx first: it is the stable, largest one */
-  out.sort((a, b) => (/kessan\.xlsx$/.test(b) ? 1 : 0) - (/kessan\.xlsx$/.test(a) ? 1 : 0));
-  return out.slice(0, 4);
+  hit.sort((a, b) => (/kessan\.xlsx$/i.test(b) ? 1 : 0) - (/kessan\.xlsx$/i.test(a) ? 1 : 0));
+  return hit.concat(rest).slice(0, KESSAN_MAX_FILES);
+}
+async function findKessanFiles(){
+  let html;
+  try { html = await relayFetch(JPX_KESSAN_INDEX, {text: true, timeout: 12000}); }
+  catch(e){ throw new Error('JPXの決算発表予定のページを開けませんでした(中継サーバーが混んでいるか、JPXに断られています)。'); }
+  const out = kessanLinks(html);
+  if(!out.length) throw new Error('JPXのページは開けましたが、予定表のExcelへのリンクが見つかりませんでした(ページの作りが変わった可能性)。');
+  return out;
 }
 
-/* Header cells are merged and contain newlines, and there are title rows
-   above the header, so the header row is located by content. */
-function parseKessanSheet(XLSX, buf){
-  /* 日付のセルは yyyy/mm/dd で文字にします。指定しないと、Excel の組み込み
-     日付書式は SheetJS の既定で "10/30/26" になり、年が2桁のまま渡ります。 */
-  const wb = XLSX.read(new Uint8Array(buf), {type: 'array', cellDates: true, dateNF: 'yyyy/mm/dd'});
-  const map = new Map();
-  for(const name of wb.SheetNames.slice(0, 6)){
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: false, defval: ''});
+/* ---- 予定表の1行を読むための部品(Excel を介さないので、表のままテストできます) ---- */
+const KESSAN_FW = s => String(s == null ? '' : s)
+  .replace(/[０-９Ａ-Ｚａ-ｚ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+  /* 長音の「ー」は変えません(「コード」が「コ-ド」になります)。全角のハイフンとマイナスだけ */
+  .replace(/[／]/g, '/').replace(/[－−]/g, '-');
+/* 銘柄コード。5桁(末尾0)で載せる表もあるので、4桁に直します(82670 → 8267、285A0 → 285A) */
+function kessanCode(v){
+  let c = KESSAN_FW(v).toUpperCase().replace(/[^0-9A-Z]/g, '');
+  if(/^(\d{4}|\d{3}[A-Z])0$/.test(c)) c = c.slice(0, 4);
+  return isJpCode(c) ? c : null;
+}
+/* 日付。セルの<b>中身</b>から読みます。
+
+   以前は Excel の「見た目」の文字(書式を当てた結果)を読んでいたので、
+   日付の書式が「10月30日」のように年を出さないものだと、1行も読めずに
+   「見出しを読み取れませんでした」になっていました。数値ならシリアル値として
+   そのまま日付にし、文字なら和暦・全角・年なしも読みます。 */
+function kessanDate(v, date1904, today){
+  if(v instanceof Date && !isNaN(v)) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  if(typeof v === 'number'){
+    if(!(v > 20000 && v < 80000)) return null;          /* 1954〜2119年の範囲だけ */
+    const t = new Date(Date.UTC(1899, 11, 30) + Math.round((v + (date1904 ? 1462 : 0)) * 86400000));
+    return new Date(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
+  }
+  const sx = KESSAN_FW(v).trim().replace(/[(（][^)）]*[)）]/g, '');
+  if(!sx || /未定|調整中|-$/.test(sx)) return null;
+  let m = sx.match(/^(?:令和|R)\s*(元|\d{1,2})\s*[年.\/]\s*(\d{1,2})\s*[月.\/]\s*(\d{1,2})/);
+  if(m) return new Date(2018 + (m[1] === '元' ? 1 : +m[1]), +m[2] - 1, +m[3]);
+  if(/^\d{4}/.test(sx)){ const d = parseJPDate(sx); return d && !isNaN(d) ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null; }
+  /* 年が書いていない(10/30、10月30日)。いちばん近い年を当てます(前後6か月) */
+  m = sx.match(/^(\d{1,2})\s*[\/月]\s*(\d{1,2})/);
+  if(m){
+    const now = today || new Date();
+    let best = null;
+    for(const y of [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]){
+      const d = new Date(y, +m[1] - 1, +m[2]);
+      if(d.getMonth() !== +m[1] - 1) continue;
+      if(!best || Math.abs(d - now) < Math.abs(best - now)) best = d;
+    }
+    return best;
+  }
+  return null;
+}
+/* 表(シートごとの行の配列)から {コード → [{d, kind, name}]} を作ります。
+
+   見出しは「コード」「証券コード」「銘柄コード」、日付は「決算発表予定日」
+   「発表予定日」などを、上から30行まで探します。種別(本決算・第2四半期…)は
+   「種別」を優先します。以前は「種別|決算期|四半期」の最初に当たった列を
+   使っていたので、「決算期末」の列が左にあると「2027/2」を種別として出していました。 */
+function parseKessanRows(sheets, opts){
+  const o = opts || {}, map = new Map();
+  let rowsRead = 0;
+  for(const rows of sheets || []){
+    if(!Array.isArray(rows)) continue;
     let head = -1, iCode = -1, iName = -1, iDate = -1, iKind = -1;
-    for(let r = 0; r < Math.min(rows.length, 12); r++){
-      const cells = (rows[r] || []).map(c => String(c).replace(/\s+/g, ''));
+    for(let r = 0; r < Math.min(rows.length, 30); r++){
+      const cells = (rows[r] || []).map(c => KESSAN_FW(c).replace(/\s+/g, ''));
       const find = re => cells.findIndex(c => re.test(c));
-      const c = find(/^コード|銘柄コード/), d = find(/決算発表予定日|発表予定日|予定日/);
-      if(c >= 0 && d >= 0){
+      const c = cells.findIndex(x => /^(銘柄|証券)?コード/.test(x) && !/業種|市場/.test(x));
+      const d = find(/決算発表予定日|発表予定日|予定日|発表日/);
+      if(c >= 0 && d >= 0 && c !== d){
         head = r; iCode = c; iDate = d;
-        iName = find(/会社名|銘柄名/);
-        iKind = find(/種別|決算期|四半期/);
+        iName = cells.findIndex(x => /会社名|銘柄名/.test(x) && !/英文|English/i.test(x));
+        iKind = find(/種別/);
+        if(iKind < 0) iKind = cells.findIndex(x => /四半期|決算区分/.test(x));
         break;
       }
     }
     if(head < 0) continue;
     for(let r = head + 1; r < rows.length; r++){
       const row = rows[r] || [];
-      const code = String(row[iCode] || '').replace(/[^0-9A-Za-z]/g, '');
-      if(!isJpCode(code)) continue;
-      const d = parseJPDate(row[iDate]);
+      const code = kessanCode(row[iCode]);
+      if(!code) continue;
+      const d = kessanDate(row[iDate], o.date1904, o.today);
       if(!d) continue;
-      const rec = {d: dkey(d), kind: cleanText(row[iKind], 20),
+      rowsRead++;
+      const rec = {d: dkey(d), kind: cleanText(iKind >= 0 ? row[iKind] : '', 20),
                    name: cleanText(iName >= 0 ? row[iName] : '', 40)};
       const arr = map.get(code) || [];
       if(!arr.some(x => x.d === rec.d)) arr.push(rec);
       map.set(code, arr);
     }
   }
-  if(!map.size) throw new Error('決算発表予定の見出しを読み取れませんでした(様式変更の可能性)');
-  return map;
+  return {map, rows: rowsRead};
+}
+
+/* Header cells are merged and contain newlines, and there are title rows
+   above the header, so the header row is located by content. */
+function parseKessanSheet(XLSX, buf){
+  /* セルの<b>中身</b>(日付はシリアル値)を読みます(kessanDate)。書式を当てた文字だと、
+     年を出さない書式の日付が読めませんでした。 */
+  const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
+  const date1904 = !!(wb.Workbook && wb.Workbook.WBProps && wb.Workbook.WBProps.date1904);
+  const sheets = wb.SheetNames.slice(0, 6).map(name =>
+    XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: true, defval: ''}));
+  const r = parseKessanRows(sheets, {date1904});
+  if(!r.map.size) throw new Error('見出しを読み取れませんでした');
+  return r.map;
 }
 
 async function fetchKessan(){
@@ -16982,22 +17058,35 @@ async function fetchKessan(){
   freezeProto();
   const urls = await findKessanFiles();
   const merged = new Map();
-  let ok = 0, lastErr = null;
-  for(const url of urls){
-    try{
-      const buf = await relayFetchBinary(url, 20000);
-      const m = parseKessanSheet(XLSX, buf);
-      for(const [code, list] of m){
-        const arr = merged.get(code) || [];
-        for(const rec of list) if(!arr.some(x => x.d === rec.d)) arr.push(rec);
-        merged.set(code, arr);
-      }
-      ok++;
-    }catch(e){ lastErr = e; }
+  const st = {links: urls.length, fetched: 0, parsed: 0};
+  /* 3本ずつ並べて取ります(12件を1本ずつだと、混んでいる日は数分かかります) */
+  let next = 0;
+  const worker = async () => {
+    while(next < urls.length){
+      const url = urls[next++];
+      let buf;
+      try { buf = await relayFetchBinary(url, 20000); st.fetched++; }
+      catch(e){ continue; }
+      try{
+        const m = parseKessanSheet(XLSX, buf);
+        for(const [code, list] of m){
+          const arr = merged.get(code) || [];
+          for(const rec of list) if(!arr.some(x => x.d === rec.d)) arr.push(rec);
+          merged.set(code, arr);
+        }
+        st.parsed++;
+      }catch(e){}
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  if(!st.parsed){
+    throw new Error(st.fetched
+      ? `JPXの予定表(Excel ${st.fetched}件)は取れましたが、見出しを読み取れませんでした(様式変更の可能性)。`
+      : `JPXの予定表(Excel ${st.links}件)を中継サーバー経由で取得できませんでした。時間をおいてもう一度押してください。`);
   }
-  if(!ok) throw lastErr || new Error('決算予定を取得できませんでした');
   for(const arr of merged.values()) arr.sort((a, b) => a.d.localeCompare(b.d));
-  kessanCache = {map: merged, at: Date.now()};
+  st.companies = merged.size;
+  kessanCache = {map: merged, at: Date.now(), stats: st};
   return merged;
 }
 
@@ -17146,8 +17235,12 @@ function renderEarnings(st){
   if(st.loading){ box.innerHTML = '<p class="qsrc">JPXの決算発表予定表を取得しています…</p>'; return; }
   if(st.error){ box.innerHTML = `<p class="qsrc">${esc(st.error, 120)}</p>`; return; }
   if(!st.list.length){
-    box.innerHTML = '<p class="qsrc">この銘柄はJPXの予定表に載っていませんでした。'
-      + '(掲載が無くても発表されることはあります)</p>';
+    /* 「取れなかった」と「載っていなかった」を見分けられるよう、読んだ量を添えます */
+    const k = kessanCache && kessanCache.stats;
+    box.innerHTML = '<p class="qsrc">この銘柄はJPXの予定表に載っていませんでした'
+      + (k ? `(読んだ予定表: Excel ${k.parsed}件・${k.companies}社)` : '') + '。'
+      + '予定表は決算期末の翌月上旬に載るので、まだ載っていないこともあります'
+      + '(掲載が無くても発表はされます)。</p>';
     return;
   }
   const fmt = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
@@ -19383,6 +19476,42 @@ async function runSelfTests(){
       subOneOn = keep; subOneHold = true;
       Object.assign(state.toggles, keepT); sizeCanvas(); redraw();
     }
+  });
+
+  /* ---- v59: 決算発表予定 ---- */
+  test('決算予定: ページのExcelを全部拾う(引用符・名前・並びによらず、よそのサイトは拾わない)', () => {
+    const P0 = '/listing/event-schedules/financial-announcement/';
+    const html = `<a href="${P0}att/kessan04.xlsx">4</a><a href='${P0}att/kessan05.xlsx'>5</a>`
+      + `<a href="att/kessan06.xlsx">6</a><a href="att/kessan07.xlsx">7</a>`
+      + `<a href="att/yotei_08.xlsx?2026">8</a><a href="https://www.jpx.co.jp${P0}att/kessan09.xlsx">9</a>`
+      + `<a href="https://evil.example.com/kessan.xlsx">x</a><a href="${P0}att/kessan.xlsx">all</a>`;
+    const got = kessanLinks(html).map(u => u.replace(/^.*\/att\//, ''));
+    return eq(got.length, 7, '件数') && eq(got[0], 'kessan.xlsx', '総合のファイルが先頭')
+        && eq(got.indexOf('yotei_08.xlsx') >= 0, true, '名前に kessan が無いファイル')
+        && eq(got.indexOf('kessan05.xlsx') >= 0, true, '引用符が \' のリンク')
+        && eq(kessanLinks(html).some(u => /evil/.test(u)), false, 'よそのサイト');
+  });
+  test('決算予定: 日付はセルの中身から読む(シリアル値・年なし・和暦・未定)', () => {
+    const today = new Date(2026, 9, 11);
+    const k = v => { const d = kessanDate(v, false, today); return d ? dkey(d) : null; };
+    return eq(k(46309), '20261014', 'シリアル値') && eq(k('10月30日'), '20261030', '年なし')
+        && eq(kessanDate('1/15', false, new Date(2026, 11, 20)) && dkey(kessanDate('1/15', false, new Date(2026, 11, 20))), '20270115', '年なし(年をまたぐ)')
+        && eq(k('令和8年10月30日'), '20261030', '和暦') && eq(k('２０２６／１０／３０（金）'), '20261030', '全角・曜日')
+        && eq(k('未定'), null, '未定') && eq(k(8267), null, '日付でない数');
+  });
+  test('決算予定: コードは5桁・全角でも4桁に直す', () =>
+    eq(kessanCode('82670'), '8267', '5桁') && eq(kessanCode('２８５Ａ'), '285A', '全角')
+    && eq(kessanCode(7203), '7203', '数値') && eq(kessanCode('業種'), null, 'コードでない'));
+  test('決算予定: 見出しの揺れ(証券コード・下のほうの見出し)と、種別の列を取り違えない', () => {
+    const rows = [['決算発表予定日(2026年8月期)']];
+    for(let k = 0; k < 14; k++) rows.push([]);
+    rows.push(['決算発表\n予定日', '証券コード', '会社名', '会社名(英文)', '決算期末', '業種名', '種別']);
+    rows.push([46309, 82670, 'イオン', 'AEON', '2027/2', '小売業', '第2四半期']);
+    rows.push(['未定', 7203, 'トヨタ自動車', 'TOYOTA', '2027/3', '輸送用機器', '第2四半期']);
+    const r = parseKessanRows([rows], {today: new Date(2026, 9, 11)});
+    const a = (r.map.get('8267') || [])[0] || {};
+    return eq(a.d, '20261014', '日付') && eq(a.kind, '第2四半期', '種別(決算期末ではなく)')
+        && eq(a.name, 'イオン', '会社名(英文ではなく)') && eq(r.map.has('7203'), false, '未定の行');
   });
 
   /* ---- v57: 操作 ---- */
