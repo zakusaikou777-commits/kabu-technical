@@ -200,10 +200,13 @@ body.two #colSide::-webkit-scrollbar-thumb{background:var(--hairline);border-rad
 /* chart-only mode: for a phone held sideways, and for staring at one chart */
 #fullExit{display:none;position:fixed;right:10px;top:10px;z-index:60;
   box-shadow:0 4px 16px rgba(0,0,0,.25)}
-body.chart-full{overflow:hidden}
+/* 縦には流せるようにしておきます。下のパネルを足していくと、価格パネルの
+   下限(140px)のぶん1画面を超えることがあり、隠していたので下のパネルと
+   日付の軸にたどり着けませんでした */
+body.chart-full{overflow-x:hidden}
 body.chart-full #fullExit{display:inline-flex}
 body.chart-full .wrap{max-width:none;padding:0 6px}
-body.chart-full header,body.chart-full .book,body.chart-full .notice,
+body.chart-full header,body.chart-full .book,body.chart-full .notice,body.chart-full #favBox,
 body.chart-full #tabs,body.chart-full #colSide,body.chart-full details.tv,
 body.chart-full footer,body.chart-full .legend,body.chart-full .hint{display:none!important}
 body.chart-full .quote{margin:4px 0 2px;gap:10px;align-items:center}
@@ -212,6 +215,9 @@ body.chart-full .qprice{font-size:19px}
 body.chart-full .filters{overflow-x:auto;flex-wrap:nowrap;margin:0 0 3px;padding-bottom:3px;
   gap:6px;-webkit-overflow-scrolling:touch}
 body.chart-full .filters::-webkit-scrollbar{height:4px}
+/* 「いま出している指標」の行は .filters の中の1つの箱なので、そのままだと
+   箱の中で3段に折り返して、チャートを画面の下へ押し出していました */
+body.chart-full .chipnow{flex-wrap:nowrap}
 body.chart-full .chip,body.chart-full .seg button,body.chart-full .live,
 body.chart-full select.mini{min-height:28px;font-size:12px;padding:2px 9px}
 body.chart-full .chip .sw{width:9px;height:9px}
@@ -497,7 +503,7 @@ input.idbox{width:100%;margin-top:5px;font:12px/1.5 ui-monospace,SFMono-Regular,
    paragraph, filled most of a screen for what is a list of one-line
    readings. Rows on a hairline instead of cards in a grid: the tag sits on
    the title line, and the explanation is one line unless you ask for it. */
-.sig{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0 22px}
+.sig{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:0 22px}
 .sigitem{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--hairline);
   align-items:flex-start}
 .sigicon{flex:0 0 auto;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;
@@ -3689,15 +3695,22 @@ function layout(){
   const subsH = subs.reduce((t, sp) => t + hOf(sp.key) + gap, 0);
   let mainH;
   if(full){
-    /* fill what the viewport has left, never less than a usable price panel */
-    mainH = Math.max(140, Math.round(vh - 46) - subsH - axisH * (subs.length ? 2 : 1) - 8);
+    /* fill what the viewport has left, never less than a usable price panel.
+       上に残る行(値段・足種・指標のボタン)の高さは<b>測ります</b>。46px と
+       決め打ちにしていたので、実際は180〜310pxあり、チャートの下が画面から
+       はみ出していました */
+    const above = Math.max(46, Math.round(host.getBoundingClientRect().top + (window.scrollY || 0)) + 4);
+    mainH = Math.max(140, Math.round(vh - above) - subsH - axisH * (subs.length ? 2 : 1) - 8);
     mainH = Math.round(mainH * scaleOf('main'));
   } else {
     mainH = clamp(Math.round(w * (narrow ? 0.72 : 0.40)), narrow ? 250 : 280, 430);
     mainH = Math.round(mainH * scaleOf('main'));
-    /* on a short screen, keep the whole chart inside one screenful */
+    /* on a short screen, keep the whole chart inside one screenful.
+       見出しの帯(v57)のぶんは数えません。帯は線の上にあった題名の余白の
+       置き換えなので、数えると価格パネルだけが縮みます(スマホで下のパネル
+       6枚のとき 220px → 124px)。そのぶん全体は1画面を少し超えます。 */
     const budget = Math.round(vh * (shortScreen ? 0.78 : 0.92))
-                 - subsH - axisH * (subs.length ? 2 : 1) - 8;
+                 - (subsH - subs.length * headH) - axisH * (subs.length ? 2 : 1) - 8;
     if(budget > 120) mainH = Math.min(mainH, budget);
   }
   const totalH = mainH + subsH + axisH + 8;
@@ -4901,13 +4914,25 @@ function drawADX(g){
 /* Centred, wrapped explanation for a panel that has nothing to plot.
    An empty box reads as a broken feature; the box has to say what it is
    waiting for. */
+/* 幅に入るまで字を小さくし(8pxまで)、それでも入らなければ「…」で切ります。
+   スマホ幅では、空のパネルの説明文が枠の左右からはみ出して読めませんでした */
+function fitFill(g, text, x, y, maxW, size){
+  const font = cssVar('--font') || 'system-ui';
+  let sz = size, t = String(text);
+  g.font = `${sz}px ${font}`;
+  while(sz > 8 && g.measureText(t).width > maxW){ sz -= 0.5; g.font = `${sz}px ${font}`; }
+  if(g.measureText(t).width > maxW){
+    while(t.length > 1 && g.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    t += '…';
+  }
+  g.fillText(t, x, y);
+}
 function panelMessage(g, p, lines){
   g.save();
-  g.fillStyle = C.sub || '#8a94a6';
-  g.font = '12px system-ui, sans-serif';
+  g.fillStyle = C.ink3;
   g.textAlign = 'center'; g.textBaseline = 'middle';
   const lh = 15, top = p.y + p.h/2 - (lines.length-1)*lh/2;
-  lines.forEach((t, i) => g.fillText(t, p.x + p.w/2, top + i*lh));
+  lines.forEach((t, i) => fitFill(g, t, p.x + p.w/2, top + i*lh, p.w - 12, LAY.narrow ? 11 : 12));
   g.restore();
   panelFrame(g, p);
 }
@@ -5352,12 +5377,21 @@ function showTip(i, X, Y){
 function visibleBand(host){
   const r = host.getBoundingClientRect();
   const vh = window.innerHeight || document.documentElement.clientHeight || 800;
-  /* header is sticky and overlaps the top of the chart */
-  const hd = document.querySelector('header');
-  const hdH = hd && getComputedStyle(hd).position === 'sticky'
-    ? hd.getBoundingClientRect().height : 0;
+  /* 上に貼り付いているもの(ヘッダ・束の帯)の下端まではふさがっています。
+     ヘッダだけを見ていたので、スマホ(ヘッダは流れて束の帯だけが貼り付く)では
+     吹き出しの上2行(日付・始値)が束の帯の裏に隠れていました */
+  let cover = 0;
+  for(const el of [document.querySelector('header'), document.getElementById('secBarHost')]){
+    if(!el) continue;
+    const cs = getComputedStyle(el);
+    if(cs.display === 'none' || (cs.position !== 'sticky' && cs.position !== 'fixed')) continue;
+    /* どちらもチャートより上に置いてあるので、貼り付いていないときは
+       下端がチャートの上端より上にあり、下の max(0, …) で消えます */
+    const b = el.getBoundingClientRect();
+    if(b.height > 0) cover = Math.max(cover, b.bottom);
+  }
   return {
-    top: Math.max(0, hdH - r.top),
+    top: Math.max(0, cover - r.top),
     bottom: Math.min(host.clientHeight, vh - r.top)
   };
 }
@@ -12887,9 +12921,8 @@ function drawShortPanel(g){
     g.textAlign = 'left'; g.textBaseline = 'middle';
     const name = e.us ? '空売り比率' : '空売り残高';
     const has = e.ratio.some(v => isNum(v) && v > 0);
-    g.fillText(has ? `この期間には${name}のデータがありません(あるのは直近だけです)`
-                   : `この期間に報告された${name}はありません`,
-               p.x + 6, p.y + p.h / 2);
+    fitFill(g, has ? `この期間には${name}のデータがありません(あるのは直近だけです)`
+                   : `この期間に報告された${name}はありません`, p.x + 6, p.y + p.h / 2, p.w - 12, LAY.narrow?10:11);
     state._shortY = null;
     return;
   }
@@ -12964,9 +12997,8 @@ function drawMarginPair(g, p, e, ln, held){
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
     const has = held && held.length;
-    g.fillText(has ? 'この期間には' + (ln ? '貸借残' : '信用残') + 'のデータがありません(あるのは直近だけです)'
-                   : (ln ? '貸借残' : '信用残') + 'のデータがまだありません',
-               p.x + 6, p.y + p.h / 2 + 6);
+    fitFill(g, has ? 'この期間には' + (ln ? '貸借残' : '信用残') + 'のデータがありません(あるのは直近だけです)'
+                   : (ln ? '貸借残' : '信用残') + 'のデータがまだありません', p.x + 6, p.y + p.h / 2 + 6, p.w - 12, LAY.narrow?10:11);
     state._pairY = null;
     return;
   }
@@ -13019,8 +13051,7 @@ function drawRates(g){
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
     /* ここはキャンバスなので押せません。行き先だけはっきり書きます。 */
-    g.fillText('この期間の金利がありません。「吸い出し」→「金利」で取得してください',
-               p.x + 6, p.y + p.h / 2);
+    fitFill(g, 'この期間の金利がありません。「吸い出し」→「金利」で取得してください', p.x + 6, p.y + p.h / 2, p.w - 12, LAY.narrow?10:11);
     return;
   }
   const pad = Math.max((mx - mn) * 0.12, 0.05);
@@ -13084,7 +13115,7 @@ function drawCot(g){
     g.fillStyle = C.ink3;
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
-    g.fillText('この期間の建玉がありません', p.x + 6, p.y + p.h / 2);
+    fitFill(g, 'この期間の建玉がありません', p.x + 6, p.y + p.h / 2, p.w - 12, LAY.narrow?10:11);
     return;
   }
   /* ゼロを必ず入れます。「買い越しか売り越しか」がこの図の全部なので、
@@ -13162,9 +13193,8 @@ function drawValuation(g){
     g.fillStyle = C.ink3;
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
-    g.fillText(kinds[0] === 'per' ? 'この期間は赤字のためPERがありません'
-                                  : 'この期間は計算できる値がありません',
-               p.x + 6, p.y + p.h / 2);
+    fitFill(g, kinds[0] === 'per' ? 'この期間は赤字のためPERがありません'
+                                  : 'この期間は計算できる値がありません', p.x + 6, p.y + p.h / 2, p.w - 12, LAY.narrow?10:11);
     return;
   }
   resetSlots();
@@ -18703,6 +18733,47 @@ async function runSelfTests(){
     }
   });
 
+  /* ---- v57: 操作 ---- */
+  test('横向きのホイール(トラックパッドの横スワイプ)で拡大しない', () => {
+    const k0 = state.i0, k1 = state.i1;
+    try{
+      const r = cv.getBoundingClientRect();
+      const n = state.i1 - state.i0;
+      for(const dx of [60, -60, 60])
+        cv.dispatchEvent(new WheelEvent('wheel', {deltaX: dx, deltaY: 0, clientX: r.left + 100,
+                                                  clientY: r.top + 50, bubbles: true, cancelable: true}));
+      return eq(state.i1 - state.i0, n, '表示している本数');
+    } finally {
+      state.i0 = k0; state.i1 = k1; clampView(); renderBase(); paint();
+    }
+  });
+  test('右クリックでパンを始めない', () => {
+    const keep = drag;
+    try{
+      drag = null;
+      cv.dispatchEvent(new PointerEvent('pointerdown', {button: 2, buttons: 2, pointerType: 'mouse',
+                                                        clientX: 50, clientY: 50, bubbles: true}));
+      return drag === null ? true : tfail('右ボタンでドラッグが始まりました');
+    } finally { drag = keep; }
+  });
+  test('足種のボタンから何も取れなかったら、足種を元に戻す', () => {
+    const keep = {iv: state.interval, rg: state.range, sym: $('#sym').value};
+    try{
+      /* ボタンと同じ順番: 先に足種を書き換えてから、押す前の値を渡して run() */
+      const was = {interval: state.interval, range: state.range};
+      state.interval = state.interval === '15m' ? '1d' : '15m';
+      setPreset(state.interval);
+      $('#sym').value = '';            /* 入力が空 = 取りにいかずに終わる道 */
+      run(was);                        /* 最初の await より前に戻すので、同期で確かめられます */
+      return eq(state.interval, was.interval, '足種') && eq(P.ma.join('/'), PRESETS[isIntradayIv(was.interval) ? 'intraday' : 'daily'].ma.join('/'), 'プリセット');
+    } finally {
+      $('#sym').value = keep.sym; notice('');
+      if(state.interval !== keep.iv || state.range !== keep.rg){
+        state.interval = keep.iv; state.range = keep.rg; setPreset(keep.iv); buildRanges(); syncControls();
+      }
+    }
+  });
+
   await new Promise(r => setTimeout(r, 60));
   tgroup('為替の桁');
   test('ドル円は小数3桁', () => {
@@ -20365,6 +20436,8 @@ function localX(e){
 function onMove(e){
   if(!state.raw || !LAY) return;
   const p = panel('main'), x = localX(e);
+  /* 左ボタンを離した通知を取りこぼしていたら、ここで終わりにします */
+  if(drag && e.pointerType === 'mouse' && isNum(e.buttons) && !(e.buttons & 1)) drag = null;
   if(drag && drag.active){
     const dx = x - drag.x;
     const shift = Math.round(-dx / barW(p));
@@ -20431,6 +20504,10 @@ cv.addEventListener('pointerdown', e => {
     }, READ_HOLD);
     return;
   }
+  /* 右クリック(や中ボタン)はパンではありません。macOS・Linux では右ボタンを
+     離した通知がメニューに吸われるので、ボタンを押していないマウスの動きで
+     チャートが流れ続けていました */
+  if(e.button !== 0) return;
   drag = {x: localX(e), active: true};
   grabPointer(e.pointerId);
 });
@@ -20478,16 +20555,21 @@ cv.addEventListener('pointermove', e => {
   onMove(e);
 }, {passive: false});
 
+/* 指を離したのが「タップ」だったか。ダブルタップ(表示を戻す)の判定に使います。
+   pointerup は touchend より先に来るので、ここで覚えておきます。
+   null は「分からない」で、以前どおりタップとして数えます。 */
+let touchTapKind = null;
 window.addEventListener('pointerup', e => {
   drag = null;
   if(tdrag && e.pointerId === tdrag.id){
     /* a tap that never became a direction is a request to read that bar */
     if(tdrag.mode === '?') onMove(e);
+    touchTapKind = (tdrag.mode === '?' || tdrag.mode === 'read') ? 'tap' : 'move';
     endTouchDrag();
   }
 });
 window.addEventListener('pointercancel', e => {
-  if(tdrag && e.pointerId === tdrag.id) endTouchDrag();
+  if(tdrag && e.pointerId === tdrag.id){ touchTapKind = 'move'; endTouchDrag(); }
 });
 /* A touch pointer stops existing after pointerup, so the browser fires
    pointerleave immediately afterwards — in the same task. That wiped the
@@ -20500,10 +20582,25 @@ cv.addEventListener('pointerleave', e => {
 });
 cv.addEventListener('dblclick', () => { visibleDefault(); redraw(); });
 
+let wheelPanAcc = 0;
 cv.addEventListener('wheel', e => {
   if(!state.raw) return;
   e.preventDefault();
   const p = panel('main'), x = localX(e);
+  /* 横向きのスクロール(トラックパッドの横スワイプ、Shift+ホイール)は
+     deltaY が 0 です。それを「縮小ではない = 拡大」と読んでいたので、
+     左右どちらに払っても拡大していました。横は左右への移動にします */
+  if(Math.abs(e.deltaX) > Math.abs(e.deltaY)){
+    wheelPanAcc += e.deltaX;
+    const bw = barW(p), shift = Math.trunc(wheelPanAcc / bw);
+    if(shift !== 0){
+      wheelPanAcc -= shift * bw;
+      state.i0 += shift; state.i1 += shift;
+      clampView(); renderBase(); paint(); renderNavPos();
+    }
+    return;
+  }
+  if(!e.deltaY) return;
   const anchor = clamp(iAtX(p, x), state.i0, state.i1);
   const n = state.i1 - state.i0 + 1;
   const factor = e.deltaY > 0 ? 1.18 : 1/1.18;
@@ -20537,6 +20634,10 @@ cv.addEventListener('touchstart', e => {
   }
 }, {passive:true});
 cv.addEventListener('touchmove', e => {
+  /* 高さのつまみを指で動かしているあいだは、ページのスクロールに渡しません。
+     touch-action が pan-y なので、縦に20pxほど動かすとブラウザが引き取って
+     スクロールになり、つまみの操作が途中で切れていました */
+  if(sizing){ if(e.cancelable) e.preventDefault(); return; }
   const tt = e.targetTouches;
   if(pinch && tt.length === 2){
     e.preventDefault();
@@ -20556,7 +20657,10 @@ cv.addEventListener('touchmove', e => {
     if(wantY && Math.abs(Math.log(ry)) >= Math.abs(Math.log(rx))){
       state.yZoom = clamp(pinch.yz * ry, 0.5, 4);
     }
-    if(wantX || !wantY){
+    /* 横の比が縦の比より大きいときだけ時間軸を動かします。2本の指は横には
+       ほとんど離れていないので、縦に広げるあいだの横のわずかなぶれ(12→20px)
+       でも比では大きく、縦に広げただけで時間軸まで縮んでいました */
+    if(!wantY || (wantX && Math.abs(Math.log(rx)) > Math.abs(Math.log(ry)))){
       const nn = clamp(Math.round(pinch.n * pinch.d / d), 20, state.raw.bars.length + 60);
       const shift = Math.round(-(mx - pinch.mx) / (p.w / nn));   /* two-finger drag pans */
       const mid = pinch.i0 + pinch.n / 2;
@@ -20590,6 +20694,11 @@ cv.addEventListener('touchend', e => {
   pinch = null;
   const now = performance.now();
   if(now - pinchedRecently < 600){ lastTap = 0; return; }   /* tail of a pinch */
+  /* 横に払った指はタップではありません。数えていたので、続けて2回払うと
+     ダブルタップとみなされ、さかのぼった表示が最新へ跳ね戻っていました */
+  const wasTap = touchTapKind !== 'move';
+  touchTapKind = null;
+  if(!wasTap){ lastTap = 0; return; }
   if(now - lastTap < 320){
     /* on a divider this means "reset this panel", the same as a mouse
        double-click; anywhere else it means "reset the zoom" */
@@ -20645,7 +20754,10 @@ function applyLayout(mode){
   const w = window.innerWidth || 1024;
   const two = layoutMode === 'two' || (layoutMode === 'auto' && w >= 1180);
   document.body.classList.toggle('two', two && layoutMode !== 'full');
+  const wasFull = document.body.classList.contains('chart-full');
   document.body.classList.toggle('chart-full', layoutMode === 'full');
+  /* 全画面に入ったら上から。下へ流れたまま入ると、測った上の余白と合いません */
+  if(layoutMode === 'full' && !wasFull) window.scrollTo(0, 0);
   const sel = $('#layoutSel');
   if(sel && sel.value !== layoutMode) sel.value = layoutMode;
   placeSecBar();
@@ -20954,15 +21066,21 @@ function csvLocked(){
        + ' 別の足種で見るには銘柄コードを入れて「分析」を押してください。', true);
   return true;
 }
-segWire('#rangeSeg', 'r', v => { if(csvLocked()) return; state.range = v; run(); });   /* Compare.refresh runs inside run() */
+segWire('#rangeSeg', 'r', v => {
+  if(csvLocked()) return;
+  const was = {interval: state.interval, range: state.range};
+  state.range = v;
+  run(was);                 /* Compare.refresh runs inside run() */
+});
 segWire('#ivSeg',   'i', v => {
   if(csvLocked()) return;
+  const was = {interval: state.interval, range: state.range};
   const prev = state.interval;
   state.interval = v;
   setPreset(v);
   buildRanges(prev);      /* the old interval decides how much chart to keep */
   showPreset();
-  run();
+  run(was);
 });
 function showPreset(){
   const intra = isIntradayIv(state.interval);
@@ -21571,17 +21689,39 @@ function apply(data){
 }
 
 /* ---- main flow ------------------------------------------------------ */
-async function run(){
+/* switched … 足種・期間のボタンから来たときの<b>押す前の</b>足種と期間。
+
+   ボタンは state.interval を書き換えてから run() を呼ぶので、run() の中で
+   「前の値」を取ると、もう新しい値になっています。取得に失敗しても戻す先が
+   無く、日足のチャートに「15分」のボタンが押されたまま、吹き出しには
+   「0:00」「前の足から」、MA75 の値に「MA60」の名前が付いていました。 */
+async function run(switched){
+  /* 何も取らずに終わるとき、ボタンで変えた足種・期間を元に戻します */
+  const undoSwitch = () => {
+    if(!switched) return false;
+    if(state.interval === switched.interval && state.range === switched.range) return false;
+    state.interval = switched.interval; state.range = switched.range;
+    setPreset(state.interval); buildRanges(); showPreset(); syncControls();
+    if(state.raw){
+      try { state.ind = recompute(); redraw(); renderSignals(); renderTable(); }catch(e2){}
+    }
+    return true;
+  };
   if($('#go').disabled){
     /* A pick made while a load was in flight used to stay armed and then
        hijack the NEXT run — clicking a favourite loaded whatever had been
        chosen from the suggestion list minutes earlier. */
     pendingPick = null;
+    undoSwitch();
     return;
   }
   let raw = $('#sym').value;
   if($('#liveSel').value === 'stream' && Stream.state !== 'off') Stream.disconnect();
-  if(!raw.trim()){ notice('銘柄名か銘柄コードを入力してください(例: トヨタ、7203、ドル円、AAPL)', true); return; }
+  if(!raw.trim()){
+    undoSwitch();
+    notice('銘柄名か銘柄コードを入力してください(例: トヨタ、7203、ドル円、AAPL)', true);
+    return;
+  }
   hideSuggestNow();
 
   /* Turn whatever was typed into one symbol. A name that matches several
@@ -21600,6 +21740,7 @@ async function run(){
         ? `「${raw.trim()}」に一致する銘柄が${r.options.length}件あります。選んでください。`
         : (r.error || ''));
       notice(r.options.length ? '' : (r.error || '見つかりませんでした'), !r.options.length);
+      undoSwitch();
       $('#sym').focus();
       return;
     }
@@ -21607,13 +21748,14 @@ async function run(){
   raw = chosen.y || chosen.code;
   $('#sym').value = chosen.code || raw;
   if(!normalizeSymbol(raw)){
+    undoSwitch();
     notice('銘柄コードに使えない文字が含まれています。', true);
     return;
   }
   setBusy(true);
   notice('');
   const op = beginOp('load');
-  const prev = {interval: state.interval, range: state.range};
+  const prev = switched || {interval: state.interval, range: state.range};
   /* この銘柄に「見かた」を覚えさせてあるなら、<b>取りにいく前</b>に
      足種と期間を合わせます。あとから変えると取り直しになります。
 
@@ -21649,9 +21791,13 @@ async function run(){
     }
   }catch(err){
     if(!opValid(op)) return;
-    /* 見かたで足種を動かしていたなら、まず戻します。ここを通るのは
-       「取れなかった」ときで、画面にはまだ前の銘柄が出ています。 */
-    if(viewMoved && (state.interval !== prev.interval || state.range !== prev.range)){
+    /* 見かたで、またはボタンで足種を動かしていたなら、まず戻します。ここを
+       通るのは「取れなかった」ときで、画面にはまだ前の銘柄・前の足が出ています。
+       (以前は見かたのときだけ戻していて、ボタンからの失敗は戻りませんでした) */
+    const demoLike = state.raw && (state.raw.code === 'CSV' || state.raw.code === 'DEMO');
+    /* サンプル・CSVの上でボタンを押した場合は、下の枝が戻して理由を書きます */
+    if((viewMoved || (switched && !demoLike))
+       && (state.interval !== prev.interval || state.range !== prev.range)){
       state.interval = prev.interval; state.range = prev.range;
       setPreset(state.interval); buildRanges(); showPreset(); syncControls();
       if(state.raw){
@@ -22080,8 +22226,20 @@ $('#phList').addEventListener('click', e => {
   if(!b) return;
   const key = b.closest('[data-ph]').dataset.ph;
   const dir = +b.dataset.phd;
-  const next = phScaleOf(key) * (dir > 0 ? PH_STEP : 1 / PH_STEP);
+  const before = phScaleOf(key);
+  const next = before * (dir > 0 ? PH_STEP : 1 / PH_STEP);
+  const p0 = LAY && LAY.panels.find(q => q.key === key), h0 = p0 ? p0.h : null;
   setPanelScale(key, clamp(next, PH_MIN, PH_MAX));
+  /* 価格パネルは「1画面に収める」上限で止まることがあります。止まっているのに
+     倍率だけ 125%→156%→195% と増やして保存していたので、表示は変わらないまま、
+     あとで下のパネルを減らしたときに急に跳ねていました(ドラッグと同じ扱いに) */
+  const p1 = LAY && LAY.panels.find(q => q.key === key);
+  if(p1 && isNum(h0) && Math.abs(p1.h - h0) < 1){
+    setPanelScale(key, before);
+    notice(dir > 0
+      ? 'これ以上は高くできません(チャート全体を1画面に収めているため)。下のパネルを減らすか低くすると、そのぶん高くなります。'
+      : 'これ以上は低くできません。', true);
+  }
   renderPanelHeights();
 });
 $('#phReset').addEventListener('click', () => { resetPanelScales(); renderPanelHeights(); });
