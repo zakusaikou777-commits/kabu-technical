@@ -152,6 +152,11 @@ body.two #secBarHost,body.chart-full #secBarHost{display:none}
 .chiphead{font-size:12px;font-weight:700;color:var(--ink-3);margin:8px 0 5px}
 .chiphead:first-child{margin-top:0}
 .chipline{display:flex;gap:6px;flex-wrap:wrap}
+/* 指標のセット */
+.setbox .setdel{margin-left:6px;opacity:.55;font-weight:700}
+.setbox .setsave{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0 0}
+.setbox .setsave input{width:min(100%,180px)}
+.setbox .setmsg{font-size:12px;color:var(--ink-2);margin:6px 0 0;min-height:1em}
 
 /* --- お気に入りのフォルダ --- */
 .favfolders{margin:0 0 8px;gap:6px}
@@ -340,6 +345,18 @@ button.icon{min-width:40px;padding:8px}
 #tip.wide hr{display:none}
 #tip .trow span:first-child{color:var(--ink-2)}
 #tip hr{border:0;border-top:1px solid var(--hairline);margin:6px 0}
+/* 指標の読み方(見出しの帯を押すと出ます) */
+.phelp{position:absolute;z-index:7;background:var(--surface-1);border:1px solid var(--axis);
+  border-radius:12px;padding:10px 12px 12px;width:min(calc(100% - 8px),400px);
+  box-shadow:0 8px 28px rgba(0,0,0,.25);font-size:12.5px;line-height:1.75;color:var(--ink-1)}
+.phelp .phhead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
+.phelp .phx{flex:0 0 auto;min-width:36px;min-height:32px;border:1px solid var(--hairline);
+  border-radius:8px;background:transparent;color:var(--ink-2);font-size:16px;line-height:1;cursor:pointer}
+.phelp .phnow{margin:4px 0 6px;font-weight:600}
+.phelp .phnow:empty{display:none}
+.phelp .phbody p{margin:0 0 6px}
+.phelp .phbody p:last-child{margin:0}
+.phelp .phbody .phnote{color:var(--ink-2);font-size:12px}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 0;font-size:12px;color:var(--ink-2)}
 .legend .li{display:inline-flex;align-items:center;gap:6px}
 .legend .k{width:14px;height:3px;border-radius:2px;background:var(--ink-3)}
@@ -554,6 +571,12 @@ td:first-child,th:first-child{text-align:left}
 .favgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .favempty{font-size:12.5px;color:var(--ink-3);margin:10px 0 0;line-height:1.7}
 .navrow{display:flex;align-items:center;gap:8px;margin:9px 0 0;flex-wrap:wrap}
+/* 下のパネルを1枚ずつ見るときのタブ。横に流して、指1本で切り替えられる大きさに */
+.subtabs{display:flex;gap:6px;margin:8px 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  padding-bottom:2px;scrollbar-width:thin}
+.subtabs .chip{flex:0 0 auto;min-height:38px}
+.subtabs .chip[aria-pressed="true"]{background:var(--ink-1);color:var(--surface-1);border-color:var(--ink-1)}
+.subtabs .submode{border-style:dashed}
 .navbtn{min-width:52px;min-height:42px;font-size:15px;line-height:1;
   display:inline-grid;place-items:center;border-radius:11px;
   border:1px solid var(--hairline);background:var(--surface-1);color:var(--ink-1);
@@ -741,10 +764,11 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="bb" aria-pressed="true"><i class="sw" style="background:var(--band)"></i>ボリンジャー</button>
     <button class="chip" data-t="ichimoku" aria-pressed="false"><i class="sw" style="background:var(--ich1)"></i>一目均衡表</button>
     <button class="chip" data-t="vol" aria-pressed="true"><i class="sw"></i>出来高</button>
-    <button class="chip" data-t="rsi" aria-pressed="true"><i class="sw" style="background:var(--down)"></i>RSI</button>
-    <button class="chip" data-t="macd" aria-pressed="true"><i class="sw" style="background:var(--ma2)"></i>MACD</button>
-    <button class="chip" data-t="stoch" aria-pressed="false"><i class="sw" style="background:var(--down)"></i>ストキャス</button>
-    <button class="chip" data-t="adx" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>DMI/ADX</button>
+    <button class="chip" data-t="rsi" aria-pressed="true"><i class="sw" style="background:var(--ink-1)"></i>RSI</button>
+    <button class="chip" data-t="macd" aria-pressed="true"><i class="sw" style="background:linear-gradient(90deg,var(--ink-1) 50%,var(--sig) 50%)"></i>MACD</button>
+    <button class="chip" data-t="stoch" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--ink-1) 50%,var(--sig) 50%)"></i>ストキャス</button>
+    <button class="chip" data-t="adx" aria-pressed="false"><i class="sw" style="background:var(--ink-1)"></i>DMI/ADX</button>
+    <button class="chip" data-t="diverge" aria-pressed="true"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>ダイバージェンス</button>
     <button class="chip" data-t="fib" aria-pressed="false"><i class="sw" style="background:var(--ink-3)"></i>フィボナッチ</button>
     <button class="chip" data-t="st" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>スーパートレンド</button>
     <button class="chip" data-t="vwap" aria-pressed="false"><i class="sw" style="background:var(--smooth)"></i>VWAP</button>
@@ -755,7 +779,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="shortPanel" aria-pressed="false"><i class="sw" style="background:var(--down)"></i>空売り残高</button>
     <button class="chip" data-t="marginPanel" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>信用残</button>
     <button class="chip" data-t="flow" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>資金フロー</button>
-    <button class="chip" data-t="sizeflow" aria-pressed="false"><i class="sw" style="background:var(--ma3)"></i>大口/小口(推定)</button>
+    <button class="chip" data-t="sizeflow" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--ink-1) 50%,var(--sig) 50%)"></i>大口/小口(推定)</button>
     <button class="chip" data-t="vprofile" aria-pressed="false"><i class="sw" style="background:var(--band)"></i>価格帯別出来高</button>
     <button class="chip" data-t="valuation" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>PER / PBRの推移</button>
     <button class="chip" data-t="rates" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--cmp2),var(--ich1))"></i>日米金利差</button>
@@ -777,7 +801,16 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div id="chartHost">
       <canvas id="chart" role="img" aria-label="ローソク足チャートとテクニカル指標"></canvas>
       <div id="tip" role="status" aria-live="off"></div>
+      <!-- 下のパネルの見出しを押すと出る、その指標の読み方 -->
+      <div id="phelp" class="phelp hide" role="dialog" aria-modal="false" aria-labelledby="phelpTtl">
+        <div class="phhead"><b id="phelpTtl"></b>
+          <button class="phx" id="phelpX" aria-label="説明を閉じる">×</button></div>
+        <div id="phelpNow" class="phnow"></div>
+        <div id="phelpBody" class="phbody"></div>
+      </div>
     </div>
+    <!-- スマホで下のパネルを1枚ずつ見るときの切り替え(redraw が中身を作ります) -->
+    <div class="subtabs hide" id="subTabs" role="group" aria-label="下のパネルの表示"></div>
     <!-- Buttons for the same thing the sideways drag does. A gesture nobody
          is told about is not a feature, and precise stepping is easier here. -->
     <div class="navrow" role="group" aria-label="時間軸の移動">
@@ -1481,7 +1514,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v57';
+const APP_VER = 'v58';
 const APP_DATE = '2026-10-11';
 
 /* ============================================================
@@ -2132,6 +2165,8 @@ function computeAll(bars, T, interval){
     don: TA.donchian(h, l, P.donchian),
     vwap: TA.vwap(bars, isIntradayIv(interval), P.vwapRoll)
   };
+  /* 安いので常に作ります(シグナルの成績はトグルに関係なく数えるため) */
+  out.div = TA.divergence(out.rsi, h, l);
   if(T.sizeflow) out.sizeflow = TA.sizeFlow(bars, {window: P.flowWin});
   if(T.osgfc)   out.osgfc   = TA.osgfc(bars, OSG);
   /* cheap: it folds bars we already have, so it is not gated like the two
@@ -2140,6 +2175,48 @@ function computeAll(bars, T, interval){
   if(T.lorentz) out.lorentz = TA.lorentzian(bars, LOR);
   return out;
 }
+/* ---- ダイバージェンス(逆行現象) ------------------------------------
+   株価は安値を切り下げたのに、オシレーターは安値を切り上げた(強気)。
+   株価は高値を切り上げたのに、オシレーターは高値を切り下げた(弱気)。
+
+   TradingView の標準のやり方に合わせます。オシレーター側の谷(山)を
+   左 lbL 本・右 lbR 本で確かめ、ひとつ前の谷(山)と lo〜hi 本離れていれば比べます。
+
+   <b>後出しにしません。</b>谷は右に lbR 本たたないと谷と決まらないので、
+   印を付ける足(at)は「谷 + lbR」です。シグナルの成績もこの足で数えます。
+   谷の足で数えると、その時点では分からなかったことを知っていたことになります。 */
+TA.divergence = function(osc, h, l, lbL = 5, lbR = 5, lo = 5, hi = 60){
+  const n = osc.length, bull = [], bear = [];
+  const isPivot = (p, low) => {
+    const v = osc[p];
+    if(!isNum(v)) return false;
+    for(let j = p - lbL; j <= p + lbR; j++){
+      if(j === p) continue;
+      const w = osc[j];
+      if(!isNum(w)) return false;
+      /* 左は厳密に、右は同値まで(平らな谷で2つ数えないため) */
+      if(low ? (j < p ? w <= v : w < v) : (j < p ? w >= v : w > v)) return false;
+    }
+    return true;
+  };
+  let lastLo = -1, lastHi = -1;
+  for(let p = lbL; p + lbR < n; p++){
+    if(isPivot(p, true)){
+      const d = p - lastLo;
+      if(lastLo >= 0 && d >= lo && d <= hi && osc[p] > osc[lastLo] && l[p] < l[lastLo])
+        bull.push({p1: lastLo, p2: p, at: p + lbR});
+      lastLo = p;
+    }
+    if(isPivot(p, false)){
+      const d = p - lastHi;
+      if(lastHi >= 0 && d >= lo && d <= hi && osc[p] < osc[lastHi] && h[p] > h[lastHi])
+        bear.push({p1: lastHi, p2: p, at: p + lbR});
+      lastHi = p;
+    }
+  }
+  return {bull, bear, lbR};
+};
+
 /* ============================================================
    2b. Advanced indicators
    Everything here is rebuilt from the published formula for each
@@ -3510,7 +3587,7 @@ const state = {
             fib:false, st:false, vwap:false, don:false, mtf:false, osgfc:false, lorentz:false,
             shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false,
             valuation:false, rates:false, cbank:false, pivot:false,
-            session:false, cot:false, kenri:false, sectorAvg:false, events:true},
+            session:false, cot:false, kenri:false, sectorAvg:false, events:true, diverge:true},
   range: '1y', interval: '1d'
 };
 
@@ -3539,6 +3616,20 @@ function readColors(){
 /* 'auto' | 'one' | 'two' | 'full' — how the page is arranged. In 'full'
    the chart owns the viewport, which is what a phone held sideways is for. */
 let layoutMode = 'auto';
+
+/* 下のパネルを1枚ずつ(スマホ・低い画面)。
+
+   下のパネルを5〜6枚出すと、スマホでは価格チャートの下に画面2枚ぶんの
+   縦長の列ができ、見比べたいパネルまで指で何度も流すことになります。
+   1枚ずつにすると、価格チャートのすぐ下に選んだ1枚だけを大きめに出し、
+   その下のタブで切り替えます。端末ごとの設定です(同期しません)。 */
+let subOneOn = false;                /* 値は Store ができてから読みます(下の panelOrder の隣) */
+let subOnePick = '';
+let subOneHold = false;              /* 自己テストのあいだは止めます */
+let subOneForce = false;             /* 自己テストで「狭い画面」を作るためのもの */
+function subOneApplies(w, vh){
+  return subOneForce || w < 620 || vh < 560 || document.body.classList.contains('chart-full');
+}
 
 /* per-panel height multipliers, keyed by panel name. Null prototype and
    re-validated on load: this comes back out of localStorage. */
@@ -3684,6 +3775,14 @@ function layout(){
   const subsOrdered = orderSubs(subs);
   subs.length = 0;
   for(const sp of subsOrdered) subs.push(sp);   /* orderSubs は別配列を返します */
+  /* 出している全部のパネル(1枚ずつのときも、並び替えやタブはこちらを見ます) */
+  const allSubs = subs.map(sp => ({key: sp.key, short: sp.short || sp.title}));
+  const oneMode = subOneOn && !subOneHold && subs.length > 1 && subOneApplies(w, vh);
+  if(oneMode){
+    const pick = subs.find(sp => sp.key === subOnePick) || subs[0];
+    subs.length = 0;
+    subs.push(pick);
+  }
 
   /* Each panel can be stretched or squashed on its own. The scale is a
      multiplier the user sets by dragging the divider under a panel, kept
@@ -3691,7 +3790,8 @@ function layout(){
   const scaleOf = k => clamp(+(panelScale[k] || 1), 0.4, 3.5);
   const twoUp = k => k === 'marginPanel' && state.ind && state.ind.extLend;
   /* いちばん縮めても、帯の下に線を描く場所を24px残します */
-  const hOf = k => Math.max(headH + 24, Math.round(subH * scaleOf(k) * (twoUp(k) ? 1.6 : 1)));
+  /* 1枚ずつのときは、空いたぶん大きめに(1.6倍) */
+  const hOf = k => Math.max(headH + 24, Math.round(subH * scaleOf(k) * (twoUp(k) ? 1.6 : 1) * (oneMode ? 1.6 : 1)));
   const subsH = subs.reduce((t, sp) => t + hOf(sp.key) + gap, 0);
   let mainH;
   if(full){
@@ -3700,7 +3800,9 @@ function layout(){
        決め打ちにしていたので、実際は180〜310pxあり、チャートの下が画面から
        はみ出していました */
     const above = Math.max(46, Math.round(host.getBoundingClientRect().top + (window.scrollY || 0)) + 4);
-    mainH = Math.max(140, Math.round(vh - above) - subsH - axisH * (subs.length ? 2 : 1) - 8);
+    /* 1枚ずつのタブ(チャートのすぐ下)も画面に収めます */
+    const tabsH = (!subOneHold && allSubs.length >= 2 && subOneApplies(w, vh)) ? 54 : 0;
+    mainH = Math.max(140, Math.round(vh - above - tabsH) - subsH - axisH * (subs.length ? 2 : 1) - 8);
     mainH = Math.round(mainH * scaleOf('main'));
   } else {
     mainH = clamp(Math.round(w * (narrow ? 0.72 : 0.40)), narrow ? 250 : 280, 430);
@@ -3735,7 +3837,8 @@ function layout(){
     y += h + gap;
   }
   return {w, h: totalH + (subs.length ? axisH : 0), padL, padR, axisH, narrow,
-          panels, axisY: y, midAxis};
+          panels, axisY: y, midAxis, allSubs, oneMode,
+          oneApplies: subOneApplies(w, vh) && !subOneHold};
 }
 
 function sizeCanvas(){
@@ -3940,6 +4043,11 @@ function headSpec(key, i){
       if(isNum(r)) status = r >= 70 ? st('買われすぎ圏(70以上)', '買われすぎ', 'up')
                           : r <= 30 ? st('売られすぎ圏(30以下)', '売られすぎ', 'down')
                           : st('中立圏(30〜70)', '中立');
+      if(T.diverge){
+        const dv = recentDivergence(i, 10);
+        if(dv) items.push(L('', `${dv.dir > 0 ? '強気' : '弱気'}ダイバ(${i - dv.at}本前)`,
+                            dv.dir > 0 ? C.up : C.down, {mark: 'bar'}));
+      }
       break;
     }
     case 'flow': {
@@ -4132,10 +4240,12 @@ function drawPanelHead(g, p, i){
     [p.title, true, 'text'], [p.short, true, 'text'], [p.short, true, 'short'],
     [p.short, false, 'text'], [p.short, false, 'short'], [p.short, false, null]])
     plans.push({title, named, stat});
+  /* 題名のあとの「?」。押すとその指標の読み方が出ます(openPanelHelp) */
+  const QW = 18;
   let pick = null;
   for(const pl of plans){
     const sw = st && pl.stat ? wStat(st[pl.stat]) + 8 : 0;
-    let w = wTitle(pl.title) + 10;
+    let w = wTitle(pl.title) + 10 + QW;
     for(const it of spec.items) w += wItem(it, pl.named);
     if(x0 + w + sw <= xEnd){ pick = Object.assign({n: spec.items.length}, pl); break; }
   }
@@ -4143,7 +4253,7 @@ function drawPanelHead(g, p, i){
     /* 最後の手段: 凡例を後ろから落とします(値は十字線の吹き出しにもあります) */
     pick = {title: p.short, named: false, stat: null, n: spec.items.length};
     while(pick.n > 0){
-      let w = wTitle(pick.title) + 10;
+      let w = wTitle(pick.title) + 10 + QW;
       for(let k = 0; k < pick.n; k++) w += wItem(spec.items[k], false);
       if(x0 + w <= xEnd) break;
       pick.n--;
@@ -4154,7 +4264,17 @@ function drawPanelHead(g, p, i){
   g.font = `700 ${fT}px ${font}`;
   g.fillStyle = C.ink1;
   g.fillText(pick.title, x, mid);
-  x += wTitle(pick.title) + 10;
+  x += wTitle(pick.title) + 5;
+  {
+    const r = Math.max(5, Math.min(6.5, H / 2 - 2));
+    g.strokeStyle = C.ink3; g.lineWidth = 1.2;
+    g.beginPath(); g.arc(x + r, mid, r, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = C.ink3; g.textAlign = 'center';
+    g.font = `700 ${Math.round(r * 1.5)}px ${font}`;
+    g.fillText('?', x + r, mid + .5);
+    g.textAlign = 'left';
+    x += QW + 5;
+  }
   for(let k = 0; k < pick.n; k++){
     const it = spec.items[k];
     x += headSample(g, x, mid, it) + 4;
@@ -4187,11 +4307,131 @@ function drawPanelHeads(g, i){
   for(const p of LAY.panels) if(p.headH) drawPanelHead(g, p, i);
 }
 
+/* ---- 指標の読み方 ----------------------------------------------------
+   見出しの帯(か、その「?」)を押すと出ます。名前だけ並べても、初めて見る
+   指標は読めません。何を表していて、どこを見て、何に気をつけるか。
+   「買い」「売り」の断定はせず、「〜とされます」と書きます(判定の文言と同じ)。
+   中身は固定の文と数字だけです(銘柄名など外から来た文字は入れません)。 */
+function panelHelpText(key){
+  const P_ = P, T = state.toggles;
+  const sec = s => `<p>${s}</p>`, note = s => `<p class="phnote">${s}</p>`;
+  switch(key){
+    case 'vol': return sec(`その足で売買が成立した株数です。棒の色は、その足が陽線(赤)か陰線(青)か。`
+        + `橙の線は${esc(volAvgName(), 12)}です。`)
+      + sec('平均の2倍以上は、まとまった売買が入った印で、そのときの値動きは信頼度が高いとされます。'
+        + '逆に、出来高を伴わない上昇は続きにくいと読まれます。');
+    case 'rsi': return sec(`直近${P_.rsi}本の値上がり幅と値下がり幅の比率から、買われすぎ・売られすぎを0〜100で表します(白の線)。`)
+      + sec('70以上(赤の帯)は買われすぎ、30以下(青の帯)は売られすぎとされます。'
+        + '強い上昇・下落では帯に張り付いたまま進むことも多く、帯に入ったこと自体は売買の合図ではありません。')
+      + (T.flow ? sec(`青緑の破線は MFI(${P_.mfi})。出来高も加えて計算した RSI です。`) : '')
+      + (T.diverge ? sec('<b>ダイバージェンス</b>(線と札)… 株価は安値を切り下げたのに RSI は切り上げた(強気)、'
+        + 'またはその逆(弱気)の箇所です。勢いが衰えている形とされます。'
+        + '山や谷は両側5本ずつで確かめるので、印が付くのは<b>谷や山から5本たってから</b>です。') : '');
+    case 'flow': return sec(`終値が値幅の上側で引けた足の出来高を「買い」、下側を「売り」として直近${P_.cmf}本ぶん足し、`
+        + '出来高の合計で割った値(CMF)です。+なら買いが優勢、−なら売りが優勢。')
+      + sec('±0.05 を超えると、どちらかにはっきり傾いているとみなします(判定と同じ閾値)。');
+    case 'sizeflow': return sec('売買代金の大きい足を「大口」、小さい足を「小口・中口」とみなし、足ごとの資金の出入りを累計した推定です。'
+        + '白の実線が大口、橙の破線が小口・中口。')
+      + sec('累計の水準は表示の始点で変わるので、<b>線の向き</b>を見ます。大口が上向きで小口が下向きなら、'
+        + 'まとまった資金が買い、小口が売りに回っている形です。')
+      + note('実際の注文の大きさや、投資家の属性は見ていません。');
+    case 'macd': return sec(`短期(${P_.macd[0]})と長期(${P_.macd[1]})の指数平滑移動平均の差が MACD(白の実線)、`
+        + `その${P_.macd[2]}本平均がシグナル(橙の破線)です。`)
+      + sec('MACD がシグナルを上抜けると買い、下抜けると売りの合図とされます。'
+        + '0 の線より上か下かで、大きな流れが上向きか下向きかを見ます。')
+      + sec('棒は MACD − シグナル。0 から<b>離れていく</b>足は濃く、<b>戻ってくる</b>足は薄く塗っています。'
+        + '薄くなり始めたら、クロスより先に勢いの衰えが出ています。');
+    case 'stoch': return sec(`直近${P_.stoch[0]}本の高値と安値の幅のなかで、終値がどの位置にあるかを0〜100で表します。`
+        + '%K(白)が速い線、%D(橙の破線)はそれをならした線です。')
+      + sec('80以上は買われすぎ、20以下は売られすぎとされ、その帯の中での %K と %D の交差が合図に使われます。'
+        + 'RSI より反応が速いぶん、だましも多くなります。');
+    case 'adx': return sec('+DI(赤)は上昇の勢い、−DI(青の破線)は下降の勢い、ADX(白)はその差から求めた'
+        + '<b>トレンドの強さ</b>です(向きは問いません)。')
+      + sec('ADX が25以上ならトレンドあり、25未満はもみ合いとされます。トレンドがあるときは +DI と −DI の大小で向きを見ます。'
+        + 'もみ合いのときは、移動平均のクロスのような順張りの合図が効きにくくなります。');
+    case 'lorentz': return sec(`過去の似た局面(RSI・CCI・ADX などの組み合わせ)を近い順に${LOR.neighbors}件探し、`
+        + `その後${LOR.horizon}本で上がったか下がったかの多数決で向きを予測します(k近傍法)。`)
+      + sec('棒は票の偏り、白の階段はその予測に従ったポジションです。')
+      + note('過去の値動きの統計で、将来を保証するものではありません。学習に使う最初の数百本には予測が出ません。');
+    case 'shortPanel': return shortIsUs()
+      ? sec('FINRA に報告されたその日の出来高のうち、空売りが占める割合です。<b>残高ではありません</b>'
+          + '(米国の空売り残高は月2回の公表で、日々は取れないため)。')
+        + note('マーケットメイカーの売りも含むので、40〜50% はふつうの水準です。急な変化を見ます。')
+      : sec('機関投資家などが報告した空売り残高(発行済株式に対する割合)を、報告者ごとの最新値で合計したものです。')
+        + sec('積み上がっていると、売り圧力の表れであると同時に、買い戻し(踏み上げ)の燃料にもなります。')
+        + note('0.5% 未満になると報告義務が消えるので、そこから下は追えません。');
+    case 'marginPanel': return sec('信用取引で買って、まだ返済していない株数が買残(赤)、売って返済していない株数が売残(青の破線)。'
+        + '買残 ÷ 売残 が信用倍率です。')
+      + sec('買残が多いほど、いずれ返済の売りが出る(戻り売りの圧力)と読まれます。')
+      + (state.ind && state.ind.extLend
+        ? note('下段は日証金を通した分だけの貸借残(日次)です。市場全体の信用残(週次)とは桁が違う別の統計なので、目盛りを分けています。')
+        : '');
+    case 'valuation': return sec('PER = 株価 ÷ 1株利益、PBR = 株価 ÷ 1株純資産。灰色の帯は<b>この銘柄自身の過去</b>の真ん中50%(四分位)です。'
+        + '帯の外は、この銘柄にしては高い / 安い水準です。')
+      + (T.sectorAvg ? sec('破線は東証の業種平均(月末の値)です。') : '')
+      + note('割高・割安は業種や成長で変わるので、この線だけでは決められません。決算の数値は入力されたものを使っています。');
+    case 'rates': return sec('米国と日本の10年国債の利回りと、その差(白)です。塗りの厚みがそのまま金利差です。')
+      + sec('差が広がるとドル買い・円売りが起きやすく(ドル円の上昇要因)、縮むとその逆とされます。');
+    case 'cot': return sec('米国の CFTC が毎週公表する、シカゴの円先物で投機筋(レバレッジド・ファンド)が持っている'
+        + '買いと売りの差(ネット枚数)です。0 より上は円の買い越し、下は売り越し。')
+      + sec('極端に傾いているほど、巻き戻し(反対売買)の燃料が多い状態とされます。')
+      + note('火曜時点の建玉を金曜に公表するので、数日遅れの値です。');
+  }
+  return sec('この指標の説明はまだありません。');
+}
+let helpKey = null, helpFrom = null;
+function openPanelHelp(key){
+  const box = $('#phelp');
+  const p = LAY && LAY.panels.find(q => q.key === key);
+  if(!box || !p || !state.raw) return false;
+  helpKey = key;
+  helpFrom = document.activeElement;
+  $('#phelpTtl').textContent = p.title || key;
+  const sp = headSpec(key, Math.min(state.i1, state.raw.bars.length - 1));
+  $('#phelpNow').textContent = sp && sp.status ? 'いま: ' + sp.status.text : '';
+  $('#phelpBody').innerHTML = panelHelpText(key);
+  box.classList.remove('hide');
+  /* 帯のすぐ下に。<b>画面に見えている範囲</b>に入りきらなければ帯の上、
+     どちらにも入らなければ見えている範囲の上端に寄せます(吹き出しと同じ考え方。
+     キャンバスの高さで決めると、画面の外に出て読めませんでした) */
+  const host = $('#chartHost'), W = host.clientWidth;
+  const bw = box.offsetWidth, bh = box.offsetHeight;
+  /* 説明はチャートの枠の下へはみ出してもかまわない(下のボタンの上に重なるだけ)
+     ので、下端は枠ではなく<b>画面の</b>下端で測ります */
+  const band = visibleBand(host);
+  const visBottom = (window.innerHeight || 800) - host.getBoundingClientRect().top;
+  const below = p.headY + p.headH + 4, above = p.headY - bh - 4;
+  let top;
+  if(below + bh <= visBottom - 4) top = below;
+  else if(above >= band.top + 4) top = above;
+  else top = Math.max(band.top + 4, Math.min(below, visBottom - bh - 4));
+  box.style.top = Math.max(0, top) + 'px';
+  box.style.left = clamp(p.x, 4, Math.max(4, W - bw - 4)) + 'px';
+  hideTip();
+  try { $('#phelpX').focus({preventScroll: true}); } catch(e){}
+  return true;
+}
+function closePanelHelp(){
+  const box = $('#phelp');
+  if(!box || box.classList.contains('hide')) return;
+  box.classList.add('hide');
+  helpKey = null;
+  /* キーボードで開いた人を、開いた場所へ戻します */
+  if(helpFrom && helpFrom !== document.body && document.contains(helpFrom)){
+    try { helpFrom.focus({preventScroll: true}); } catch(e){}
+  }
+  helpFrom = null;
+}
+/* その高さにある見出しの帯 */
+function headAt(y){
+  return LAY ? LAY.panels.find(q => q.headH && y >= q.headY && y < q.headY + q.headH) || null : null;
+}
+
 /* RSI・ストキャスの「買われすぎ / 売られすぎ」の領域。
    以前は真ん中(30〜70)を灰色で薄く塗っていて、どちらが何の領域かは
    数字を読まないと分かりませんでした。端を<b>赤(上)と青(下)</b>で塗り、
    言葉も書きます(線の下に敷くので、線は隠しません)。 */
-function oscZones(g, p, y, lo, hi, top = 100, bot = 0){
+function oscZones(g, p, y, lo, hi, top = 100, bot = 0, avoid){
   const yTop = y(top), yHi = y(hi), yLo = y(lo), yBot = y(bot);
   g.save();
   clipPanel(g, p);
@@ -4202,8 +4442,14 @@ function oscZones(g, p, y, lo, hi, top = 100, bot = 0){
   const fs = LAY.narrow ? 9 : 10;
   g.font = `600 ${fs}px ${cssVar('--font') || 'system-ui'}`;
   g.textAlign = 'left'; g.textBaseline = 'middle';
-  if(yHi - yTop >= fs + 1){ g.fillStyle = C.up;   g.fillText('買われすぎ', p.x + 4, (yTop + yHi) / 2); }
-  if(yBot - yLo >= fs + 1){ g.fillStyle = C.down; g.fillText('売られすぎ', p.x + 4, (yLo + yBot) / 2); }
+  /* avoid … ダイバージェンスの札の場所。そちらのほうが大事なので、重なる言葉は省きます */
+  const clear = (t, yy) => {
+    const b = [p.x + 2, yy - fs / 2 - 1, p.x + 6 + g.measureText(t).width, yy + fs / 2 + 1];
+    return !(avoid || []).some(a => b[0] < a[2] && b[2] > a[0] && b[1] < a[3] && b[3] > a[1]);
+  };
+  const yA = (yTop + yHi) / 2, yB = (yLo + yBot) / 2;
+  if(yHi - yTop >= fs + 1 && clear('買われすぎ', yA)){ g.fillStyle = C.up;   g.fillText('買われすぎ', p.x + 4, yA); }
+  if(yBot - yLo >= fs + 1 && clear('売られすぎ', yB)){ g.fillStyle = C.down; g.fillText('売られすぎ', p.x + 4, yB); }
   g.restore();
 }
 
@@ -4798,7 +5044,8 @@ function drawRSI(g){
   const p = panel('rsi'); if(!p) return;
   const y = makeY(p, 0, 100, 12, 4);
   resetSlots();
-  oscZones(g, p, y, 30, 70);
+  const divPlan = state.toggles.diverge ? planDivergence(g, p, y) : null;
+  oscZones(g, p, y, 30, 70, 100, 0, divPlan && divPlan.boxes);
   /* 低いパネル(スマホ)では 30/50/70 の3つの数字が詰まって重なるので、
      50 は線だけにします */
   const roomy = y(30) - y(70) >= 36;
@@ -4815,8 +5062,73 @@ function drawRSI(g){
     line(g, p, state.ind.mfi, y, C.osc3, 1.8, [5,3]);
     endLabel(g, p, state.ind.mfi, y, C.osc3, 'MFI');
   }
+  if(divPlan) drawDivergence(g, p, divPlan);
   panelFrame(g, p);
   state._rsiY = y;
+}
+
+/* RSI の谷と谷(山と山)を結ぶ線と、札。強気=赤(上)、弱気=青(下)。
+   札は確定した足ではなく2つ目の谷に付けます(線の終わりなので)。 */
+/* 描く前に、線と札の場所だけ決めます(領域の言葉を札に重ねないため、
+   札の場所を先に知る必要があります) */
+function planDivergence(g, p, y){
+  const dv = state.ind && state.ind.div, r = state.ind && state.ind.rsi;
+  const out = {segs: [], labels: [], boxes: []};
+  if(!dv || !r) return out;
+  const fs = LAY.narrow ? 9 : 10;
+  g.save();
+  g.font = `700 ${fs}px ${cssVar('--font') || 'system-ui'}`;
+  for(const [list, col, up] of [[dv.bull, C.up, true], [dv.bear, C.down, false]]){
+    for(const d of list){
+      if(d.p2 < state.i0 || d.p1 > state.i1) continue;
+      const x1 = xAt(p, d.p1), x2 = xAt(p, d.p2), y1 = y(r[d.p1]), y2 = y(r[d.p2]);
+      out.segs.push({x1, y1, x2, y2, col});
+      const t = up ? '強気ダイバ' : '弱気ダイバ';
+      const ty = clamp(up ? y2 + fs + 2 : y2 - fs - 1, p.y + fs / 2 + 2, p.y + p.h - fs / 2 - 2);
+      const w = g.measureText(t).width + 6;
+      const lx = clamp(x2, p.x + w / 2, p.x + p.w - w / 2);
+      /* 近くに続けて出ると札が重なって読めないので、重なる札は省きます(線は残す) */
+      const box = [lx - w / 2, ty - fs / 2 - 2, lx + w / 2, ty + fs / 2 + 2];
+      if(out.boxes.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+      out.boxes.push(box);
+      out.labels.push({t, x: lx, y: ty, w, col});
+    }
+  }
+  g.restore();
+  out.fs = fs;
+  return out;
+}
+function drawDivergence(g, p, plan){
+  if(!plan || !plan.segs.length) return;
+  const fs = plan.fs;
+  g.save();
+  clipPanel(g, p);
+  for(const sg of plan.segs){
+    g.strokeStyle = sg.col; g.lineWidth = 1.8; g.globalAlpha = .95;
+    g.beginPath(); g.moveTo(sg.x1, sg.y1); g.lineTo(sg.x2, sg.y2); g.stroke();
+    for(const [xx, yy] of [[sg.x1, sg.y1], [sg.x2, sg.y2]]){
+      g.beginPath(); g.arc(xx, yy, 2.4, 0, Math.PI * 2); g.fillStyle = sg.col; g.fill();
+    }
+  }
+  g.font = `700 ${fs}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for(const L of plan.labels){
+    g.globalAlpha = .85; g.fillStyle = C.surface;
+    g.fillRect(L.x - L.w / 2, L.y - fs / 2 - 2, L.w, fs + 4);
+    g.globalAlpha = 1; g.fillStyle = L.col;
+    g.fillText(L.t, L.x, L.y);
+  }
+  g.restore();
+}
+/* i の時点で、直近 within 本以内に確定したダイバージェンス(新しいほう) */
+function recentDivergence(i, within){
+  const dv = state.ind && state.ind.div;
+  if(!dv || !isNum(i)) return null;
+  let best = null;
+  for(const [list, dir] of [[dv.bull, 1], [dv.bear, -1]])
+    for(const d of list)
+      if(d.at <= i && d.at >= i - within && (!best || d.at > best.at)) best = Object.assign({dir}, d);
+  return best;
 }
 
 function drawMACD(g){
@@ -5462,15 +5774,16 @@ function renderLegend(){
   if(T.lorentz) L.push(`<span class="li"><i class="k" style="background:var(--smooth)"></i>カーネル回帰 ・ ▲▼=エントリ(カーネルの向きが一致した転換のみ)</span>`);
   if(T.flow){
     if(hasVals(state.ind && state.ind.mfi)){
-      L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>MFI(出来高込みの過熱感)</span>`);
+      /* 凡例の見本も線と同じ形に(v57 で MFI は青緑の破線になりました) */
+      L.push(`<span class="li"><i class="k" style="background:repeating-linear-gradient(90deg,var(--osc3) 0 4px,transparent 4px 7px)"></i>MFI(出来高込みの過熱感)</span>`);
       L.push(`<span class="li"><i class="kb" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>CMF 買い=赤 / 売り=青</span>`);
     } else {
       L.push(`<span class="li" style="color:var(--ink-3)">資金フロー: この銘柄は出来高が配信されないため出せません</span>`);
     }
   }
   if(T.sizeflow){
-    L.push(`<span class="li"><i class="k" style="background:var(--ma3)"></i>大口以上の資金(推定・累計)</span>`);
-    L.push(`<span class="li"><i class="k" style="background:var(--ma1)"></i>小口・中口(推定・累計)</span>`);
+    L.push(`<span class="li"><i class="k" style="background:var(--ink-1)"></i>大口以上の資金(推定・累計)</span>`);
+    L.push(`<span class="li"><i class="k" style="background:repeating-linear-gradient(90deg,var(--sig) 0 4px,transparent 4px 7px)"></i>小口・中口(推定・累計)</span>`);
   }
   if(T.vprofile) L.push(`<span class="li"><i class="kb" style="background:var(--band);opacity:.5"></i>価格帯別出来高 ・ POC=最多価格帯</span>`);
   if(T.shortPanel) L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>`
@@ -5478,7 +5791,7 @@ function renderLegend(){
   if(T.marginPanel){
     const ln = Ext.margin && Ext.margin.kind === 'loan';
     L.push(`<span class="li"><i class="k" style="background:var(--up)"></i>${ln ? '融資残' : '信用買残'}</span>`);
-    L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>${ln ? '貸株残' : '信用売残'}</span>`);
+    L.push(`<span class="li"><i class="k" style="background:repeating-linear-gradient(90deg,var(--down) 0 4px,transparent 4px 7px)"></i>${ln ? '貸株残' : '信用売残'}</span>`);
     if(state.ind && state.ind.extLend) L.push(`<span class="li">下段: 日証金の融資残・貸株残(別の目盛り)</span>`);
   }
   if(T.session && isIntradayIv(state.interval)){
@@ -5664,6 +5977,16 @@ function buildSignals(){
       Math.abs(gap) > 12 ? '乖離が大きく、平均へ戻る動き(リバウンド/調整)が起きやすい水準です。'
                          : `${maName}の近辺で推移しています。`,
       Math.abs(gap) > 12 ? 'warn' : (gap >= 0 ? 'bull' : 'bear'), clamp(gap/10, -1, 1));
+  }
+  /* 4b. ダイバージェンス(直近10本以内に確定したもの) */
+  if(state.toggles.diverge){
+    const dv = recentDivergence(n, 10);
+    if(dv) add('ダイバージェンス',
+      `RSIの${dv.dir > 0 ? '強気' : '弱気'}ダイバージェンス(${n - dv.at === 0 ? '直近の足' : (n - dv.at) + '本前'}に確定)`,
+      dv.dir > 0
+        ? '株価は安値を切り下げましたが、RSIは安値を切り上げています。下げの勢いが弱まっている形とされます。'
+        : '株価は高値を切り上げましたが、RSIは高値を切り下げています。上げの勢いが弱まっている形とされます。',
+      dv.dir > 0 ? 'bull' : 'bear', dv.dir);
   }
   /* 4. RSI */
   const rsi = d.rsi[n];
@@ -6062,6 +6385,8 @@ function sanitizeOrder(a){
   return out;
 }
 let panelOrder = sanitizeOrder(Store.get('panelOrder', []));
+subOneOn = !!Store.get('subOne', false);
+subOnePick = cleanText(Store.get('subPick', ''), 20);
 
 const VIEW_TOGGLE_KEYS = Object.keys(state.toggles);
 
@@ -8380,10 +8705,113 @@ function revealCard(id, quiet){
    ふだんは「いま出しているもの」だけ。押すと種類ごとに開きます。 */
 const CHIP_GROUPS = [
   {label:'トレンド',       keys:['ma','bb','ichimoku','st','vwap','don','mtf','osgfc','lorentz','fib']},
-  {label:'オシレーター',    keys:['rsi','macd','stoch','adx']},
+  {label:'オシレーター',    keys:['rsi','diverge','macd','stoch','adx']},
   {label:'需給',          keys:['vol','shortPanel','marginPanel','flow','sizeflow','vprofile','cot']},
   {label:'ファンダ・マクロ', keys:['valuation','sectorAvg','rates','cbank','pivot','session','events','kenri']}
 ];
+/* ---- 指標のセット ----------------------------------------------------
+   「短期売買ならこれ」「需給を見るならこれ」という組み合わせを1回で入れ替えます。
+   入れ替えるのは<b>指標のオンオフだけ</b>です(足種・期間・高さ・並びは
+   銘柄ごとの「見かた」の役目なので触りません)。分割・配当の印は
+   どのセットでも見たいものなので、いまの状態のまま残します。 */
+const SET_KEEP = ['events'];
+const setKeys = () => CHIP_GROUPS.flatMap(g => g.keys).filter(k => SET_KEEP.indexOf(k) < 0);
+const BUILTIN_SETS = [
+  {id: 'simple', name: 'シンプル',     keys: ['ma', 'vol']},
+  {id: 'swing',  name: '短期売買',     keys: ['ma', 'bb', 'vol', 'rsi', 'diverge', 'macd', 'stoch']},
+  {id: 'trend',  name: 'トレンド',     keys: ['ma', 'ichimoku', 'mtf', 'vol', 'macd', 'adx']},
+  {id: 'supply', name: '需給(日本株)', keys: ['ma', 'vol', 'flow', 'sizeflow', 'vprofile', 'shortPanel', 'marginPanel']},
+  {id: 'macro',  name: '為替・マクロ', keys: ['ma', 'bb', 'rsi', 'diverge', 'rates', 'cot', 'cbank', 'pivot', 'session']}
+];
+const SET_MAX = 12;
+function sanitizeSets(a){
+  const ok = new Set(setKeys()), seen = new Set(), out = [];
+  for(const x of Array.isArray(a) ? a.slice(0, SET_MAX * 2) : []){
+    const name = cleanText(x && x.name, 20);
+    if(!name || seen.has(name) || RESERVED_KEY.test(name)) continue;
+    const keys = Array.isArray(x.keys) ? [...new Set(x.keys.filter(k => typeof k === 'string' && ok.has(k)))] : [];
+    seen.add(name);
+    out.push({name, keys});
+    if(out.length >= SET_MAX) break;
+  }
+  return out;
+}
+let userSets = sanitizeSets(Store.get('toggleSets', []));
+let setMsg = '';
+/* 重い指標(と、それを抱えたままの上位足)は計算し直しが要ります。
+   チップを押したときと同じく、待っている表示を出してから計算します。 */
+function applyToggleSet(keys){
+  const want = new Set(keys), changed = [];
+  for(const k of setKeys()){
+    if(!owns(state.toggles, k)) continue;
+    const v = want.has(k);
+    if(state.toggles[k] !== v){ state.toggles[k] = v; changed.push(k); }
+  }
+  /* 業種平均は、重ねる先(PER/PBRのパネル)が無いと出せません */
+  if(state.toggles.sectorAvg && !state.toggles.valuation){ state.toggles.valuation = true; changed.push('valuation'); }
+  syncToggleChips();
+  const finish = () => {
+    if(changed.indexOf('ichimoku') >= 0 && state.toggles.ichimoku && state.raw
+       && state.i1 >= state.raw.bars.length - 1) visibleDefault();
+    renderFundCard(); renderRateCard(); renderKenri(); renderSectorCard();
+    redraw(); renderSignals();
+  };
+  if(!state.raw){ return changed.length; }
+  const heavy = changed.some(k => ['osgfc', 'lorentz', 'sizeflow', 'mtf'].indexOf(k) >= 0);
+  if(!heavy){ finish(); return changed.length; }
+  setBusy(true);
+  setTimeout(() => {
+    try { state.ind = recompute(); finish(); }
+    catch(err){
+      notice(`セットの計算でエラーが起きました(${esc(String((err && err.message) || err), 60)})。`, true);
+    } finally { setBusy(false); }
+  }, 16);
+  return changed.length;
+}
+function saveToggleSet(name){
+  const nm = cleanText(name, 20);
+  if(!nm) return 'セットの名前を入れてください。';
+  if(RESERVED_KEY.test(nm)) return 'その名前は使えません。';
+  if(BUILTIN_SETS.some(b => b.name === nm)) return 'はじめから入っているセットと同じ名前は使えません。';
+  const keys = setKeys().filter(k => state.toggles[k]);
+  const i = userSets.findIndex(x => x.name === nm);
+  if(i < 0 && userSets.length >= SET_MAX) return `保存できるのは${SET_MAX}個までです。使わないものを×で消してください。`;
+  if(i >= 0) userSets[i] = {name: nm, keys}; else userSets.push({name: nm, keys});
+  userSets = sanitizeSets(userSets);
+  Store.set('toggleSets', userSets);
+  return '';
+}
+function renderSetBox(){
+  const box = $('#setBox');
+  if(!box) return;
+  const btn = (attr, name, extra) =>
+    `<button class="chip" ${attr}>${esc(name, 20)}${extra || ''}</button>`;
+  /* いまのオンオフと同じセットには印を付けます(どれを当てているか分かるように) */
+  const now = setKeys().filter(k => state.toggles[k]).sort().join(',');
+  const same = keys => keys.slice().sort().join(',') === now;
+  box.innerHTML = '<div class="chiphead">はじめから入っているセット</div><div class="chipline">'
+    + BUILTIN_SETS.map(b => btn(`data-set="b:${b.id}" aria-pressed="${same(b.keys)}"`
+        + ` title="${esc(b.keys.map(k => PANEL_NAME[k] || chipLabel(k)).join('・'), 200)}"`, b.name)).join('')
+    + '</div><div class="chiphead">保存したセット(この端末)</div><div class="chipline">'
+    + (userSets.length
+        ? userSets.map((u, i) => btn(`data-set="u:${i}" aria-pressed="${same(u.keys)}"`, u.name)
+            + `<button class="chip" data-setdel="${i}" aria-label="${esc(u.name, 20)}を消す"`
+            + ` title="${esc(u.name, 20)}を消す" style="padding:2px 9px">×</button>`).join('')
+        : '<span class="qsrc">まだありません。下で、いまの組み合わせに名前を付けて保存できます。</span>')
+    + '</div><div class="setsave">'
+    + '<label class="sr" for="setName">セットの名前</label>'
+    + '<input type="text" id="setName" maxlength="20" placeholder="名前(例: ドル円の朝)" spellcheck="false">'
+    + '<button class="chip" id="setSave">いまの組み合わせを保存</button></div>'
+    + `<div class="setmsg" role="status">${esc(setMsg, 120)}</div>`
+    + '<p class="qsrc" style="margin:6px 0 0;line-height:1.7">セットが入れ替えるのは指標のオンオフだけです'
+    + '(足種・期間・パネルの高さはそのまま)。分割・配当の印はいまの状態のまま残します。</p>';
+}
+/* チップの表示名(色見本を除いた文字) */
+function chipLabel(k){
+  const b = document.querySelector(`.chip[data-t="${k}"]`);
+  return b ? b.textContent.trim() : k;
+}
+
 function buildChipGroups(){
   const first = document.querySelector('.chip[data-t]');
   if(!first) return;
@@ -8405,6 +8833,15 @@ function buildChipGroups(){
   more.style.borderStyle = 'dashed';
   more.setAttribute('aria-expanded', 'false');
   row.insertBefore(more, first);
+
+  const setMore = document.createElement('button');
+  setMore.id = 'setMore';
+  setMore.className = 'chip';
+  setMore.style.borderStyle = 'dashed';
+  setMore.textContent = 'セット';
+  setMore.setAttribute('aria-expanded', 'false');
+  setMore.setAttribute('aria-controls', 'setBox');
+  row.insertBefore(setMore, first);
 
   const wrap = document.createElement('div');
   wrap.id = 'chipAll';
@@ -8435,6 +8872,45 @@ function buildChipGroups(){
      開いたパネルが画面の右外に出ます。 */
   (row.parentElement || row).insertBefore(wrap, row.nextSibling);
   more.setAttribute('aria-controls', 'chipAll');
+
+  const setBox = document.createElement('div');
+  setBox.id = 'setBox';
+  setBox.className = 'chipall setbox hide';
+  (row.parentElement || row).insertBefore(setBox, wrap.nextSibling);
+  setMore.addEventListener('click', () => {
+    const open = !setBox.classList.toggle('hide');
+    setMore.setAttribute('aria-expanded', String(open));
+    setMsg = '';
+    if(open) renderSetBox();
+  });
+  setBox.addEventListener('click', e => {
+    const del = e.target.closest('[data-setdel]');
+    if(del){
+      const u = userSets[+del.dataset.setdel];
+      if(u){ userSets.splice(+del.dataset.setdel, 1); Store.set('toggleSets', userSets);
+             setMsg = `「${u.name}」を消しました。`; }
+      renderSetBox();
+      return;
+    }
+    const b = e.target.closest('[data-set]');
+    if(b){
+      const [kind, id] = b.dataset.set.split(':');
+      const set = kind === 'b' ? BUILTIN_SETS.find(x => x.id === id) : userSets[+id];
+      if(!set) return;
+      const n = applyToggleSet(set.keys);
+      setMsg = n ? `「${set.name}」にしました。` : `すでに「${set.name}」の組み合わせです。`;
+      renderSetBox();
+      return;
+    }
+    if(e.target.closest('#setSave')){
+      const err = saveToggleSet($('#setName').value);
+      setMsg = err || `「${cleanText($('#setName').value, 20)}」として保存しました。`;
+      renderSetBox();
+    }
+  });
+  setBox.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && e.target.id === 'setName'){ e.preventDefault(); $('#setSave').click(); }
+  });
 
   more.addEventListener('click', () => {
     const open = !wrap.classList.toggle('hide');
@@ -8475,6 +8951,9 @@ function renderChipSummary(){
   const wrap = $('#chipAll'), more = $('#chipMore'), sum = $('#chipNow');
   if(!wrap || !more || !sum) return;
   const open = !wrap.classList.contains('hide');
+  /* セットの箱を開いていれば、どのセットと同じかの印を付け直します */
+  const sb = $('#setBox');
+  if(sb && !sb.classList.contains('hide')) renderSetBox();
   more.textContent = open ? '指標をとじる' : '指標をえらぶ';
   sum.classList.toggle('hide', open);
   if(open) return;
@@ -8519,7 +8998,28 @@ function orderSubs(subs){
     .map(x => x.s);
 }
 function visiblePanelKeys(){
+  /* 1枚ずつ表示のときも、出している全部(並び替えは全部に対してするもの) */
+  if(LAY && LAY.allSubs) return LAY.allSubs.map(sp => sp.key);
   return (LAY && LAY.panels ? LAY.panels : []).map(p => p.key).filter(k => k !== 'main');
+}
+/* 1枚ずつ表示のタブ。狭い画面で下のパネルが2枚以上あるときだけ出します */
+function renderSubTabs(){
+  const box = $('#subTabs');
+  if(!box || !LAY) return;
+  const all = LAY.allSubs || [];
+  if(!LAY.oneApplies || all.length < 2){ box.classList.add('hide'); box.innerHTML = ''; return; }
+  box.classList.remove('hide');
+  if(!LAY.oneMode){
+    box.innerHTML = '<button class="chip submode" data-subone="1">下のパネルを1枚ずつ表示</button>';
+    return;
+  }
+  const cur = (LAY.panels[1] || {}).key;
+  box.innerHTML = all.map(sp =>
+      `<button class="chip" data-subpick="${esc(sp.key, 20)}" aria-pressed="${sp.key === cur}">${esc(sp.short, 16)}</button>`).join('')
+    + '<button class="chip submode" data-subone="0">すべて表示</button>';
+  /* 選んだタブが見えるところまで横に流します */
+  const on = box.querySelector('[aria-pressed="true"]');
+  if(on && on.scrollIntoView) try { on.scrollIntoView({block: 'nearest', inline: 'nearest'}); } catch(e){}
 }
 /* 隣の<b>見えているパネル</b>と入れ替えます。あいだに隠れたパネルが
    あっても、そちらは動かしません(押した結果が画面と食い違わないように)。 */
@@ -8557,6 +9057,7 @@ function renderPanelOrder(){
     `<li><span class="pnum">${i + 1}</span>`
     + `<span class="pname">${esc(PANEL_NAME[k] || k, 24)}</span>`
     + `<span class="pobtns">`
+    + `<button class="chip pobtn" data-help="${esc(k,20)}" aria-label="${esc(PANEL_NAME[k]||k,24)}の読み方">?</button>`
     + `<button class="chip pobtn" data-move="up" data-k="${esc(k,20)}"`
     + `${i === 0 ? ' disabled' : ''} aria-label="${esc(PANEL_NAME[k]||k,24)}を上へ">▲</button>`
     + `<button class="chip pobtn" data-move="down" data-k="${esc(k,20)}"`
@@ -16019,6 +16520,9 @@ const RULES = [
     edges(d, i => isNum(d.rsi[i]) && d.rsi[i] <= 30, i => isNum(d.rsi[i]))},
   {k: 'rsiHi', t: 'RSIが70を超える', dir: -1, fn: d =>
     edges(d, i => isNum(d.rsi[i]) && d.rsi[i] >= 70, i => isNum(d.rsi[i]))},
+  /* 確定した足(谷 + 5本)で数えます。谷の足で数えると後出しになります */
+  {k: 'divUp', t: 'RSIの強気ダイバージェンス', dir: 1, fn: d => d.div ? d.div.bull.map(x => x.at) : []},
+  {k: 'divDn', t: 'RSIの弱気ダイバージェンス', dir: -1, fn: d => d.div ? d.div.bear.map(x => x.at) : []},
   {k: 'macdUp', t: 'MACDがシグナルを上抜け', dir: 1, fn: d =>
     edges(d, i => cmpOk(d.macd.line[i], d.macd.signal[i]) && d.macd.line[i] > d.macd.signal[i],
           i => cmpOk(d.macd.line[i], d.macd.signal[i]))},
@@ -17036,6 +17540,9 @@ const noInjection = (root, label) => {
 
 async function runSelfTests(){
   window.__xssFired = 0;
+  /* 1枚ずつ表示を使っている端末でも、パネルの枚数を数えるテストが同じ結果に
+     なるよう、テストのあいだは止めます(最後に戻します) */
+  subOneHold = true;
   T.list = [];
   const saved = {raw: state.raw, ind: state.ind, i0: state.i0, i1: state.i1,
                  toggles: Object.assign({}, state.toggles),
@@ -18733,6 +19240,151 @@ async function runSelfTests(){
     }
   });
 
+  /* ---- v58: 指標の読み方 ---- */
+  test('下のパネルの全種類に読み方がある', () => {
+    const none = PANEL_KEYS.filter(k => /まだありません/.test(panelHelpText(k)) || panelHelpText(k).length < 60);
+    return none.length ? tfail('読み方が無い: ' + none.join(', ')) : true;
+  });
+  test('見出しの帯から読み方を開いて、Escで閉じられる', () => {
+    try{
+      redraw();
+      const p = LAY.panels.find(q => q.headH);
+      if(!p) return tfail('帯のあるパネルがありません');
+      if(!openPanelHelp(p.key)) return tfail('開けませんでした');
+      const shown = !$('#phelp').classList.contains('hide') && $('#phelpTtl').textContent === p.title;
+      document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+      const closed = $('#phelp').classList.contains('hide') && helpKey === null;
+      return (shown ? true : tfail('題名が出ていません')) && (closed ? true : tfail('Escで閉じません'));
+    } finally { closePanelHelp(); }
+  });
+  test('見出しの帯を押して離すと読み方が開く(なぞったら開かない)', () => {
+    const keepDrag = drag;
+    try{
+      redraw();
+      const p = LAY.panels.find(q => q.headH);
+      const r = cv.getBoundingClientRect();
+      const at = (type, dx) => cv.dispatchEvent(new PointerEvent(type, {pointerId: 91, pointerType: 'mouse',
+        button: 0, buttons: type === 'pointerdown' ? 1 : 0, bubbles: true,
+        clientX: r.left + p.x + 30 + dx, clientY: r.top + p.headY + p.headH / 2}));
+      at('pointerdown', 0); at('pointerup', 40);          /* 40px なぞった */
+      const swiped = helpKey;
+      at('pointerdown', 0); at('pointerup', 2);           /* 押して離した */
+      const tapped = helpKey;
+      return eq(swiped, null, 'なぞったとき') && eq(tapped, p.key, '押したとき');
+    } finally { closePanelHelp(); drag = keepDrag; }
+  });
+  test('読み方は帯の位置で引ける(帯の外では引かない)', () => {
+    redraw();
+    const p = LAY.panels.find(q => q.headH);
+    return eq(headAt(p.headY + 2) && headAt(p.headY + 2).key, p.key, '帯の中')
+        && eq(headAt(p.y + p.h / 2), null, '線の場所');
+  });
+
+  /* ---- v58: ダイバージェンス ---- */
+  const divCase = n => {
+    /* RSIの谷: 10本目に20、25本目に30(切り上げ)。株価の安値: 100 → 95(切り下げ) */
+    const osc = Array.from({length: n}, (_, i) =>
+      Math.min(50 - Math.max(0, 30 - 3 * Math.abs(i - 10)), 50 - Math.max(0, 20 - 3 * Math.abs(i - 25))));
+    const l = Array.from({length: n}, (_, i) => i === 10 ? 100 : i === 25 ? 95 : 110);
+    const h = l.map(v => v + 5);
+    return {osc, l, h};
+  };
+  test('ダイバージェンス: 株価は安値切り下げ・RSIは切り上げを強気と読む', () => {
+    const c = divCase(40), r = TA.divergence(c.osc, c.h, c.l);
+    const b = r.bull[0] || {};
+    return eq(r.bull.length, 1, '強気の数') && eq(b.p1, 10, '1つ目の谷') && eq(b.p2, 25, '2つ目の谷')
+        && eq(b.at, 30, '確定した足(谷+5本)') && eq(r.bear.length, 0, '弱気の数');
+  });
+  test('ダイバージェンス: 株価は高値切り上げ・RSIは切り下げを弱気と読む', () => {
+    const c = divCase(40);
+    const osc = c.osc.map(v => 100 - v), h = c.l.map(v => 210 - v), l = h.map(v => v - 5);
+    const r = TA.divergence(osc, h, l);
+    return eq(r.bear.length, 1, '弱気の数') && eq(r.bear[0] && r.bear[0].at, 30, '確定した足')
+        && eq(r.bull.length, 0, '強気の数');
+  });
+  test('ダイバージェンス: 谷から5本たつまでは出さない(後出ししない)', () => {
+    const early = divCase(30), ok = divCase(31);
+    return eq(TA.divergence(early.osc, early.h, early.l).bull.length, 0, '谷+4本まで')
+        && eq(TA.divergence(ok.osc, ok.h, ok.l).bull.length, 1, '谷+5本');
+  });
+  test('ダイバージェンスはシグナルの成績にも、確定した足で入る', () => {
+    const r = RULES.find(x => x.k === 'divUp');
+    if(!r) return tfail('成績の表にありません');
+    const d = {div: {bull: [{p1: 3, p2: 9, at: 14}], bear: []}};
+    return eq(JSON.stringify(r.fn(d)), '[14]', '数える足');
+  });
+
+  /* ---- v58: 指標のセット ---- */
+  test('組み込みのセットは、実在する指標だけでできている', () => {
+    const ok = new Set(setKeys());
+    const bad = BUILTIN_SETS.flatMap(b => b.keys.filter(k => !ok.has(k)).map(k => b.name + ':' + k));
+    return bad.length ? tfail('知らない指標: ' + bad.join(', ')) : true;
+  });
+  test('セットを当てると、その組み合わせだけになる(分割・配当の印は残す)', () => {
+    const keepT = Object.assign({}, state.toggles);
+    try{
+      state.toggles.events = true; state.toggles.stoch = true; state.toggles.lorentz = false;
+      applyToggleSet(BUILTIN_SETS.find(b => b.id === 'simple').keys);
+      const on = setKeys().filter(k => state.toggles[k]).sort().join(',');
+      return eq(on, 'ma,vol', 'オンの指標') && eq(state.toggles.events, true, '分割・配当')
+          && eq(document.querySelector('.chip[data-t="stoch"]').getAttribute('aria-pressed'), 'false', 'チップの見た目');
+    } finally {
+      Object.assign(state.toggles, keepT); syncToggleChips(); state.ind = recompute(); redraw();
+    }
+  });
+  test('セットの保存: 名前の検査・上限・注入文字列', () => {
+    const keep = userSets.slice(), keepStore = Store.get('toggleSets', []);
+    try{
+      userSets = [];
+      const e1 = saveToggleSet(''), e2 = saveToggleSet('シンプル'), e3 = saveToggleSet(XSS);
+      for(let k = 0; k < SET_MAX + 2; k++) saveToggleSet('s' + k);
+      const capped = userSets.length;
+      const box = $('#setBox'), wasHidden = box.classList.contains('hide');
+      renderSetBox();
+      const safe = noInjection('#setBox', 'セットの箱');
+      if(wasHidden) box.classList.add('hide');
+      return (e1 ? true : tfail('空の名前を受け付けました')) && (e2 ? true : tfail('組み込みと同じ名前を受け付けました'))
+          && eq(e3, '', '記号入りの名前は保存してよい(表示で無害化)') && eq(capped, SET_MAX, '上限')
+          && safe;
+    } finally {
+      userSets = keep; Store.set('toggleSets', keepStore); renderSetBox();
+    }
+  });
+
+  /* ---- v58: 下のパネルを1枚ずつ ---- */
+  test('1枚ずつ表示: 狭い画面では選んだ1枚だけを大きめに出し、並び替えは全部が対象', () => {
+    const keepT = Object.assign({}, state.toggles), keep = {on: subOneOn, pick: subOnePick};
+    try{
+      for(const k of ['vol', 'rsi', 'macd', 'stoch']) state.toggles[k] = true;
+      subOneHold = false; subOneForce = true; subOneOn = false;
+      sizeCanvas();
+      const allH = LAY.panels.find(q => q.key === 'macd').h;
+      subOneOn = true; subOnePick = 'macd';
+      sizeCanvas();
+      const subs = LAY.panels.filter(q => q.key !== 'main');
+      return eq(subs.length, 1, '出ている枚数') && eq(subs[0] && subs[0].key, 'macd', '選んだパネル')
+          && (subs[0].h > allH ? true : tfail('大きくなっていません ' + subs[0].h + ' / ' + allH))
+          && eq(visiblePanelKeys().length >= 4, true, '並び替えの対象は全部');
+    } finally {
+      subOneOn = keep.on; subOnePick = keep.pick; subOneForce = false; subOneHold = true;
+      Object.assign(state.toggles, keepT); sizeCanvas(); redraw();
+    }
+  });
+  test('1枚ずつ表示: 広い画面では効かない', () => {
+    const keepT = Object.assign({}, state.toggles), keep = subOneOn;
+    try{
+      for(const k of ['vol', 'rsi', 'macd']) state.toggles[k] = true;
+      subOneHold = false; subOneForce = false; subOneOn = true;
+      sizeCanvas();
+      const wide = LAY.w >= 620 && (window.innerHeight || 800) >= 560 && !document.body.classList.contains('chart-full');
+      if(!wide) return true;               /* この端末自体が狭いので確かめようがない */
+      return eq(LAY.panels.filter(q => q.key !== 'main').length, 3, '枚数');
+    } finally {
+      subOneOn = keep; subOneHold = true;
+      Object.assign(state.toggles, keepT); sizeCanvas(); redraw();
+    }
+  });
+
   /* ---- v57: 操作 ---- */
   test('横向きのホイール(トラックパッドの横スワイプ)で拡大しない', () => {
     const k0 = state.i0, k1 = state.i1;
@@ -20079,6 +20731,7 @@ async function runSelfTests(){
   tgroup('XSS(表示部への注入)');
   test('注入コードが一度も実行されていない', () => eq(window.__xssFired, 0));
   /* 途中のテストが state.ind を差し替えても、利用者の画面は元の足で組み直す */
+  subOneHold = false; subOneForce = false;
   if(state.raw === saved.raw && state.raw){
     try { state.ind = recompute(); state.i0 = saved.i0; state.i1 = saved.i1;
           redraw(); renderSignals(); renderTable(); applyQuoteStrip(); } catch(e){}
@@ -20166,6 +20819,9 @@ function redraw(){
   if(!state.raw) return;
   saveWorkspaceSoon();      /* debounced — panning does not write per frame */
   sizeCanvas();
+  /* 説明を出しているパネルを消したら、説明も閉じます */
+  if(helpKey && !LAY.panels.some(q => q.key === helpKey)) closePanelHelp();
+  renderSubTabs();
   resolveFit();
   clampView();
   renderBase();
@@ -20349,8 +21005,55 @@ function dividerY(key){
 
 cv.addEventListener('pointermove', e => {
   if(sizing || e.pointerType === 'touch') return;
-  cv.style.cursor = panelAtEdge(localY(e), localX(e)) ? 'row-resize' : '';
+  const y = localY(e);
+  cv.style.cursor = panelAtEdge(y, localX(e)) ? 'row-resize' : headAt(y) ? 'help' : '';
 });
+/* 見出しの帯を押したら、その指標の読み方。押して離すまでに動いていなければ
+   「押した」です(帯の上から横になぞってもパンになります)。
+   高さのつまみ(帯のすぐ上の線)を掴んだときは sizing が先に立ちます。 */
+let headDown = null;
+cv.addEventListener('pointerdown', e => {
+  headDown = null;
+  if(sizing || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const y = localY(e), hp = headAt(y);
+  if(hp) headDown = {key: hp.key, id: e.pointerId, x: localX(e), y};
+});
+cv.addEventListener('pointerup', e => {
+  const hd = headDown;
+  headDown = null;
+  if(!hd || sizing || e.pointerId !== hd.id) return;
+  if(Math.hypot(localX(e) - hd.x, localY(e) - hd.y) > 8) return;
+  const hp = headAt(localY(e));
+  if(!hp || hp.key !== hd.key) return;
+  /* 指のタップは、このあと window の pointerup で「その足を読む」になり、
+     続けて押すとダブルタップ(表示を戻す)にも数えられます。どちらも止めます */
+  if(tdrag && tdrag.id === e.pointerId) tdrag.mode = 'help';
+  if(helpKey === hp.key) closePanelHelp(); else openPanelHelp(hp.key);
+});
+$('#phelpX').addEventListener('click', closePanelHelp);
+$('#subTabs').addEventListener('click', e => {
+  const m = e.target.closest('[data-subone]');
+  if(m){
+    subOneOn = m.dataset.subone === '1';
+    Store.set('subOne', subOneOn);
+    redraw();
+    return;
+  }
+  const b = e.target.closest('[data-subpick]');
+  if(b){
+    subOnePick = cleanText(b.dataset.subpick, 20);
+    Store.set('subPick', subOnePick);
+    redraw();
+  }
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && helpKey) closePanelHelp(); });
+/* 説明の外を押したら閉じます(見出しの帯は上の pointerup が開き直します) */
+document.addEventListener('pointerdown', e => {
+  if(!helpKey) return;
+  if(e.target.closest && e.target.closest('#phelp')) return;
+  if(e.target === cv && headAt(localY(e))) return;
+  closePanelHelp();
+}, true);
 cv.addEventListener('pointerdown', e => {
   if(sizing) return;
   /* the handle also has to be inside the plot, not out in the price gutter */
@@ -22362,6 +23065,18 @@ $('#kenriPanelBtn').addEventListener('click', () => {
   redraw(); renderSignals();
 });
 $('#panelOrderBox').addEventListener('click', e => {
+  const h = e.target.closest('[data-help]');
+  if(h){
+    /* 説明はチャートの上に出ます。見えるところまで運んでから開きます */
+    const p = LAY && LAY.panels.find(q => q.key === h.dataset.help);
+    if(p){
+      const r = cv.getBoundingClientRect();
+      const to = r.top + window.scrollY + p.headY - 120;
+      try { window.scrollTo({top: Math.max(0, to), behavior: 'auto'}); } catch(err){ window.scrollTo(0, Math.max(0, to)); }
+      openPanelHelp(p.key);
+    }
+    return;
+  }
   const b = e.target.closest('[data-move]');
   if(!b) return;
   movePanel(b.dataset.k, b.dataset.move === 'up' ? -1 : 1);
@@ -22638,6 +23353,7 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
         `<div class="vsub">テストの実行中にエラーが起きました: ${esc(String((err && err.message) || err), 90)}</div>`;
     }finally{
       wsRestoring = false;
+      subOneHold = false; subOneForce = false;
       $('#selfBtn').disabled = false;
     }
     $('#selfWrap').scrollIntoView({block:'start'});
