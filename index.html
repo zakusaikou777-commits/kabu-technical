@@ -44,6 +44,12 @@
   --ich1:#8a5cd6;       --ich2:#4b2a8f;
   --mtf:#b8730c;        --smooth:#c0398c;
   --band:#898781;
+  /* 下のパネル(RSI・MACD…)の線。主役=墨(--ink-1)、シグナル・平均=橙の破線、
+     3本目=青緑の破線、と<b>どのパネルでも同じ決まり</b>にします。
+     緑の濃淡(MACDとシグナル、大口と小口)は色の違いでしか見分けられず、
+     ローソク足の赤青とも、価格パネルの移動平均の緑ともぶつかっていました。 */
+  --sig:#cf5f0a;        --osc3:#0b8798;
+  --head:rgba(11,11,11,.05);
   --cmp1:#2a78d6; --cmp2:#eb6834; --cmp3:#1baf7a; --cmp4:#eda100; --cmp5:#e87ba4;
   --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b;
   --radius:14px;
@@ -62,6 +68,8 @@
     --ich1:#a98af0;       --ich2:#d3c0f8;
     --mtf:#e0a132;        --smooth:#ee7ab8;
     --band:#898781;
+    --sig:#f0913f;        --osc3:#4cc3d9;
+    --head:rgba(255,255,255,.06);
     --cmp1:#3987e5; --cmp2:#d95926; --cmp3:#199e70; --cmp4:#c98500; --cmp5:#d55181;
   }
 }
@@ -77,6 +85,8 @@
   --ich1:#a98af0;       --ich2:#d3c0f8;
   --mtf:#e0a132;        --smooth:#ee7ab8;
   --band:#898781;
+  --sig:#f0913f;        --osc3:#4cc3d9;
+  --head:rgba(255,255,255,.06);
   --cmp1:#3987e5; --cmp2:#d95926; --cmp3:#199e70; --cmp4:#c98500; --cmp5:#d55181;
 }
 
@@ -142,6 +152,11 @@ body.two #secBarHost,body.chart-full #secBarHost{display:none}
 .chiphead{font-size:12px;font-weight:700;color:var(--ink-3);margin:8px 0 5px}
 .chiphead:first-child{margin-top:0}
 .chipline{display:flex;gap:6px;flex-wrap:wrap}
+/* 指標のセット */
+.setbox .setdel{margin-left:6px;opacity:.55;font-weight:700}
+.setbox .setsave{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0 0}
+.setbox .setsave input{width:min(100%,180px)}
+.setbox .setmsg{font-size:12px;color:var(--ink-2);margin:6px 0 0;min-height:1em}
 
 /* --- お気に入りのフォルダ --- */
 .favfolders{margin:0 0 8px;gap:6px}
@@ -190,10 +205,13 @@ body.two #colSide::-webkit-scrollbar-thumb{background:var(--hairline);border-rad
 /* chart-only mode: for a phone held sideways, and for staring at one chart */
 #fullExit{display:none;position:fixed;right:10px;top:10px;z-index:60;
   box-shadow:0 4px 16px rgba(0,0,0,.25)}
-body.chart-full{overflow:hidden}
+/* 縦には流せるようにしておきます。下のパネルを足していくと、価格パネルの
+   下限(140px)のぶん1画面を超えることがあり、隠していたので下のパネルと
+   日付の軸にたどり着けませんでした */
+body.chart-full{overflow-x:hidden}
 body.chart-full #fullExit{display:inline-flex}
 body.chart-full .wrap{max-width:none;padding:0 6px}
-body.chart-full header,body.chart-full .book,body.chart-full .notice,
+body.chart-full header,body.chart-full .book,body.chart-full .notice,body.chart-full #favBox,
 body.chart-full #tabs,body.chart-full #colSide,body.chart-full details.tv,
 body.chart-full footer,body.chart-full .legend,body.chart-full .hint{display:none!important}
 body.chart-full .quote{margin:4px 0 2px;gap:10px;align-items:center}
@@ -202,6 +220,9 @@ body.chart-full .qprice{font-size:19px}
 body.chart-full .filters{overflow-x:auto;flex-wrap:nowrap;margin:0 0 3px;padding-bottom:3px;
   gap:6px;-webkit-overflow-scrolling:touch}
 body.chart-full .filters::-webkit-scrollbar{height:4px}
+/* 「いま出している指標」の行は .filters の中の1つの箱なので、そのままだと
+   箱の中で3段に折り返して、チャートを画面の下へ押し出していました */
+body.chart-full .chipnow{flex-wrap:nowrap}
 body.chart-full .chip,body.chart-full .seg button,body.chart-full .live,
 body.chart-full select.mini{min-height:28px;font-size:12px;padding:2px 9px}
 body.chart-full .chip .sw{width:9px;height:9px}
@@ -324,6 +345,18 @@ button.icon{min-width:40px;padding:8px}
 #tip.wide hr{display:none}
 #tip .trow span:first-child{color:var(--ink-2)}
 #tip hr{border:0;border-top:1px solid var(--hairline);margin:6px 0}
+/* 指標の読み方(見出しの帯を押すと出ます) */
+.phelp{position:absolute;z-index:7;background:var(--surface-1);border:1px solid var(--axis);
+  border-radius:12px;padding:10px 12px 12px;width:min(calc(100% - 8px),400px);
+  box-shadow:0 8px 28px rgba(0,0,0,.25);font-size:12.5px;line-height:1.75;color:var(--ink-1)}
+.phelp .phhead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
+.phelp .phx{flex:0 0 auto;min-width:36px;min-height:32px;border:1px solid var(--hairline);
+  border-radius:8px;background:transparent;color:var(--ink-2);font-size:16px;line-height:1;cursor:pointer}
+.phelp .phnow{margin:4px 0 6px;font-weight:600}
+.phelp .phnow:empty{display:none}
+.phelp .phbody p{margin:0 0 6px}
+.phelp .phbody p:last-child{margin:0}
+.phelp .phbody .phnote{color:var(--ink-2);font-size:12px}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 0;font-size:12px;color:var(--ink-2)}
 .legend .li{display:inline-flex;align-items:center;gap:6px}
 .legend .k{width:14px;height:3px;border-radius:2px;background:var(--ink-3)}
@@ -487,7 +520,7 @@ input.idbox{width:100%;margin-top:5px;font:12px/1.5 ui-monospace,SFMono-Regular,
    paragraph, filled most of a screen for what is a list of one-line
    readings. Rows on a hairline instead of cards in a grid: the tag sits on
    the title line, and the explanation is one line unless you ask for it. */
-.sig{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0 22px}
+.sig{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:0 22px}
 .sigitem{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--hairline);
   align-items:flex-start}
 .sigicon{flex:0 0 auto;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;
@@ -538,6 +571,12 @@ td:first-child,th:first-child{text-align:left}
 .favgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .favempty{font-size:12.5px;color:var(--ink-3);margin:10px 0 0;line-height:1.7}
 .navrow{display:flex;align-items:center;gap:8px;margin:9px 0 0;flex-wrap:wrap}
+/* 下のパネルを1枚ずつ見るときのタブ。横に流して、指1本で切り替えられる大きさに */
+.subtabs{display:flex;gap:6px;margin:8px 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  padding-bottom:2px;scrollbar-width:thin}
+.subtabs .chip{flex:0 0 auto;min-height:38px}
+.subtabs .chip[aria-pressed="true"]{background:var(--ink-1);color:var(--surface-1);border-color:var(--ink-1)}
+.subtabs .submode{border-style:dashed}
 .navbtn{min-width:52px;min-height:42px;font-size:15px;line-height:1;
   display:inline-grid;place-items:center;border-radius:11px;
   border:1px solid var(--hairline);background:var(--surface-1);color:var(--ink-1);
@@ -725,10 +764,11 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="bb" aria-pressed="true"><i class="sw" style="background:var(--band)"></i>ボリンジャー</button>
     <button class="chip" data-t="ichimoku" aria-pressed="false"><i class="sw" style="background:var(--ich1)"></i>一目均衡表</button>
     <button class="chip" data-t="vol" aria-pressed="true"><i class="sw"></i>出来高</button>
-    <button class="chip" data-t="rsi" aria-pressed="true"><i class="sw" style="background:var(--down)"></i>RSI</button>
-    <button class="chip" data-t="macd" aria-pressed="true"><i class="sw" style="background:var(--ma2)"></i>MACD</button>
-    <button class="chip" data-t="stoch" aria-pressed="false"><i class="sw" style="background:var(--down)"></i>ストキャス</button>
-    <button class="chip" data-t="adx" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>DMI/ADX</button>
+    <button class="chip" data-t="rsi" aria-pressed="true"><i class="sw" style="background:var(--ink-1)"></i>RSI</button>
+    <button class="chip" data-t="macd" aria-pressed="true"><i class="sw" style="background:linear-gradient(90deg,var(--ink-1) 50%,var(--sig) 50%)"></i>MACD</button>
+    <button class="chip" data-t="stoch" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--ink-1) 50%,var(--sig) 50%)"></i>ストキャス</button>
+    <button class="chip" data-t="adx" aria-pressed="false"><i class="sw" style="background:var(--ink-1)"></i>DMI/ADX</button>
+    <button class="chip" data-t="diverge" aria-pressed="true"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>ダイバージェンス</button>
     <button class="chip" data-t="fib" aria-pressed="false"><i class="sw" style="background:var(--ink-3)"></i>フィボナッチ</button>
     <button class="chip" data-t="st" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>スーパートレンド</button>
     <button class="chip" data-t="vwap" aria-pressed="false"><i class="sw" style="background:var(--smooth)"></i>VWAP</button>
@@ -739,7 +779,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="shortPanel" aria-pressed="false"><i class="sw" style="background:var(--down)"></i>空売り残高</button>
     <button class="chip" data-t="marginPanel" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>信用残</button>
     <button class="chip" data-t="flow" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>資金フロー</button>
-    <button class="chip" data-t="sizeflow" aria-pressed="false"><i class="sw" style="background:var(--ma3)"></i>大口/小口(推定)</button>
+    <button class="chip" data-t="sizeflow" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--ink-1) 50%,var(--sig) 50%)"></i>大口/小口(推定)</button>
     <button class="chip" data-t="vprofile" aria-pressed="false"><i class="sw" style="background:var(--band)"></i>価格帯別出来高</button>
     <button class="chip" data-t="valuation" aria-pressed="false"><i class="sw" style="background:var(--ma2)"></i>PER / PBRの推移</button>
     <button class="chip" data-t="rates" aria-pressed="false"><i class="sw" style="background:linear-gradient(90deg,var(--cmp2),var(--ich1))"></i>日米金利差</button>
@@ -761,7 +801,16 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <div id="chartHost">
       <canvas id="chart" role="img" aria-label="ローソク足チャートとテクニカル指標"></canvas>
       <div id="tip" role="status" aria-live="off"></div>
+      <!-- 下のパネルの見出しを押すと出る、その指標の読み方 -->
+      <div id="phelp" class="phelp hide" role="dialog" aria-modal="false" aria-labelledby="phelpTtl">
+        <div class="phhead"><b id="phelpTtl"></b>
+          <button class="phx" id="phelpX" aria-label="説明を閉じる">×</button></div>
+        <div id="phelpNow" class="phnow"></div>
+        <div id="phelpBody" class="phbody"></div>
+      </div>
     </div>
+    <!-- スマホで下のパネルを1枚ずつ見るときの切り替え(redraw が中身を作ります) -->
+    <div class="subtabs hide" id="subTabs" role="group" aria-label="下のパネルの表示"></div>
     <!-- Buttons for the same thing the sideways drag does. A gesture nobody
          is told about is not a feature, and precise stepping is easier here. -->
     <div class="navrow" role="group" aria-label="時間軸の移動">
@@ -1465,8 +1514,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v56';
-const APP_DATE = '2026-10-07';
+const APP_VER = 'v59';
+const APP_DATE = '2026-10-11';
 
 /* ============================================================
    1. Small helpers
@@ -1812,7 +1861,12 @@ const TA = {
       pdm[i] = (up > dn && up > 0) ? up : 0;
       ndm[i] = (dn > up && dn > 0) ? dn : 0;
     }
-    const tr = TA.wilder(TA.trueRange(h,l,c), n);
+    /* 値幅の平均も、方向の動き(pdm/ndm)と同じ1本目から数えます。
+       0本目(高値−安値だけ)を入れると、2つの平均の窓が1本ずれて、
+       序盤の +DI / −DI が Wilder の定義から外れていました(ADXは比なので同じ) */
+    const trRaw = TA.trueRange(h, l, c);
+    if(trRaw.length) trRaw[0] = null;
+    const tr = TA.wilder(trRaw, n);
     const sp = TA.wilder(pdm, n), sn = TA.wilder(ndm, n);
     const pdi = [], ndi = [], dx = [];
     for(let i=0;i<len;i++){
@@ -2111,6 +2165,8 @@ function computeAll(bars, T, interval){
     don: TA.donchian(h, l, P.donchian),
     vwap: TA.vwap(bars, isIntradayIv(interval), P.vwapRoll)
   };
+  /* 安いので常に作ります(シグナルの成績はトグルに関係なく数えるため) */
+  out.div = TA.divergence(out.rsi, h, l);
   if(T.sizeflow) out.sizeflow = TA.sizeFlow(bars, {window: P.flowWin});
   if(T.osgfc)   out.osgfc   = TA.osgfc(bars, OSG);
   /* cheap: it folds bars we already have, so it is not gated like the two
@@ -2119,6 +2175,48 @@ function computeAll(bars, T, interval){
   if(T.lorentz) out.lorentz = TA.lorentzian(bars, LOR);
   return out;
 }
+/* ---- ダイバージェンス(逆行現象) ------------------------------------
+   株価は安値を切り下げたのに、オシレーターは安値を切り上げた(強気)。
+   株価は高値を切り上げたのに、オシレーターは高値を切り下げた(弱気)。
+
+   TradingView の標準のやり方に合わせます。オシレーター側の谷(山)を
+   左 lbL 本・右 lbR 本で確かめ、ひとつ前の谷(山)と lo〜hi 本離れていれば比べます。
+
+   <b>後出しにしません。</b>谷は右に lbR 本たたないと谷と決まらないので、
+   印を付ける足(at)は「谷 + lbR」です。シグナルの成績もこの足で数えます。
+   谷の足で数えると、その時点では分からなかったことを知っていたことになります。 */
+TA.divergence = function(osc, h, l, lbL = 5, lbR = 5, lo = 5, hi = 60){
+  const n = osc.length, bull = [], bear = [];
+  const isPivot = (p, low) => {
+    const v = osc[p];
+    if(!isNum(v)) return false;
+    for(let j = p - lbL; j <= p + lbR; j++){
+      if(j === p) continue;
+      const w = osc[j];
+      if(!isNum(w)) return false;
+      /* 左は厳密に、右は同値まで(平らな谷で2つ数えないため) */
+      if(low ? (j < p ? w <= v : w < v) : (j < p ? w >= v : w > v)) return false;
+    }
+    return true;
+  };
+  let lastLo = -1, lastHi = -1;
+  for(let p = lbL; p + lbR < n; p++){
+    if(isPivot(p, true)){
+      const d = p - lastLo;
+      if(lastLo >= 0 && d >= lo && d <= hi && osc[p] > osc[lastLo] && l[p] < l[lastLo])
+        bull.push({p1: lastLo, p2: p, at: p + lbR});
+      lastLo = p;
+    }
+    if(isPivot(p, false)){
+      const d = p - lastHi;
+      if(lastHi >= 0 && d >= lo && d <= hi && osc[p] < osc[lastHi] && h[p] > h[lastHi])
+        bear.push({p1: lastHi, p2: p, at: p + lbR});
+      lastHi = p;
+    }
+  }
+  return {bull, bear, lbR};
+};
+
 /* ============================================================
    2b. Advanced indicators
    Everything here is rebuilt from the published formula for each
@@ -3091,7 +3189,7 @@ async function fetchStooq(sym){
    (日付/始値/高値/安値/終値/出来高), comma or tab separated.
    -------------------------------------------------------------------- */
 const HEAD = {
-  date:  ['date','日付','年月日','日時','時間','timestamp'],
+  date:  ['date','日付','年月日','日時','時間','timestamp','datetime'],
   open:  ['open','始値','寄付','oepn'],
   high:  ['high','高値','最高値'],
   low:   ['low','安値','最安値'],
@@ -3111,10 +3209,13 @@ function headIndex(cells){
 }
 function parseJPDate(s){
   s = String(s).trim().replace(/["']/g,'');
-  let m = s.match(/^(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/);
-  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
-  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-  if(m) return new Date(+m[3], +m[1]-1, +m[2]);
+  /* 時刻があれば拾います(分足のCSV「2024/03/05 09:05」)。日付だけ読んで
+     いたので、1日ぶんの5分足が全部その日の0時に重なっていました */
+  const TM = '(?:日)?(?:[ T]+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?)?';
+  let m = s.match(new RegExp('^(\\d{4})[-/年.](\\d{1,2})[-/月.](\\d{1,2})' + TM));
+  if(m) return new Date(+m[1], +m[2]-1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+  m = s.match(new RegExp('^(\\d{1,2})[-/](\\d{1,2})[-/](\\d{4})' + TM));
+  if(m) return new Date(+m[3], +m[1]-1, +m[2], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
   /* m/d/yy。Excel の組み込み日付書式(14番)を SheetJS はこの形で文字にします。
      下の new Date() に任せると、2桁の年の読み方がブラウザごとに違います。 */
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
@@ -3124,13 +3225,17 @@ function parseJPDate(s){
 }
 function toNum(s){
   if(s === undefined || s === null) return NaN;
-  const t = String(s).replace(/["',\s円%]/g,'').replace(/[０-９．－]/g, ch =>
+  /* 全角のカンマ(１，２３４)も桁区切りです。残すと parseFloat が「１」で止まります */
+  const t = String(s).replace(/["',\s円%，]/g,'').replace(/[０-９．－]/g, ch =>
     '０１２３４５６７８９．－'.indexOf(ch) >= 0 ? '0123456789.-'['０１２３４５６７８９．－'.indexOf(ch)] : ch);
   if(t === '' || t === '-' || t === '--') return NaN;
   return parseFloat(t);
 }
 function splitLine(line){
-  if(line.indexOf('\t') >= 0 && line.indexOf(',') < 0) return line.split('\t');
+  /* タブがあればタブ区切りです。「カンマが無ければ」という条件を付けていたので、
+     桁区切りのある表(2,400)をタブ区切りで保存すると、カンマでも割られて
+     列がずれ、「タブ区切りで保存し直してください」と断っていました */
+  if(line.indexOf('\t') >= 0) return line.split('\t');
   const out = []; let cur = '', q = false;
   for(const ch of line){
     if(ch === '"'){ q = !q; continue; }
@@ -3198,8 +3303,12 @@ async function readCSVFile(file){
   const jp = /[ぁ-んァ-ン一-龥]/.test(text.slice(0, 400))
           || /(^|[^0-9A-Za-z])(\d{4}|\d{3}[A-Za-z])\.T([^A-Za-z]|$)/i.test(file.name);
   stampBars(bars, null);       /* imported dates are already calendar dates */
+  /* 足種は<b>ファイルの中身から</b>決めます。渡さないと、1時間足のタブで
+     日足のCSVを開いたとき、分足向けの移動平均(9/21/60)と、毎足リセットの
+     VWAP で計算していました。apply() はデータの足種に画面を合わせます。 */
   return {bars, name: name || file.name.replace(/\.[^.]+$/,''), code: 'CSV', tz: null,
-          currency: jp ? 'JPY' : 'USD', source: 'CSV: ' + file.name};
+          currency: jp ? 'JPY' : 'USD', source: 'CSV: ' + file.name,
+          granularity: detectInterval(bars) || undefined};
 }
 
 /* --- built-in sample series (deterministic, so it never surprises) --- */
@@ -3420,20 +3529,34 @@ function applyTick(bars, tick, interval){
   if(t < lastBar.t.getTime()) return 'none';          /* stale tick */
 
   let sameBucket;
+  /* 4時間足・8時間足は1時間足を同じ日の中で束ねたもの(foldBars)です */
+  const foldMs = {'4h': 4 * 3600e3, '8h': 8 * 3600e3}[interval];
   if(IV_MS[interval]){
     sameBucket = t < nextBoundary(lastBar, interval);
   } else {
-    /* daily / weekly / monthly: the exchange's calendar day decides */
+    /* daily / weekly / monthly: the exchange's calendar day decides —
+       週足・月足は<b>その週・その月</b>で比べます。日付だけで比べていたので、
+       週足の水曜のティックが「新しい足」になり、同じ週の足が2本に割れて
+       いました(topUpLastBar はもともと periodKey で比べています)。 */
     const stamped = stampBars([{t: when, o:0, h:0, l:0, c:0, v:0}], tickTz);
-    sameBucket = barKey(stamped[0]) === barKey(lastBar);
+    sameBucket = periodKey(barKey(stamped[0]), interval) === periodKey(barKey(lastBar), interval)
+      /* 4時間足は同じ日でも、束の長さを過ぎたら次の足です。
+         東証の昼休みをまたぐ束(9:00〜13:30)だけは境目が30分早く出ますが、
+         次の取得で正しい束に組み直されます。 */
+      && !(foldMs && t >= lastBar.t.getTime() + foldMs);
   }
   if(sameBucket){
     lastBar.c = tick.price;
     if(tick.price > lastBar.h) lastBar.h = tick.price;
     if(tick.price < lastBar.l) lastBar.l = tick.price;
-    if(isNum(tick.dayHigh) && tick.dayHigh > lastBar.h && !IV_MS[interval]) lastBar.h = tick.dayHigh;
-    if(isNum(tick.dayLow)  && tick.dayLow  < lastBar.l && !IV_MS[interval]) lastBar.l = tick.dayLow;
-    if(isNum(tick.dayVolume) && !IV_MS[interval]) lastBar.v = tick.dayVolume;
+    /* 「その日の」高値・安値・出来高。日足ならそのまま足の値です。週足・月足でも
+       高値・安値は広げる向きにしか効かないので使えますが、出来高を入れると
+       週の出来高が<b>今日1日ぶん</b>に置き換わります。4時間足には1日ぶんの
+       値幅と出来高が入ってしまうので、どれも使いません。 */
+    const daily = interval === '1d', slower = interval === '1wk' || interval === '1mo';
+    if(isNum(tick.dayHigh) && tick.dayHigh > lastBar.h && (daily || slower)) lastBar.h = tick.dayHigh;
+    if(isNum(tick.dayLow)  && tick.dayLow  < lastBar.l && (daily || slower)) lastBar.l = tick.dayLow;
+    if(isNum(tick.dayVolume) && daily) lastBar.v = tick.dayVolume;
     return 'update';
   }
   const start = IV_MS[interval]
@@ -3464,7 +3587,7 @@ const state = {
             fib:false, st:false, vwap:false, don:false, mtf:false, osgfc:false, lorentz:false,
             shortPanel:false, marginPanel:false, flow:false, sizeflow:false, vprofile:false,
             valuation:false, rates:false, cbank:false, pivot:false,
-            session:false, cot:false, kenri:false, sectorAvg:false, events:true},
+            session:false, cot:false, kenri:false, sectorAvg:false, events:true, diverge:true},
   range: '1y', interval: '1d'
 };
 
@@ -3484,7 +3607,8 @@ function readColors(){
     ich: [cssVar('--ich1'), cssVar('--ich2')],
     mtf: cssVar('--mtf'), smooth: cssVar('--smooth'),
     rateUs: cssVar('--cmp2'),          /* 米10年債。緑でも紫でも桃でもない色 */
-    band: cssVar('--band'), warn: cssVar('--warn')
+    band: cssVar('--band'), warn: cssVar('--warn'),
+    sig: cssVar('--sig'), osc3: cssVar('--osc3'), head: cssVar('--head')
   };
 }
 
@@ -3492,6 +3616,20 @@ function readColors(){
 /* 'auto' | 'one' | 'two' | 'full' — how the page is arranged. In 'full'
    the chart owns the viewport, which is what a phone held sideways is for. */
 let layoutMode = 'auto';
+
+/* 下のパネルを1枚ずつ(スマホ・低い画面)。
+
+   下のパネルを5〜6枚出すと、スマホでは価格チャートの下に画面2枚ぶんの
+   縦長の列ができ、見比べたいパネルまで指で何度も流すことになります。
+   1枚ずつにすると、価格チャートのすぐ下に選んだ1枚だけを大きめに出し、
+   その下のタブで切り替えます。端末ごとの設定です(同期しません)。 */
+let subOneOn = false;                /* 値は Store ができてから読みます(下の panelOrder の隣) */
+let subOnePick = '';
+let subOneHold = false;              /* 自己テストのあいだは止めます */
+let subOneForce = false;             /* 自己テストで「狭い画面」を作るためのもの */
+function subOneApplies(w, vh){
+  return subOneForce || w < 620 || vh < 560 || document.body.classList.contains('chart-full');
+}
 
 /* per-panel height multipliers, keyed by panel name. Null prototype and
    re-validated on load: this comes back out of localStorage. */
@@ -3558,8 +3696,19 @@ function layout(){
      the price panel entirely, so the panels shrink with the viewport */
   const vh = window.innerHeight || 800;
   const shortScreen = vh < 560;
-  const subH = full ? clamp(Math.round(vh * 0.11), 46, 92)
-             : shortScreen ? 62 : narrow ? 74 : 92;
+  /* 下のパネルは「見出しの帯 + 線を描く場所」の2段です(v57)。
+
+     題名は線を描く場所の左上に灰色の小さな字で書いていたので、線と重なり、
+     パネルの境目もはっきりせず、どのパネルも同じに見えていました。
+     見出しを帯に出して、そこに<b>線の見本・いまの値・いまの状態</b>
+     (買われすぎ・売り優勢…)を並べます。帯のぶんだけ箱を高くしますが、
+     線の上にあった題名の余白(12〜14px)が要らなくなるので、線を描く場所は
+     むしろ広がります。 */
+  /* 全画面と横長の低い画面は、高さがいちばん足りない場所です。帯を14pxに
+     詰めて、箱は以前より8pxだけ高くします(線を描ける高さは以前と同じ)。 */
+  const headH = full || shortScreen ? 14 : 18;
+  const subH = full ? clamp(Math.round(vh * 0.11), 46, 92) + 8
+             : shortScreen ? 70 : narrow ? 90 : 104;
   const gap = narrow || shortScreen ? 10 : 14, axisH = 22;
 
   const subs = [];
@@ -3568,21 +3717,27 @@ function layout(){
      that is height the price panel needed. */
   const hasVol = !!(state.ind && Array.isArray(state.ind.v)
                     && state.ind.v.some(x => isNum(x) && x > 0));
-  if(state.toggles.vol && hasVol) subs.push({key:'vol',   title:'出来高'});
+  /* short は見出しの帯に入りきらないときの短い題名です(スマホ幅など) */
+  if(state.toggles.vol && hasVol) subs.push({key:'vol',   title:'出来高', short:'出来高'});
   if(state.toggles.rsi)   subs.push({key:'rsi',
-    title: state.toggles.flow ? `RSI(${P.rsi}) / MFI(${P.mfi})` : 'RSI(' + P.rsi + ')'});
-  if(state.toggles.flow)  subs.push({key:'flow', title:`資金フロー CMF(${P.cmf})`});
-  if(state.toggles.sizeflow) subs.push({key:'sizeflow', title:'大口 / 小口の資金(推定・累計)'});
-  if(state.toggles.macd)  subs.push({key:'macd',  title:'MACD(' + P.macd.join(',') + ')'});
-  if(state.toggles.stoch) subs.push({key:'stoch', title:'ストキャスティクス(' + P.stoch.join(',') + ')'});
-  if(state.toggles.adx)   subs.push({key:'adx',   title:'DMI / ADX(' + P.adx + ')'});
-  if(state.toggles.lorentz) subs.push({key:'lorentz', title:'Lorentzian 予測'});
+    title: state.toggles.flow ? `RSI(${P.rsi}) / MFI(${P.mfi})` : 'RSI(' + P.rsi + ')',
+    short: state.toggles.flow ? 'RSI/MFI' : 'RSI'});
+  if(state.toggles.flow)  subs.push({key:'flow', title:`資金フロー CMF(${P.cmf})`, short:'CMF'});
+  if(state.toggles.sizeflow) subs.push({key:'sizeflow', title:'大口 / 小口の資金(推定・累計)',
+    short:'大口/小口'});
+  if(state.toggles.macd)  subs.push({key:'macd',  title:'MACD(' + P.macd.join(',') + ')', short:'MACD'});
+  if(state.toggles.stoch) subs.push({key:'stoch', title:'ストキャスティクス(' + P.stoch.join(',') + ')',
+    short:'ストキャス'});
+  if(state.toggles.adx)   subs.push({key:'adx',   title:'DMI / ADX(' + P.adx + ')', short:'DMI/ADX'});
+  if(state.toggles.lorentz) subs.push({key:'lorentz', title:'Lorentzian 予測', short:'Lorentzian'});
   if(state.toggles.shortPanel)  subs.push({key:'shortPanel',
-    title: shortIsUs() ? '空売り比率(報告出来高に占める %)' : '空売り残高(報告合計 %)'});
+    title: shortIsUs() ? '空売り比率(報告出来高に占める %)' : '空売り残高(報告合計 %)',
+    short: shortIsUs() ? '空売り比率' : '空売り残高'});
   if(state.toggles.marginPanel) subs.push({key:'marginPanel',
     title: (Ext.margin && Ext.margin.kind === 'loan')
       ? '貸借残(融資 / 貸株・日証金)'
-      : (state.ind && state.ind.extLend ? '信用残(買残 / 売残・週次)' : '信用残(買残 / 売残)')});
+      : (state.ind && state.ind.extLend ? '信用残(買残 / 売残・週次)' : '信用残(買残 / 売残)'),
+    short: (Ext.margin && Ext.margin.kind === 'loan') ? '貸借残' : '信用残'});
   /* 出来高と同じで、決算の数値を入れていない銘柄では空の箱になるだけなので
      データがあるときだけ出します。赤字でPERが引けない銘柄はPBRに切り替え、
      どちらも引けなければ出しません。 */
@@ -3594,22 +3749,24 @@ function layout(){
     const one = !state.ind.fund || state.ind.fund.count < 2;
     const nm = vks.length === 2 ? 'PER(右) と PBR(左) の推移(倍'
              : vks[0] === 'pbr' ? 'PBRの推移(倍' : 'PERの推移(倍';
-    /* 業種平均を重ねているなら、<b>どの市場の</b>平均かを見出しに出します。
-       同じ業種でも市場で倍率が大きく違うので、業種名だけでは足りません。 */
-    const sc = (state.toggles.sectorAvg && state.ind.sector) ? state.ind.sector : null;
-    subs.push({key:'valuation', title: nm + (one ? '・いまの決算の数値で換算)' : ')')
-      + (sc ? ` ／ 破線=${sc.ind}の平均(${String(sc.mkt).replace('市場','')}・東証)` : '')});
+    /* 業種平均を重ねているなら、<b>どの市場の</b>平均かを出します。
+       同じ業種でも市場で倍率が大きく違うので、業種名だけでは足りません。
+       v57 からは見出しの帯の凡例(破線の見本つき)に出します。題名に
+       全部つなげると帯に入りきらず、凡例も値も押し出されていました。 */
+    subs.push({key:'valuation', title: nm + (one ? '・いまの決算の数値で換算)' : ')'),
+      short: vks.length === 2 ? 'PER/PBR' : vks[0] === 'pbr' ? 'PBR' : 'PER'});
   }
 
   /* 金利は銘柄に紐づかないので、まだ取っていなければ空の箱になります。
      箱だけ出しても場所を取るだけなので、データがあるときだけ。 */
   if(state.toggles.cot && state.ind && state.ind.cot){
-    subs.push({key:'cot', title:'円の建玉(CFTC・投機筋のネット枚数)'});
+    subs.push({key:'cot', title:'円の建玉(CFTC・投機筋のネット枚数)', short:'円の建玉'});
   }
   if(state.toggles.rates && state.ind && state.ind.rates){
     const r = state.ind.rates;
     subs.push({key:'rates',
-      title: r.hasSpread ? '日米10年債の金利差(%)' : '10年債の利回り(%)'});
+      title: r.hasSpread ? '日米10年債の金利差(%)' : '10年債の利回り(%)',
+      short: r.hasSpread ? '日米金利差' : '10年債'});
   }
 
   /* 並び順。既定の順で組んでから、保存された順に並べ直します。
@@ -3618,25 +3775,44 @@ function layout(){
   const subsOrdered = orderSubs(subs);
   subs.length = 0;
   for(const sp of subsOrdered) subs.push(sp);   /* orderSubs は別配列を返します */
+  /* 出している全部のパネル(1枚ずつのときも、並び替えやタブはこちらを見ます) */
+  const allSubs = subs.map(sp => ({key: sp.key, short: sp.short || sp.title}));
+  const oneMode = subOneOn && !subOneHold && subs.length > 1 && subOneApplies(w, vh);
+  if(oneMode){
+    const pick = subs.find(sp => sp.key === subOnePick) || subs[0];
+    subs.length = 0;
+    subs.push(pick);
+  }
 
   /* Each panel can be stretched or squashed on its own. The scale is a
      multiplier the user sets by dragging the divider under a panel, kept
      per panel key so it survives a redraw, a tab switch and a reload. */
   const scaleOf = k => clamp(+(panelScale[k] || 1), 0.4, 3.5);
   const twoUp = k => k === 'marginPanel' && state.ind && state.ind.extLend;
-  const hOf = k => Math.round(subH * scaleOf(k) * (twoUp(k) ? 1.6 : 1));
+  /* いちばん縮めても、帯の下に線を描く場所を24px残します */
+  /* 1枚ずつのときは、空いたぶん大きめに(1.6倍) */
+  const hOf = k => Math.max(headH + 24, Math.round(subH * scaleOf(k) * (twoUp(k) ? 1.6 : 1) * (oneMode ? 1.6 : 1)));
   const subsH = subs.reduce((t, sp) => t + hOf(sp.key) + gap, 0);
   let mainH;
   if(full){
-    /* fill what the viewport has left, never less than a usable price panel */
-    mainH = Math.max(140, Math.round(vh - 46) - subsH - axisH * (subs.length ? 2 : 1) - 8);
+    /* fill what the viewport has left, never less than a usable price panel.
+       上に残る行(値段・足種・指標のボタン)の高さは<b>測ります</b>。46px と
+       決め打ちにしていたので、実際は180〜310pxあり、チャートの下が画面から
+       はみ出していました */
+    const above = Math.max(46, Math.round(host.getBoundingClientRect().top + (window.scrollY || 0)) + 4);
+    /* 1枚ずつのタブ(チャートのすぐ下)も画面に収めます */
+    const tabsH = (!subOneHold && allSubs.length >= 2 && subOneApplies(w, vh)) ? 54 : 0;
+    mainH = Math.max(140, Math.round(vh - above - tabsH) - subsH - axisH * (subs.length ? 2 : 1) - 8);
     mainH = Math.round(mainH * scaleOf('main'));
   } else {
     mainH = clamp(Math.round(w * (narrow ? 0.72 : 0.40)), narrow ? 250 : 280, 430);
     mainH = Math.round(mainH * scaleOf('main'));
-    /* on a short screen, keep the whole chart inside one screenful */
+    /* on a short screen, keep the whole chart inside one screenful.
+       見出しの帯(v57)のぶんは数えません。帯は線の上にあった題名の余白の
+       置き換えなので、数えると価格パネルだけが縮みます(スマホで下のパネル
+       6枚のとき 220px → 124px)。そのぶん全体は1画面を少し超えます。 */
     const budget = Math.round(vh * (shortScreen ? 0.78 : 0.92))
-                 - subsH - axisH * (subs.length ? 2 : 1) - 8;
+                 - (subsH - subs.length * headH) - axisH * (subs.length ? 2 : 1) - 8;
     if(budget > 120) mainH = Math.min(mainH, budget);
   }
   const totalH = mainH + subsH + axisH + 8;
@@ -3653,11 +3829,16 @@ function layout(){
   let y = 6 + mainH + (subs.length ? axisH : 0) + gap;
   for(const s of subs){
     const h = hOf(s.key);
-    panels.push({key:s.key, title:s.title, x:padL, y, w:w-padL-padR, h});
+    /* y と h は<b>線を描く場所</b>です。各パネルの描画はこれまでどおり
+       p.y / p.h だけを見ればよく、帯は headY から headH の高さに描きます。
+       下端(p.y + p.h)は変わらないので、高さを変えるつまみもそのまま。 */
+    panels.push({key:s.key, title:s.title, short:s.short || s.title, x:padL,
+                 y: y + headH, w:w-padL-padR, h: h - headH, headY: y, headH});
     y += h + gap;
   }
   return {w, h: totalH + (subs.length ? axisH : 0), padL, padR, axisH, narrow,
-          panels, axisY: y, midAxis};
+          panels, axisY: y, midAxis, allSubs, oneMode,
+          oneApplies: subOneApplies(w, vh) && !subOneHold};
 }
 
 function sizeCanvas(){
@@ -3680,6 +3861,9 @@ const iAtX = (p, px) => Math.round((px - p.x) / barW(p) - 0.5) + state.i0;
 
 function makeY(p, min, max, padTop = 8, padBot = 8){
   if(!(max > min)){ max = min + 1; min -= 1; }
+  /* 各パネルの padTop(12〜14px)は、題名を線の上に書いていたころの逃げです。
+     題名は見出しの帯へ移したので、帯のあるパネルでは要りません。 */
+  if(p.headH) padTop = Math.min(padTop, 6);
   const top = p.y + padTop, bot = p.y + p.h - padBot;
   return v => bot - (v - min) / (max - min) * (bot - top);
 }
@@ -3784,7 +3968,9 @@ function panelFrame(g, p){
   g.beginPath();
   g.moveTo(p.x, Math.round(p.y+p.h)+.5); g.lineTo(p.x+p.w, Math.round(p.y+p.h)+.5);
   g.stroke();
-  if(p.title){
+  /* 見出しの帯があるパネルは、題名を帯に書きます(drawPanelHead)。
+     ここで書くのは、信用残の下段のような<b>帯を持たない区画</b>の題名だけ。 */
+  if(p.title && !p.headH){
     g.fillStyle = C.ink3;
     g.font = `600 ${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'top';
@@ -3799,6 +3985,474 @@ function clipPanel(g, p){
   g.rect(p.x - 1, p.y, p.w + 2, p.h);
   g.clip();
 }
+/* ---- 下のパネルの見出しの帯 ----------------------------------------
+   RSI・MACD・ストキャス… は、どれも「灰色の小さな題名 + 色違いの線」で、
+   色の違いでしか見分けられませんでした(いただいた声のとおりです)。
+   帯には次の3つを、左から並べます。
+
+   1. 題名
+   2. 凡例 … 線の<b>見本</b>(実線・破線・太さまで本物と同じ)+ 名前 + 値
+   3. いまの状態 … 「買われすぎ圏」「売り優勢」「もみ合い」を言葉で
+
+   値と状態は、ふだんは表示している右端の足、十字線を当てているあいだは
+   その足のものです(paint が帯だけ描き直します)。
+   幅が足りないときは、長い題名 → 名前 → 状態の言葉、の順に短くして、
+   それでも入らない凡例だけ後ろから落とします。名前を題名より後に削るのは、
+   「RSI 25.0 / MFI 18.7」のほうが「(14)」という期間より読むときに要るからです。 */
+const HEAD_TONE = () => ({up: C.up, down: C.down, flat: C.ink2});
+
+/* オシレーターの値。桁はパネルごとに違う(MACDは株価次第で 0.0012 にも
+   120 にもなる)ので、大きさから決めます。 */
+function fmtOsc(v){
+  if(!isNum(v)) return '—';
+  const a = Math.abs(v);
+  const dp = a >= 100 ? 0 : a >= 10 ? 1 : a >= 1 ? 2 : a >= 0.1 ? 3 : a >= 0.01 ? 4 : 5;
+  return (v < 0 ? '−' : '') + a.toFixed(dp);
+}
+
+/* パネルごとの凡例と状態。色・破線は各パネルの描画と<b>同じ値</b>を使います
+   (ここだけ変えると、見本と線が食い違います)。 */
+function headSpec(key, i){
+  const d = state.ind, T = state.toggles, bars = state.raw.bars;
+  if(!d || !isNum(i) || i < 0 || i > bars.length - 1) return null;
+  const at = a => (a && isNum(a[i])) ? a[i] : null;
+  const L = (name, val, color, o) => Object.assign({name, val, color, w: 2, dash: null, mark: 'line'}, o || {});
+  const st = (text, short, tone) => ({text, short: short || text, tone: tone || 'flat'});
+  const items = [];
+  let status = null;
+  switch(key){
+    case 'vol': {
+      const v = at(d.v), m = at(d.volMa);
+      /* 題名と同じ名前は繰り返しません(name が空なら見本と値だけ) */
+      items.push(L('', fmtVol(v), d.c[i] >= d.o[i] ? C.up : C.down, {mark: 'bar'}));
+      items.push(L(volAvgName(), fmtVol(m), C.sig, {w: 1.6}));
+      if(isNum(v) && isNum(m) && m > 0){
+        const r = v / m;
+        status = st(`平均の${r.toFixed(1)}倍` + (r >= 2 ? '(急増)' : r <= .6 ? '(閑散)' : ''),
+                    `×${r.toFixed(1)}`, 'flat');
+      }
+      break;
+    }
+    case 'rsi': {
+      const r = at(d.rsi);
+      items.push(L('RSI', isNum(r) ? r.toFixed(1) : '—', C.ink1));
+      if(T.flow && d.mfi){
+        const m = at(d.mfi);
+        items.push(L('MFI', isNum(m) ? m.toFixed(1) : '—', C.osc3, {w: 1.8, dash: [5, 3]}));
+      }
+      if(isNum(r)) status = r >= 70 ? st('買われすぎ圏(70以上)', '買われすぎ', 'up')
+                          : r <= 30 ? st('売られすぎ圏(30以下)', '売られすぎ', 'down')
+                          : st('中立圏(30〜70)', '中立');
+      if(T.diverge){
+        const dv = recentDivergence(i, 10);
+        if(dv) items.push(L('', `${dv.dir > 0 ? '強気' : '弱気'}ダイバ(${i - dv.at}本前)`,
+                            dv.dir > 0 ? C.up : C.down, {mark: 'bar'}));
+      }
+      break;
+    }
+    case 'flow': {
+      const v = at(d.cmf);
+      items.push(L('', isNum(v) ? (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(3) : '—',
+                   isNum(v) && v < 0 ? C.down : C.up, {mark: 'bar'}));
+      if(isNum(v)) status = v > 0.05 ? st('買いが優勢', '買い優勢', 'up')
+                          : v < -0.05 ? st('売りが優勢', '売り優勢', 'down')
+                          : st('買いと売りが拮抗', '拮抗');
+      break;
+    }
+    case 'sizeflow': {
+      const sf = d.sizeflow;
+      if(!sf) break;
+      items.push(L('大口以上', fmtMoney(at(sf.cumBig)), C.ink1, {w: 2.2}));
+      items.push(L('小口・中口', fmtMoney(at(sf.cumSmall)), C.sig, {w: 1.6, dash: [5, 3]}));
+      /* 判定リストと同じ「直近20本で」。累計の水準は表示の始点で変わるので
+         状態には使いません。 */
+      const back = Math.max(0, i - 20);
+      const dBig = isNum(sf.cumBig[i]) && isNum(sf.cumBig[back]) ? sf.cumBig[i] - sf.cumBig[back] : null;
+      if(isNum(dBig) && dBig !== 0)
+        status = dBig > 0 ? st('大口が直近20本で買い越し', '大口 買い越し', 'up')
+                          : st('大口が直近20本で売り越し', '大口 売り越し', 'down');
+      break;
+    }
+    case 'macd': {
+      const m = d.macd, h = at(m.hist);
+      items.push(L('MACD', fmtOsc(at(m.line)), C.ink1));
+      items.push(L('シグナル', fmtOsc(at(m.signal)), C.sig, {w: 1.6, dash: [5, 3]}));
+      items.push(L('差', fmtOsc(h), isNum(h) && h < 0 ? C.down : C.up, {mark: 'bar'}));
+      if(isNum(h)) status = h >= 0 ? st('MACDがシグナルの上(買い優勢)', '買い優勢', 'up')
+                                   : st('MACDがシグナルの下(売り優勢)', '売り優勢', 'down');
+      break;
+    }
+    case 'stoch': {
+      const k = at(d.stoch.k), dd = at(d.stoch.d);
+      items.push(L('%K', isNum(k) ? k.toFixed(1) : '—', C.ink1));
+      items.push(L('%D', isNum(dd) ? dd.toFixed(1) : '—', C.sig, {w: 1.6, dash: [5, 3]}));
+      if(isNum(k)) status = k >= 80 ? st('買われすぎ圏(80以上)', '買われすぎ', 'up')
+                          : k <= 20 ? st('売られすぎ圏(20以下)', '売られすぎ', 'down')
+                          : st('中立圏(20〜80)', '中立');
+      break;
+    }
+    case 'adx': {
+      const a = at(d.dmi.adx), pd = at(d.dmi.pdi), nd = at(d.dmi.ndi);
+      items.push(L('ADX', isNum(a) ? a.toFixed(1) : '—', C.ink1, {w: 2.2}));
+      items.push(L('+DI', isNum(pd) ? pd.toFixed(1) : '—', C.up, {w: 1.6}));
+      items.push(L('−DI', isNum(nd) ? nd.toFixed(1) : '—', C.down, {w: 1.6, dash: [4, 3]}));
+      if(isNum(a)) status = a < 25 ? st('トレンド弱い(ADX25未満)', 'もみ合い')
+        : (isNum(pd) && isNum(nd) && pd > nd) ? st('上昇トレンドが強い', '上昇トレンド', 'up')
+        : st('下降トレンドが強い', '下降トレンド', 'down');
+      break;
+    }
+    case 'lorentz': {
+      const lo = d.lorentz;
+      if(!lo) break;
+      const s = at(lo.sig), pr = at(lo.pred);
+      items.push(L('ポジション', s > 0 ? '買い' : s < 0 ? '売り' : '—', C.ink1));
+      if(isNum(pr)) items.push(L('予測', `${pr > 0 ? '+' : ''}${pr}/${at(lo.used) || 0}票`,
+                                 pr > 0 ? C.up : pr < 0 ? C.down : C.ink2, {mark: 'bar'}));
+      if(isNum(s)) status = s > 0 ? st('買いポジション', '買い', 'up')
+                          : s < 0 ? st('売りポジション', '売り', 'down')
+                          : st('ポジションなし', 'なし');
+      break;
+    }
+    case 'shortPanel': {
+      const e = d.extShort;
+      if(!e) break;
+      const v = at(e.ratio);
+      items.push(L('', isNum(v) ? v.toFixed(2) + '%' : '—', C.down));
+      break;
+    }
+    case 'marginPanel': {
+      const e = d.extMargin;
+      if(!e) break;
+      const ln = Ext.margin && Ext.margin.kind === 'loan';
+      const b = at(e.buy), s = at(e.sell), r = at(e.ratio);
+      items.push(L(ln ? '融資残' : '買残', isNum(b) ? fmtVol(b) : '—', C.up));
+      items.push(L(ln ? '貸株残' : '売残', isNum(s) ? fmtVol(s) : '—', C.down, {dash: [5, 3]}));
+      if(isNum(r)) status = st(`${ln ? '貸借' : '信用'}倍率 ${r.toFixed(2)}倍`, `${r.toFixed(1)}倍`);
+      break;
+    }
+    case 'valuation': {
+      const f = d.fund;
+      if(!f) break;
+      const kinds = valuationKinds(), both = kinds.length === 2;
+      const col = {per: C.ma[0], pbr: C.rateUs || C.ma[1]};
+      const tag = fundIsBackfilled(f, i) ? '(参考)' : '';
+      for(const k of kinds){
+        const v = at(f[k]);
+        items.push(L(k.toUpperCase() + (both ? (k === 'per' ? '(右)' : '(左)') : '') + tag,
+                     isNum(v) ? v.toFixed(k === 'per' ? 1 : 2) + '倍' : '—',
+                     f.allBackfill ? C.ink3 : col[k]));
+      }
+      const sc = (T.sectorAvg && d.sector) ? d.sector : null;
+      if(sc){
+        const k = kinds.indexOf('per') >= 0 && sc.per && sc.per.some(isNum) ? 'per' : 'pbr';
+        const v = at(sc[k]);
+        items.push(L(`${String(sc.ind).slice(0, 8)}平均(${String(sc.mkt).replace('市場', '')})`,
+                     isNum(v) ? v.toFixed(k === 'per' ? 1 : 2) + '倍' : '—', col[k], {w: 1.5, dash: [5, 3]}));
+      }
+      /* この銘柄自身の過去の四分位のどこにいるか。割高・割安とは言いません
+         (業種や成長で平常値が違うので、それはこの線だけでは決められない)。
+         決算が1期しか無いと、この線は「株価 ÷ いまのEPS」でしかなく、
+         四分位は株価の四分位と同じです。そのときはそう書きます。 */
+      const mk = kinds.indexOf('per') >= 0 && f.per.some(isNum) ? 'per' : 'pbr';
+      const q = fundQuartiles(f, f[mk]), v = at(f[mk]);
+      if(f.count < 2) status = st('いまの決算の数値で換算', '換算値');
+      else if(q && isNum(v))
+        status = v > q[2] ? st('過去の上位25%の水準', '過去の上位25%')
+               : v < q[0] ? st('過去の下位25%の水準', '過去の下位25%')
+               : st('過去の中ほど(25〜75%)', '過去の中ほど');
+      break;
+    }
+    case 'rates': {
+      const r = d.rates;
+      if(!r) break;
+      const pc = v => isNum(v) ? v.toFixed(2) + '%' : '—';
+      items.push(L('米10年', pc(at(r.us)), C.rateUs || C.up, {w: 1.6}));
+      items.push(L('日10年', pc(at(r.jp)), C.ich[0], {w: 1.6}));
+      if(r.hasSpread) items.push(L('金利差', pc(at(r.sp)), C.ink1, {w: 2.4}));
+      break;
+    }
+    case 'cot': {
+      const c = d.cot;
+      if(!c) break;
+      const lv = at(c.lev), am = at(c.amg);
+      const fm = v => isNum(v) ? (v < 0 ? '−' : '+') + fmtVol(Math.abs(v)) + '枚' : '—';
+      items.push(L('投機筋', fm(lv), C.ink1));
+      if(c.amg.some(isNum)) items.push(L('資産運用', fm(am), C.ink3, {w: 1.2, dash: [4, 3]}));
+      if(isNum(lv)) status = lv >= 0 ? st('投機筋は円の買い越し', '円買い越し')
+                                     : st('投機筋は円の売り越し', '円売り越し');
+      break;
+    }
+  }
+  return {items, status};
+}
+
+/* 凡例1つぶんの見本。線は本物と同じ太さ・破線、棒は小さな四角 */
+function headSample(g, x, mid, it){
+  g.save();
+  if(it.mark === 'bar'){
+    g.fillStyle = it.color; g.globalAlpha = .8;
+    g.fillRect(x + 2, mid - 5, 8, 10);
+  } else {
+    g.strokeStyle = it.color; g.lineWidth = Math.max(1.4, it.w || 2); g.lineCap = 'butt';
+    if(it.dash) g.setLineDash(it.dash);
+    g.beginPath(); g.moveTo(x, mid + .5); g.lineTo(x + 14, mid + .5); g.stroke();
+  }
+  g.restore();
+  return 14;
+}
+
+/* i を渡すとその足の値、省くと表示している右端の足の値で描きます */
+function drawPanelHead(g, p, i){
+  if(!p || !p.headH || !state.raw) return;
+  const nb = state.raw.bars.length;
+  let at = isNum(i) ? i : Math.min(state.i1, nb - 1);
+  /* 右端が雲の先行ぶん(足の無い場所)なら、最後の足の値を出します */
+  if(at > nb - 1) at = nb - 1;
+  const spec = headSpec(p.key, at) || {items: [], status: null};
+  const font = cssVar('--font') || 'system-ui';
+  const y0 = p.headY, H = p.headH, mid = Math.round(y0 + H / 2);
+  /* 低い帯(全画面・横長)では字も一回り小さく */
+  const fT = Math.min(LAY.narrow ? 11 : 12, H - 3), fI = Math.min(LAY.narrow ? 10 : 11, H - 4);
+  const x0 = p.x + 4, xEnd = LAY.w - 4;
+  const tone = HEAD_TONE();
+
+  g.save();
+  /* 帯。十字線の描き直し(paint)では、下に元の帯があるので一度塗りつぶします */
+  g.fillStyle = C.surface; g.fillRect(0, y0, LAY.w, H);
+  g.fillStyle = C.head; g.fillRect(0, y0, LAY.w, H);
+  g.strokeStyle = C.axis; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, y0 + .5); g.lineTo(LAY.w, y0 + .5); g.stroke();
+  g.textBaseline = 'middle'; g.textAlign = 'left';
+
+  /* 幅を測って、入る組み合わせを探します */
+  const wTitle = t => { g.font = `700 ${fT}px ${font}`; return g.measureText(t).width; };
+  const wItem = (it, named) => {
+    g.font = `600 ${fI}px ${font}`;
+    const v = g.measureText(it.val).width;
+    let n = 0;
+    if(named && it.name){ g.font = `${fI}px ${font}`; n = g.measureText(it.name).width + 4; }
+    return 14 + 4 + n + v + 10;
+  };
+  const wStat = (t) => { g.font = `600 ${fI}px ${font}`; return g.measureText(t).width + 12; };
+  const st = spec.status;
+  const plans = [];
+  for(const [title, named, stat] of [
+    [p.title, true, 'text'], [p.short, true, 'text'], [p.short, true, 'short'],
+    [p.short, false, 'text'], [p.short, false, 'short'], [p.short, false, null]])
+    plans.push({title, named, stat});
+  /* 題名のあとの「?」。押すとその指標の読み方が出ます(openPanelHelp) */
+  const QW = 18;
+  let pick = null;
+  for(const pl of plans){
+    const sw = st && pl.stat ? wStat(st[pl.stat]) + 8 : 0;
+    let w = wTitle(pl.title) + 10 + QW;
+    for(const it of spec.items) w += wItem(it, pl.named);
+    if(x0 + w + sw <= xEnd){ pick = Object.assign({n: spec.items.length}, pl); break; }
+  }
+  if(!pick){
+    /* 最後の手段: 凡例を後ろから落とします(値は十字線の吹き出しにもあります) */
+    pick = {title: p.short, named: false, stat: null, n: spec.items.length};
+    while(pick.n > 0){
+      let w = wTitle(pick.title) + 10 + QW;
+      for(let k = 0; k < pick.n; k++) w += wItem(spec.items[k], false);
+      if(x0 + w <= xEnd) break;
+      pick.n--;
+    }
+  }
+
+  let x = x0;
+  g.font = `700 ${fT}px ${font}`;
+  g.fillStyle = C.ink1;
+  g.fillText(pick.title, x, mid);
+  x += wTitle(pick.title) + 5;
+  {
+    const r = Math.max(5, Math.min(6.5, H / 2 - 2));
+    g.strokeStyle = C.ink3; g.lineWidth = 1.2;
+    g.beginPath(); g.arc(x + r, mid, r, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = C.ink3; g.textAlign = 'center';
+    g.font = `700 ${Math.round(r * 1.5)}px ${font}`;
+    g.fillText('?', x + r, mid + .5);
+    g.textAlign = 'left';
+    x += QW + 5;
+  }
+  for(let k = 0; k < pick.n; k++){
+    const it = spec.items[k];
+    x += headSample(g, x, mid, it) + 4;
+    if(pick.named && it.name){
+      g.font = `${fI}px ${font}`; g.fillStyle = C.ink2;
+      g.fillText(it.name, x, mid);
+      x += g.measureText(it.name).width + 4;
+    }
+    g.font = `600 ${fI}px ${font}`; g.fillStyle = it.color;
+    g.fillText(it.val, x, mid);
+    x += g.measureText(it.val).width + 10;
+  }
+  if(st && pick.stat){
+    const t = st[pick.stat], col = tone[st.tone] || C.ink2;
+    g.font = `600 ${fI}px ${font}`;
+    const w = g.measureText(t).width + 12, bh = H - 4;
+    const bx = xEnd - w, by = y0 + 2;
+    g.fillStyle = col; g.globalAlpha = st.tone === 'flat' ? .12 : .18;
+    g.beginPath();
+    if(g.roundRect) g.roundRect(bx, by, w, bh, bh / 2); else g.rect(bx, by, w, bh);
+    g.fill();
+    g.globalAlpha = 1;
+    g.fillStyle = col; g.textAlign = 'center';
+    g.fillText(t, bx + w / 2, mid);
+  }
+  g.restore();
+}
+function drawPanelHeads(g, i){
+  if(!LAY) return;
+  for(const p of LAY.panels) if(p.headH) drawPanelHead(g, p, i);
+}
+
+/* ---- 指標の読み方 ----------------------------------------------------
+   見出しの帯(か、その「?」)を押すと出ます。名前だけ並べても、初めて見る
+   指標は読めません。何を表していて、どこを見て、何に気をつけるか。
+   「買い」「売り」の断定はせず、「〜とされます」と書きます(判定の文言と同じ)。
+   中身は固定の文と数字だけです(銘柄名など外から来た文字は入れません)。 */
+function panelHelpText(key){
+  const P_ = P, T = state.toggles;
+  const sec = s => `<p>${s}</p>`, note = s => `<p class="phnote">${s}</p>`;
+  switch(key){
+    case 'vol': return sec(`その足で売買が成立した株数です。棒の色は、その足が陽線(赤)か陰線(青)か。`
+        + `橙の線は${esc(volAvgName(), 12)}です。`)
+      + sec('平均の2倍以上は、まとまった売買が入った印で、そのときの値動きは信頼度が高いとされます。'
+        + '逆に、出来高を伴わない上昇は続きにくいと読まれます。');
+    case 'rsi': return sec(`直近${P_.rsi}本の値上がり幅と値下がり幅の比率から、買われすぎ・売られすぎを0〜100で表します(白の線)。`)
+      + sec('70以上(赤の帯)は買われすぎ、30以下(青の帯)は売られすぎとされます。'
+        + '強い上昇・下落では帯に張り付いたまま進むことも多く、帯に入ったこと自体は売買の合図ではありません。')
+      + (T.flow ? sec(`青緑の破線は MFI(${P_.mfi})。出来高も加えて計算した RSI です。`) : '')
+      + (T.diverge ? sec('<b>ダイバージェンス</b>(線と札)… 株価は安値を切り下げたのに RSI は切り上げた(強気)、'
+        + 'またはその逆(弱気)の箇所です。勢いが衰えている形とされます。'
+        + '山や谷は両側5本ずつで確かめるので、印が付くのは<b>谷や山から5本たってから</b>です。') : '');
+    case 'flow': return sec(`終値が値幅の上側で引けた足の出来高を「買い」、下側を「売り」として直近${P_.cmf}本ぶん足し、`
+        + '出来高の合計で割った値(CMF)です。+なら買いが優勢、−なら売りが優勢。')
+      + sec('±0.05 を超えると、どちらかにはっきり傾いているとみなします(判定と同じ閾値)。');
+    case 'sizeflow': return sec('売買代金の大きい足を「大口」、小さい足を「小口・中口」とみなし、足ごとの資金の出入りを累計した推定です。'
+        + '白の実線が大口、橙の破線が小口・中口。')
+      + sec('累計の水準は表示の始点で変わるので、<b>線の向き</b>を見ます。大口が上向きで小口が下向きなら、'
+        + 'まとまった資金が買い、小口が売りに回っている形です。')
+      + note('実際の注文の大きさや、投資家の属性は見ていません。');
+    case 'macd': return sec(`短期(${P_.macd[0]})と長期(${P_.macd[1]})の指数平滑移動平均の差が MACD(白の実線)、`
+        + `その${P_.macd[2]}本平均がシグナル(橙の破線)です。`)
+      + sec('MACD がシグナルを上抜けると買い、下抜けると売りの合図とされます。'
+        + '0 の線より上か下かで、大きな流れが上向きか下向きかを見ます。')
+      + sec('棒は MACD − シグナル。0 から<b>離れていく</b>足は濃く、<b>戻ってくる</b>足は薄く塗っています。'
+        + '薄くなり始めたら、クロスより先に勢いの衰えが出ています。');
+    case 'stoch': return sec(`直近${P_.stoch[0]}本の高値と安値の幅のなかで、終値がどの位置にあるかを0〜100で表します。`
+        + '%K(白)が速い線、%D(橙の破線)はそれをならした線です。')
+      + sec('80以上は買われすぎ、20以下は売られすぎとされ、その帯の中での %K と %D の交差が合図に使われます。'
+        + 'RSI より反応が速いぶん、だましも多くなります。');
+    case 'adx': return sec('+DI(赤)は上昇の勢い、−DI(青の破線)は下降の勢い、ADX(白)はその差から求めた'
+        + '<b>トレンドの強さ</b>です(向きは問いません)。')
+      + sec('ADX が25以上ならトレンドあり、25未満はもみ合いとされます。トレンドがあるときは +DI と −DI の大小で向きを見ます。'
+        + 'もみ合いのときは、移動平均のクロスのような順張りの合図が効きにくくなります。');
+    case 'lorentz': return sec(`過去の似た局面(RSI・CCI・ADX などの組み合わせ)を近い順に${LOR.neighbors}件探し、`
+        + `その後${LOR.horizon}本で上がったか下がったかの多数決で向きを予測します(k近傍法)。`)
+      + sec('棒は票の偏り、白の階段はその予測に従ったポジションです。')
+      + note('過去の値動きの統計で、将来を保証するものではありません。学習に使う最初の数百本には予測が出ません。');
+    case 'shortPanel': return shortIsUs()
+      ? sec('FINRA に報告されたその日の出来高のうち、空売りが占める割合です。<b>残高ではありません</b>'
+          + '(米国の空売り残高は月2回の公表で、日々は取れないため)。')
+        + note('マーケットメイカーの売りも含むので、40〜50% はふつうの水準です。急な変化を見ます。')
+      : sec('機関投資家などが報告した空売り残高(発行済株式に対する割合)を、報告者ごとの最新値で合計したものです。')
+        + sec('積み上がっていると、売り圧力の表れであると同時に、買い戻し(踏み上げ)の燃料にもなります。')
+        + note('0.5% 未満になると報告義務が消えるので、そこから下は追えません。');
+    case 'marginPanel': return sec('信用取引で買って、まだ返済していない株数が買残(赤)、売って返済していない株数が売残(青の破線)。'
+        + '買残 ÷ 売残 が信用倍率です。')
+      + sec('買残が多いほど、いずれ返済の売りが出る(戻り売りの圧力)と読まれます。')
+      + (state.ind && state.ind.extLend
+        ? note('下段は日証金を通した分だけの貸借残(日次)です。市場全体の信用残(週次)とは桁が違う別の統計なので、目盛りを分けています。')
+        : '');
+    case 'valuation': return sec('PER = 株価 ÷ 1株利益、PBR = 株価 ÷ 1株純資産。灰色の帯は<b>この銘柄自身の過去</b>の真ん中50%(四分位)です。'
+        + '帯の外は、この銘柄にしては高い / 安い水準です。')
+      + (T.sectorAvg ? sec('破線は東証の業種平均(月末の値)です。') : '')
+      + note('割高・割安は業種や成長で変わるので、この線だけでは決められません。決算の数値は入力されたものを使っています。');
+    case 'rates': return sec('米国と日本の10年国債の利回りと、その差(白)です。塗りの厚みがそのまま金利差です。')
+      + sec('差が広がるとドル買い・円売りが起きやすく(ドル円の上昇要因)、縮むとその逆とされます。');
+    case 'cot': return sec('米国の CFTC が毎週公表する、シカゴの円先物で投機筋(レバレッジド・ファンド)が持っている'
+        + '買いと売りの差(ネット枚数)です。0 より上は円の買い越し、下は売り越し。')
+      + sec('極端に傾いているほど、巻き戻し(反対売買)の燃料が多い状態とされます。')
+      + note('火曜時点の建玉を金曜に公表するので、数日遅れの値です。');
+  }
+  return sec('この指標の説明はまだありません。');
+}
+let helpKey = null, helpFrom = null;
+function openPanelHelp(key){
+  const box = $('#phelp');
+  const p = LAY && LAY.panels.find(q => q.key === key);
+  if(!box || !p || !state.raw) return false;
+  helpKey = key;
+  helpFrom = document.activeElement;
+  $('#phelpTtl').textContent = p.title || key;
+  const sp = headSpec(key, Math.min(state.i1, state.raw.bars.length - 1));
+  $('#phelpNow').textContent = sp && sp.status ? 'いま: ' + sp.status.text : '';
+  $('#phelpBody').innerHTML = panelHelpText(key);
+  box.classList.remove('hide');
+  /* 帯のすぐ下に。<b>画面に見えている範囲</b>に入りきらなければ帯の上、
+     どちらにも入らなければ見えている範囲の上端に寄せます(吹き出しと同じ考え方。
+     キャンバスの高さで決めると、画面の外に出て読めませんでした) */
+  const host = $('#chartHost'), W = host.clientWidth;
+  const bw = box.offsetWidth, bh = box.offsetHeight;
+  /* 説明はチャートの枠の下へはみ出してもかまわない(下のボタンの上に重なるだけ)
+     ので、下端は枠ではなく<b>画面の</b>下端で測ります */
+  const band = visibleBand(host);
+  const visBottom = (window.innerHeight || 800) - host.getBoundingClientRect().top;
+  const below = p.headY + p.headH + 4, above = p.headY - bh - 4;
+  let top;
+  if(below + bh <= visBottom - 4) top = below;
+  else if(above >= band.top + 4) top = above;
+  else top = Math.max(band.top + 4, Math.min(below, visBottom - bh - 4));
+  box.style.top = Math.max(0, top) + 'px';
+  box.style.left = clamp(p.x, 4, Math.max(4, W - bw - 4)) + 'px';
+  hideTip();
+  try { $('#phelpX').focus({preventScroll: true}); } catch(e){}
+  return true;
+}
+function closePanelHelp(){
+  const box = $('#phelp');
+  if(!box || box.classList.contains('hide')) return;
+  box.classList.add('hide');
+  helpKey = null;
+  /* キーボードで開いた人を、開いた場所へ戻します */
+  if(helpFrom && helpFrom !== document.body && document.contains(helpFrom)){
+    try { helpFrom.focus({preventScroll: true}); } catch(e){}
+  }
+  helpFrom = null;
+}
+/* その高さにある見出しの帯 */
+function headAt(y){
+  return LAY ? LAY.panels.find(q => q.headH && y >= q.headY && y < q.headY + q.headH) || null : null;
+}
+
+/* RSI・ストキャスの「買われすぎ / 売られすぎ」の領域。
+   以前は真ん中(30〜70)を灰色で薄く塗っていて、どちらが何の領域かは
+   数字を読まないと分かりませんでした。端を<b>赤(上)と青(下)</b>で塗り、
+   言葉も書きます(線の下に敷くので、線は隠しません)。 */
+function oscZones(g, p, y, lo, hi, top = 100, bot = 0, avoid){
+  const yTop = y(top), yHi = y(hi), yLo = y(lo), yBot = y(bot);
+  g.save();
+  clipPanel(g, p);
+  g.globalAlpha = .10;
+  g.fillStyle = C.up;   g.fillRect(p.x, yTop, p.w, yHi - yTop);
+  g.fillStyle = C.down; g.fillRect(p.x, yLo, p.w, yBot - yLo);
+  g.globalAlpha = .9;
+  const fs = LAY.narrow ? 9 : 10;
+  g.font = `600 ${fs}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  /* avoid … ダイバージェンスの札の場所。そちらのほうが大事なので、重なる言葉は省きます */
+  const clear = (t, yy) => {
+    const b = [p.x + 2, yy - fs / 2 - 1, p.x + 6 + g.measureText(t).width, yy + fs / 2 + 1];
+    return !(avoid || []).some(a => b[0] < a[2] && b[2] > a[0] && b[1] < a[3] && b[3] > a[1]);
+  };
+  const yA = (yTop + yHi) / 2, yB = (yLo + yBot) / 2;
+  if(yHi - yTop >= fs + 1 && clear('買われすぎ', yA)){ g.fillStyle = C.up;   g.fillText('買われすぎ', p.x + 4, yA); }
+  if(yBot - yLo >= fs + 1 && clear('売られすぎ', yB)){ g.fillStyle = C.down; g.fillText('売られすぎ', p.x + 4, yB); }
+  g.restore();
+}
+
 function line(g, p, arr, y, color, width, dash){
   g.save();
   clipPanel(g, p);
@@ -4360,6 +5014,9 @@ function drawMain(g){
   state._mainY = y;
 }
 
+/* 出来高の平均の名前。日足なら「25日平均」、分足は20本、週足は「25週平均」 */
+function volAvgName(){ return `${P.volMa}${P.unit || '本'}平均`; }
+
 function drawVol(g){
   const p = panel('vol'); if(!p) return;
   const d = state.ind, nb = state.raw.bars.length;
@@ -4371,13 +5028,14 @@ function drawVol(g){
   const bw = barW(p), w = Math.max(1, Math.min(bw*0.68, 13));
   for(let i=Math.max(0,state.i0);i<=Math.min(state.i1,nb-1);i++){
     g.fillStyle = d.c[i] >= d.o[i] ? C.up : C.down;
-    g.globalAlpha = .45;
+    g.globalAlpha = .55;
     const h = p.y + p.h - y(d.v[i]);
     g.fillRect(xAt(p,i)-w/2, y(d.v[i]), Math.max(1,w), Math.max(h, .5));
   }
   g.globalAlpha = 1;
-  line(g, p, d.volMa, y, C.ma[1], 1.5);
-  endLabel(g, p, d.volMa, y, C.ma[1], '25日平均');
+  /* 平均は「シグナル・平均=橙」の決まりに揃えます(以前は移動平均と同じ緑) */
+  line(g, p, d.volMa, y, C.sig, 1.6);
+  endLabel(g, p, d.volMa, y, C.sig, volAvgName());
   panelFrame(g, p);
   state._volY = y;
 }
@@ -4385,22 +5043,92 @@ function drawVol(g){
 function drawRSI(g){
   const p = panel('rsi'); if(!p) return;
   const y = makeY(p, 0, 100, 12, 4);
-  g.save(); g.fillStyle = C.band; g.globalAlpha = .07;
-  g.fillRect(p.x, y(70), p.w, y(30)-y(70)); g.restore();
+  resetSlots();
+  const divPlan = state.toggles.diverge ? planDivergence(g, p, y) : null;
+  oscZones(g, p, y, 30, 70, 100, 0, divPlan && divPlan.boxes);
+  /* 低いパネル(スマホ)では 30/50/70 の3つの数字が詰まって重なるので、
+     50 は線だけにします */
+  const roomy = y(30) - y(70) >= 36;
   for(const t of [30, 50, 70]){
     gridline(g, p, y(t));
-    yLabel(g, p, y(t), String(t));
+    if(t !== 50 || roomy) yLabel(g, p, y(t), String(t));
   }
-  line(g, p, state.ind.rsi, y, C.down, 2);
-  endLabel(g, p, state.ind.rsi, y, C.down, 'RSI');
+  /* 青は「下げ」の色なので、RSIそのものには使いません(以前は青でした) */
+  line(g, p, state.ind.rsi, y, C.ink1, 2);
+  endLabel(g, p, state.ind.rsi, y, C.ink1, 'RSI');
   if(state.toggles.flow && state.ind.mfi){
     /* MFI shares the 0–100 scale with RSI, so it belongs on the same axis
        rather than a second one */
-    line(g, p, state.ind.mfi, y, C.ma[1], 1.8, [5,3]);
-    endLabel(g, p, state.ind.mfi, y, C.ma[1], 'MFI');
+    line(g, p, state.ind.mfi, y, C.osc3, 1.8, [5,3]);
+    endLabel(g, p, state.ind.mfi, y, C.osc3, 'MFI');
   }
+  if(divPlan) drawDivergence(g, p, divPlan);
   panelFrame(g, p);
   state._rsiY = y;
+}
+
+/* RSI の谷と谷(山と山)を結ぶ線と、札。強気=赤(上)、弱気=青(下)。
+   札は確定した足ではなく2つ目の谷に付けます(線の終わりなので)。 */
+/* 描く前に、線と札の場所だけ決めます(領域の言葉を札に重ねないため、
+   札の場所を先に知る必要があります) */
+function planDivergence(g, p, y){
+  const dv = state.ind && state.ind.div, r = state.ind && state.ind.rsi;
+  const out = {segs: [], labels: [], boxes: []};
+  if(!dv || !r) return out;
+  const fs = LAY.narrow ? 9 : 10;
+  g.save();
+  g.font = `700 ${fs}px ${cssVar('--font') || 'system-ui'}`;
+  for(const [list, col, up] of [[dv.bull, C.up, true], [dv.bear, C.down, false]]){
+    for(const d of list){
+      if(d.p2 < state.i0 || d.p1 > state.i1) continue;
+      const x1 = xAt(p, d.p1), x2 = xAt(p, d.p2), y1 = y(r[d.p1]), y2 = y(r[d.p2]);
+      out.segs.push({x1, y1, x2, y2, col});
+      const t = up ? '強気ダイバ' : '弱気ダイバ';
+      const ty = clamp(up ? y2 + fs + 2 : y2 - fs - 1, p.y + fs / 2 + 2, p.y + p.h - fs / 2 - 2);
+      const w = g.measureText(t).width + 6;
+      const lx = clamp(x2, p.x + w / 2, p.x + p.w - w / 2);
+      /* 近くに続けて出ると札が重なって読めないので、重なる札は省きます(線は残す) */
+      const box = [lx - w / 2, ty - fs / 2 - 2, lx + w / 2, ty + fs / 2 + 2];
+      if(out.boxes.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+      out.boxes.push(box);
+      out.labels.push({t, x: lx, y: ty, w, col});
+    }
+  }
+  g.restore();
+  out.fs = fs;
+  return out;
+}
+function drawDivergence(g, p, plan){
+  if(!plan || !plan.segs.length) return;
+  const fs = plan.fs;
+  g.save();
+  clipPanel(g, p);
+  for(const sg of plan.segs){
+    g.strokeStyle = sg.col; g.lineWidth = 1.8; g.globalAlpha = .95;
+    g.beginPath(); g.moveTo(sg.x1, sg.y1); g.lineTo(sg.x2, sg.y2); g.stroke();
+    for(const [xx, yy] of [[sg.x1, sg.y1], [sg.x2, sg.y2]]){
+      g.beginPath(); g.arc(xx, yy, 2.4, 0, Math.PI * 2); g.fillStyle = sg.col; g.fill();
+    }
+  }
+  g.font = `700 ${fs}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for(const L of plan.labels){
+    g.globalAlpha = .85; g.fillStyle = C.surface;
+    g.fillRect(L.x - L.w / 2, L.y - fs / 2 - 2, L.w, fs + 4);
+    g.globalAlpha = 1; g.fillStyle = L.col;
+    g.fillText(L.t, L.x, L.y);
+  }
+  g.restore();
+}
+/* i の時点で、直近 within 本以内に確定したダイバージェンス(新しいほう) */
+function recentDivergence(i, within){
+  const dv = state.ind && state.ind.div;
+  if(!dv || !isNum(i)) return null;
+  let best = null;
+  for(const [list, dir] of [[dv.bull, 1], [dv.bear, -1]])
+    for(const d of list)
+      if(d.at <= i && d.at >= i - within && (!best || d.at > best.at)) best = Object.assign({dir}, d);
+  return best;
 }
 
 function drawMACD(g){
@@ -4419,15 +5147,21 @@ function drawMACD(g){
   const bw = barW(p), w = Math.max(1, Math.min(bw*0.6, 10));
   for(let i=Math.max(0,state.i0);i<=state.i1;i++){
     const v = m.hist[i]; if(!isNum(v)) continue;
-    g.fillStyle = v >= 0 ? C.up : C.down; g.globalAlpha = .42;
+    /* 差(ヒストグラム)は4段階。0から<b>離れていく</b>足は濃く、
+       戻ってくる足は薄く塗ります。「勢いが衰えてきた」が、
+       クロスより先に色の濃さで見えます。 */
+    const pv = m.hist[i - 1];
+    const grow = !isNum(pv) || (v >= 0 ? v >= pv : v <= pv);
+    g.fillStyle = v >= 0 ? C.up : C.down; g.globalAlpha = grow ? .62 : .28;
     const y0 = y(0), y1 = y(v);
     g.fillRect(xAt(p,i)-w/2, Math.min(y0,y1), Math.max(1,w), Math.max(Math.abs(y1-y0), .5));
   }
   g.globalAlpha = 1;
-  line(g, p, m.line,   y, C.ma[2], 2);
-  line(g, p, m.signal, y, C.ma[0], 1.6);
-  endLabel(g, p, m.line,   y, C.ma[2], 'MACD');
-  endLabel(g, p, m.signal, y, C.ma[0], 'シグナル');
+  /* MACDとシグナルは緑の濃淡で、色でしか見分けられませんでした */
+  line(g, p, m.line,   y, C.ink1, 2);
+  line(g, p, m.signal, y, C.sig, 1.6, [5,3]);
+  endLabel(g, p, m.line,   y, C.ink1, 'MACD');
+  endLabel(g, p, m.signal, y, C.sig, 'シグナル');
   panelFrame(g, p);
   state._macdY = y;
 }
@@ -4436,13 +5170,16 @@ function drawStoch(g){
   const p = panel('stoch'); if(!p) return;
   const y = makeY(p, 0, 100, 12, 4);
   resetSlots();
-  g.save(); g.fillStyle = C.band; g.globalAlpha = .07;
-  g.fillRect(p.x, y(80), p.w, y(20)-y(80)); g.restore();
-  for(const t of [20, 50, 80]){ gridline(g, p, y(t)); yLabel(g, p, y(t), String(t)); }
-  line(g, p, state.ind.stoch.k, y, C.down, 2);
-  line(g, p, state.ind.stoch.d, y, cssVar('--up'), 1.6, [4,3]);
-  endLabel(g, p, state.ind.stoch.k, y, C.down, '%K');
-  endLabel(g, p, state.ind.stoch.d, y, C.up, '%D');
+  oscZones(g, p, y, 20, 80);
+  const roomy = y(20) - y(80) >= 36;
+  for(const t of [20, 50, 80]){
+    gridline(g, p, y(t));
+    if(t !== 50 || roomy) yLabel(g, p, y(t), String(t));
+  }
+  line(g, p, state.ind.stoch.k, y, C.ink1, 2);
+  line(g, p, state.ind.stoch.d, y, C.sig, 1.6, [5,3]);
+  endLabel(g, p, state.ind.stoch.k, y, C.ink1, '%K');
+  endLabel(g, p, state.ind.stoch.d, y, C.sig, '%D');
   panelFrame(g, p);
   state._stochY = y;
 }
@@ -4456,11 +5193,30 @@ function drawADX(g){
   const y = makeY(p, 0, Math.min(mx*1.05, 100), 12, 2);
   resetSlots();
   for(const t of ticks(0, mx, 3)){ if(t===0) continue; gridline(g, p, y(t)); yLabel(g, p, y(t), String(Math.round(t))); }
-  gridline(g, p, y(25));
+  /* 25 は「トレンドがある / ない」の目安。ほかの目盛りと区別できるよう
+     破線にして、その場に書きます */
+  g.save();
+  g.strokeStyle = C.ink3; g.globalAlpha = .7; g.lineWidth = 1; g.setLineDash([4, 3]);
+  g.beginPath(); g.moveTo(p.x, Math.round(y(25)) + .5); g.lineTo(p.x + p.w, Math.round(y(25)) + .5); g.stroke();
+  g.restore();
+  /* +DI と −DI は赤青に加えて実線/破線でも分けます(色覚によらず読めるように) */
   line(g, p, d.pdi, y, C.up, 1.6);
-  line(g, p, d.ndi, y, C.down, 1.6);
-  line(g, p, d.adx, y, C.ma[1], 2);
-  endLabel(g, p, d.adx, y, C.ma[1], 'ADX');
+  line(g, p, d.ndi, y, C.down, 1.6, [4,3]);
+  line(g, p, d.adx, y, C.ink1, 2.2);
+  /* 字は線のあとに(先に書くと線に消されます) */
+  g.save();
+  g.font = `${LAY.narrow ? 9 : 10}px ${cssVar('--font') || 'system-ui'}`;
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  const t25 = '25以上=トレンドあり', w25 = g.measureText(t25).width + 6, y25 = y(25) - 7;
+  /* 線の上に素で書くと読めないので、下敷きを敷きます */
+  if(y25 - 6 >= p.y){
+    g.fillStyle = C.surface; g.globalAlpha = .8;
+    g.fillRect(p.x + 1, y25 - 6, w25, 12);
+    g.globalAlpha = 1; g.fillStyle = C.ink3;
+    g.fillText(t25, p.x + 4, y25);
+  }
+  g.restore();
+  endLabel(g, p, d.adx, y, C.ink1, 'ADX');
   endLabel(g, p, d.pdi, y, C.up, '+DI');
   endLabel(g, p, d.ndi, y, C.down, '−DI');
   panelFrame(g, p);
@@ -4470,13 +5226,25 @@ function drawADX(g){
 /* Centred, wrapped explanation for a panel that has nothing to plot.
    An empty box reads as a broken feature; the box has to say what it is
    waiting for. */
+/* 幅に入るまで字を小さくし(8pxまで)、それでも入らなければ「…」で切ります。
+   スマホ幅では、空のパネルの説明文が枠の左右からはみ出して読めませんでした */
+function fitFill(g, text, x, y, maxW, size){
+  const font = cssVar('--font') || 'system-ui';
+  let sz = size, t = String(text);
+  g.font = `${sz}px ${font}`;
+  while(sz > 8 && g.measureText(t).width > maxW){ sz -= 0.5; g.font = `${sz}px ${font}`; }
+  if(g.measureText(t).width > maxW){
+    while(t.length > 1 && g.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    t += '…';
+  }
+  g.fillText(t, x, y);
+}
 function panelMessage(g, p, lines){
   g.save();
-  g.fillStyle = C.sub || '#8a94a6';
-  g.font = '12px system-ui, sans-serif';
+  g.fillStyle = C.ink3;
   g.textAlign = 'center'; g.textBaseline = 'middle';
   const lh = 15, top = p.y + p.h/2 - (lines.length-1)*lh/2;
-  lines.forEach((t, i) => g.fillText(t, p.x + p.w/2, top + i*lh));
+  lines.forEach((t, i) => fitFill(g, t, p.x + p.w/2, top + i*lh, p.w - 12, LAY.narrow ? 11 : 12));
   g.restore();
   panelFrame(g, p);
 }
@@ -4518,7 +5286,7 @@ function drawLorentz(g){
   }
   g.globalAlpha = 1;
   /* the held position, as a step line */
-  g.save(); g.lineWidth = 2; g.strokeStyle = C.ma[1];
+  g.save(); g.lineWidth = 2; g.strokeStyle = C.ink1;
   g.beginPath();
   let pen = false;
   for(let i=Math.max(0,state.i0);i<=Math.min(state.i1, state.raw.bars.length-1);i++){
@@ -4527,7 +5295,7 @@ function drawLorentz(g){
     else { g.lineTo(xAt(p,i), Y); }
   }
   g.stroke(); g.restore();
-  endLabel(g, p, lo.sig.map(v => v*0.85), y, C.ma[1], 'ポジション');
+  endLabel(g, p, lo.sig.map(v => v*0.85), y, C.ink1, 'ポジション');
   panelFrame(g, p);
   state._lorY = y;
 }
@@ -4579,11 +5347,12 @@ function drawSizeFlowPanel(g){
     const Y = clamp(y(t), p.y + 7, p.y + p.h - 7);
     if(axisFree(Y, 14)) yLabel(g, p, Y, fmtMoneyAxis(t));
   }
-  /* the two tiers are an ordered pair, so they take one hue at two steps */
-  line(g, p, sf.cumBig,   y, C.ma[2], 2.2);
-  line(g, p, sf.cumSmall, y, C.ma[0], 1.8);
-  endLabel(g, p, sf.cumBig,   y, C.ma[2], '大口以上');
-  endLabel(g, p, sf.cumSmall, y, C.ma[0], '小口・中口');
+  /* 以前は緑の濃淡2本で、色でしか見分けられませんでした。
+     主役(大口)=墨の実線、小口=橙の破線、と下のパネル共通の決まりに揃えます */
+  line(g, p, sf.cumBig,   y, C.ink1, 2.2);
+  line(g, p, sf.cumSmall, y, C.sig, 1.6, [5,3]);
+  endLabel(g, p, sf.cumBig,   y, C.ink1, '大口以上');
+  endLabel(g, p, sf.cumSmall, y, C.sig, '小口・中口');
   panelFrame(g, p);
   state._sizeY = y;
 }
@@ -4664,6 +5433,7 @@ function renderBase(){
   drawShortPanel(bctx); drawMarginPanel(bctx); drawValuation(bctx);
   drawRates(bctx); drawCot(bctx);
   drawFlowPanel(bctx); drawSizeFlowPanel(bctx);
+  drawPanelHeads(bctx);
   drawGrips(bctx);
 }
 
@@ -4764,6 +5534,9 @@ function paint(){
     ctx.beginPath(); ctx.arc(X, Y, 4.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
+  /* 見出しの帯の値を、十字線の足のものに差し替えます。スマホでは吹き出しが
+     チャートを大きく隠すので、帯を見れば足りるようにしておきます */
+  if(i <= nb - 1) drawPanelHeads(ctx, i);
   showTip(i, X, state.hoverY);
 }
 /* ============================================================
@@ -4812,12 +5585,17 @@ function showTip(i, X, Y){
     if(T.vol) R('出来高', fmtVol(d.v[i]));
   }
   const extra = [];
+  /* スマホ幅では、下のパネルの見出しの帯に同じ値が出ている行を省きます。
+     全部出すと吹き出しが16行を超え、読もうとしているチャートを覆って
+     いました。帯は十字線の足に合わせて書き換わるので、値は失われません。
+     帯が出ているかどうか(パネルが出ているか)で決めます。 */
+  const inHead = k => !!(LAY && LAY.narrow && LAY.panels.some(q => q.key === k && q.headH));
   if(T.ma)   P.ma.forEach((n,k)=>{ if(isNum(d.ma[k][i])) extra.push(['MA'+n, fmtNum(d.ma[k][i], cur)]); });
   if(T.bb && isNum(d.bb.pctb[i])) extra.push(['%B', (d.bb.pctb[i]*100).toFixed(0) + '%']);
-  if(T.rsi && isNum(d.rsi[i]))    extra.push(['RSI', d.rsi[i].toFixed(1)]);
-  if(T.macd && isNum(d.macd.hist[i])) extra.push(['MACD差', d.macd.hist[i].toFixed(2)]);
-  if(T.stoch && isNum(d.stoch.k[i])) extra.push(['%K', d.stoch.k[i].toFixed(1)]);
-  if(T.adx && isNum(d.dmi.adx[i]))   extra.push(['ADX', d.dmi.adx[i].toFixed(1)]);
+  if(T.rsi && isNum(d.rsi[i]) && !inHead('rsi')) extra.push(['RSI', d.rsi[i].toFixed(1)]);
+  if(T.macd && isNum(d.macd.hist[i]) && !inHead('macd')) extra.push(['MACD差', d.macd.hist[i].toFixed(2)]);
+  if(T.stoch && isNum(d.stoch.k[i]) && !inHead('stoch')) extra.push(['%K', d.stoch.k[i].toFixed(1)]);
+  if(T.adx && isNum(d.dmi.adx[i]) && !inHead('adx'))     extra.push(['ADX', d.dmi.adx[i].toFixed(1)]);
   if(T.ichimoku && isNum(d.ich.spanA[i]) && isNum(d.ich.spanB[i]))
     extra.push(['雲', fmtNum(Math.min(d.ich.spanA[i], d.ich.spanB[i]), cur) + '〜' + fmtNum(Math.max(d.ich.spanA[i], d.ich.spanB[i]), cur)]);
   if(T.st && isNum(d.st.line[i]))   extra.push(['ST', fmtNum(d.st.line[i], cur) + (d.st.dir[i] > 0 ? ' ▲' : ' ▼')]);
@@ -4825,31 +5603,35 @@ function showTip(i, X, Y){
   if(T.don && isNum(d.don.upper[i])) extra.push(['ドンチャン', fmtNum(d.don.lower[i], cur) + '〜' + fmtNum(d.don.upper[i], cur)]);
   if(T.osgfc && d.osgfc && isNum(d.osgfc.filter[i]))
     extra.push(['OSGFC', fmtNum(d.osgfc.filter[i], cur) + (d.osgfc.dir[i] >= 0 ? ' ▲' : ' ▼')]);
-  if(T.lorentz && d.lorentz && isNum(d.lorentz.pred[i]))
+  if(T.lorentz && d.lorentz && isNum(d.lorentz.pred[i]) && !inHead('lorentz'))
     extra.push(['予測', `${d.lorentz.pred[i] > 0 ? '+' : ''}${d.lorentz.pred[i]} / ${d.lorentz.used[i]}票`]);
   if(T.shortPanel && d.extShort && isNum(d.extShort.ratio[i])){
-    extra.push([d.extShort.us ? '空売り比率' : '空売り残高', d.extShort.ratio[i].toFixed(2) + '%']);
+    if(!inHead('shortPanel'))
+      extra.push([d.extShort.us ? '空売り比率' : '空売り残高', d.extShort.ratio[i].toFixed(2) + '%']);
     const r = d.extShort.rows[i];
     if(r && r.holders && r.holders.length)
       extra.push(['　うち最大', `${esc(r.holders[0].holder || '', 14)} ${(+r.holders[0].ratio || 0).toFixed(2)}%`]);
   }
   if(T.flow){
-    if(isNum(d.cmf[i])) extra.push(['CMF', (d.cmf[i] >= 0 ? '+' : '') + d.cmf[i].toFixed(3)]);
-    if(isNum(d.mfi[i])) extra.push(['MFI', d.mfi[i].toFixed(1)]);
+    if(isNum(d.cmf[i]) && !inHead('flow')) extra.push(['CMF', (d.cmf[i] >= 0 ? '+' : '') + d.cmf[i].toFixed(3)]);
+    /* MFI は RSI のパネルに重ねて描くので、その帯に出ます */
+    if(isNum(d.mfi[i]) && !inHead('rsi')) extra.push(['MFI', d.mfi[i].toFixed(1)]);
   }
   if(T.sizeflow && d.sizeflow && isNum(d.sizeflow.turnover[i])){
     const sf = d.sizeflow;
     extra.push(['売買代金', fmtMoney(sf.turnover[i])]);
     extra.push(['規模', (sf.label[sf.tier[i]] || '—') + '(推定)']);
     extra.push(['この足の資金', fmtMoney(sf.flow[i])]);
-    extra.push(['大口累計', fmtMoney(sf.cumBig[i])]);
-    extra.push(['小口累計', fmtMoney(sf.cumSmall[i])]);
+    if(!inHead('sizeflow')){
+      extra.push(['大口累計', fmtMoney(sf.cumBig[i])]);
+      extra.push(['小口累計', fmtMoney(sf.cumSmall[i])]);
+    }
   }
   if(T.vprofile && state._vp){
     extra.push(['最多価格帯', fmtNum(state._vp.poc, cur)]);
     extra.push(['主戦場', fmtNum(state._vp.vaLow, cur) + '〜' + fmtNum(state._vp.vaHigh, cur)]);
   }
-  if(T.marginPanel && d.extMargin){
+  if(T.marginPanel && d.extMargin && !inHead('marginPanel')){
     const ln = Ext.margin && Ext.margin.kind === 'loan';
     if(isNum(d.extMargin.buy[i]))  extra.push([ln ? '融資残' : '信用買残', fmtVol(d.extMargin.buy[i]) + '株']);
     if(isNum(d.extMargin.sell[i])) extra.push([ln ? '貸株残' : '信用売残', fmtVol(d.extMargin.sell[i]) + '株']);
@@ -4864,8 +5646,10 @@ function showTip(i, X, Y){
      決算より前の区間は当てはめた値なので、そこだけ「参考」と断ります。 */
   if(T.valuation && d.fund){
     const tag = fundIsBackfilled(d.fund, i) ? '(参考)' : '';
-    if(isNum(d.fund.per[i])) extra.push(['PER' + tag, d.fund.per[i].toFixed(1) + '倍']);
-    if(isNum(d.fund.pbr[i])) extra.push(['PBR' + tag, d.fund.pbr[i].toFixed(2) + '倍']);
+    /* 帯に出るのは、パネルに描いている種類だけです(赤字ならPBRだけ等) */
+    const vk = inHead('valuation') ? valuationKinds() : [];
+    if(isNum(d.fund.per[i]) && vk.indexOf('per') < 0) extra.push(['PER' + tag, d.fund.per[i].toFixed(1) + '倍']);
+    if(isNum(d.fund.pbr[i]) && vk.indexOf('pbr') < 0) extra.push(['PBR' + tag, d.fund.pbr[i].toFixed(2) + '倍']);
     if(isNum(d.fund.dy[i]))  extra.push(['配当利回り' + tag, d.fund.dy[i].toFixed(2) + '%']);
   }
 
@@ -4905,12 +5689,21 @@ function showTip(i, X, Y){
 function visibleBand(host){
   const r = host.getBoundingClientRect();
   const vh = window.innerHeight || document.documentElement.clientHeight || 800;
-  /* header is sticky and overlaps the top of the chart */
-  const hd = document.querySelector('header');
-  const hdH = hd && getComputedStyle(hd).position === 'sticky'
-    ? hd.getBoundingClientRect().height : 0;
+  /* 上に貼り付いているもの(ヘッダ・束の帯)の下端まではふさがっています。
+     ヘッダだけを見ていたので、スマホ(ヘッダは流れて束の帯だけが貼り付く)では
+     吹き出しの上2行(日付・始値)が束の帯の裏に隠れていました */
+  let cover = 0;
+  for(const el of [document.querySelector('header'), document.getElementById('secBarHost')]){
+    if(!el) continue;
+    const cs = getComputedStyle(el);
+    if(cs.display === 'none' || (cs.position !== 'sticky' && cs.position !== 'fixed')) continue;
+    /* どちらもチャートより上に置いてあるので、貼り付いていないときは
+       下端がチャートの上端より上にあり、下の max(0, …) で消えます */
+    const b = el.getBoundingClientRect();
+    if(b.height > 0) cover = Math.max(cover, b.bottom);
+  }
   return {
-    top: Math.max(0, hdH - r.top),
+    top: Math.max(0, cover - r.top),
     bottom: Math.min(host.clientHeight, vh - r.top)
   };
 }
@@ -4981,15 +5774,16 @@ function renderLegend(){
   if(T.lorentz) L.push(`<span class="li"><i class="k" style="background:var(--smooth)"></i>カーネル回帰 ・ ▲▼=エントリ(カーネルの向きが一致した転換のみ)</span>`);
   if(T.flow){
     if(hasVals(state.ind && state.ind.mfi)){
-      L.push(`<span class="li"><i class="k" style="background:var(--ma2)"></i>MFI(出来高込みの過熱感)</span>`);
+      /* 凡例の見本も線と同じ形に(v57 で MFI は青緑の破線になりました) */
+      L.push(`<span class="li"><i class="k" style="background:repeating-linear-gradient(90deg,var(--osc3) 0 4px,transparent 4px 7px)"></i>MFI(出来高込みの過熱感)</span>`);
       L.push(`<span class="li"><i class="kb" style="background:linear-gradient(90deg,var(--up),var(--down))"></i>CMF 買い=赤 / 売り=青</span>`);
     } else {
       L.push(`<span class="li" style="color:var(--ink-3)">資金フロー: この銘柄は出来高が配信されないため出せません</span>`);
     }
   }
   if(T.sizeflow){
-    L.push(`<span class="li"><i class="k" style="background:var(--ma3)"></i>大口以上の資金(推定・累計)</span>`);
-    L.push(`<span class="li"><i class="k" style="background:var(--ma1)"></i>小口・中口(推定・累計)</span>`);
+    L.push(`<span class="li"><i class="k" style="background:var(--ink-1)"></i>大口以上の資金(推定・累計)</span>`);
+    L.push(`<span class="li"><i class="k" style="background:repeating-linear-gradient(90deg,var(--sig) 0 4px,transparent 4px 7px)"></i>小口・中口(推定・累計)</span>`);
   }
   if(T.vprofile) L.push(`<span class="li"><i class="kb" style="background:var(--band);opacity:.5"></i>価格帯別出来高 ・ POC=最多価格帯</span>`);
   if(T.shortPanel) L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>`
@@ -4997,7 +5791,7 @@ function renderLegend(){
   if(T.marginPanel){
     const ln = Ext.margin && Ext.margin.kind === 'loan';
     L.push(`<span class="li"><i class="k" style="background:var(--up)"></i>${ln ? '融資残' : '信用買残'}</span>`);
-    L.push(`<span class="li"><i class="k" style="background:var(--down)"></i>${ln ? '貸株残' : '信用売残'}</span>`);
+    L.push(`<span class="li"><i class="k" style="background:repeating-linear-gradient(90deg,var(--down) 0 4px,transparent 4px 7px)"></i>${ln ? '貸株残' : '信用売残'}</span>`);
     if(state.ind && state.ind.extLend) L.push(`<span class="li">下段: 日証金の融資残・貸株残(別の目盛り)</span>`);
   }
   if(T.session && isIntradayIv(state.interval)){
@@ -5123,9 +5917,12 @@ function buildSignals(){
   const [m5, m25, m75] = [d.ma[0][n], d.ma[1][n], d.ma[2][n]];
   const here = isNum(m5) && isNum(m25) && isNum(m75)
     ? (m5 > m25 && m25 > m75 ? 1 : m5 < m25 && m25 < m75 ? -1 : 0) : 0;
+  /* 名前は使っている期間から。分足では MA9/21/60 で計算しているのに、
+     「MA5 > MA25 > MA75」と書いていました */
+  const [nS, nM, nL] = P.ma.map(k => 'MA' + k);
   if(isNum(m5) && isNum(m25) && isNum(m75)){
-    if(m5 > m25 && m25 > m75)      add('トレンド','上昇の並び(パーフェクトオーダー)',`MA5 > MA25 > MA75。短期ほど上に並び、上昇基調が続いている形です。`,'bull', 2);
-    else if(m5 < m25 && m25 < m75) add('トレンド','下降の並び',`MA5 < MA25 < MA75。短期ほど下に並び、下降基調が続いている形です。`,'bear', -2);
+    if(m5 > m25 && m25 > m75)      add('トレンド','上昇の並び(パーフェクトオーダー)',`${nS} > ${nM} > ${nL}。短期ほど上に並び、上昇基調が続いている形です。`,'bull', 2);
+    else if(m5 < m25 && m25 < m75) add('トレンド','下降の並び',`${nS} < ${nM} < ${nL}。短期ほど下に並び、下降基調が続いている形です。`,'bear', -2);
     else                           add('トレンド','方向感が定まらない','移動平均線が絡み合っており、明確なトレンドが出ていません。','flat', 0);
   }
   /* 1b. the timeframe above this one. Placed right after the trend row it
@@ -5164,10 +5961,10 @@ function buildSignals(){
   /* 2. golden / dead cross */
   const gc = crossedAt(d.ma[0], d.ma[1], 12, n);
   if(gc) add('クロス', gc.dir > 0 ? 'ゴールデンクロス' : 'デッドクロス',
-    `${gc.ago === 0 ? '直近の足で' : gc.ago + '本前に'}MA5がMA25を${gc.dir>0?'上抜け':'下抜け'}ました。`,
+    `${gc.ago === 0 ? '直近の足で' : gc.ago + '本前に'}${nS}が${nM}を${gc.dir>0?'上抜け':'下抜け'}ました。`,
     gc.dir > 0 ? 'bull' : 'bear', gc.dir > 0 ? 2 : -2);
   else if(isNum(m5) && isNum(m25))
-    add('クロス', m5 >= m25 ? 'MA5がMA25の上' : 'MA5がMA25の下',
+    add('クロス', m5 >= m25 ? `${nS}が${nM}の上` : `${nS}が${nM}の下`,
       '直近12本でクロスは発生していません。', m5 >= m25 ? 'bull' : 'bear', m5 >= m25 ? 0.5 : -0.5);
 
   /* 3. price vs the middle moving average.
@@ -5180,6 +5977,16 @@ function buildSignals(){
       Math.abs(gap) > 12 ? '乖離が大きく、平均へ戻る動き(リバウンド/調整)が起きやすい水準です。'
                          : `${maName}の近辺で推移しています。`,
       Math.abs(gap) > 12 ? 'warn' : (gap >= 0 ? 'bull' : 'bear'), clamp(gap/10, -1, 1));
+  }
+  /* 4b. ダイバージェンス(直近10本以内に確定したもの) */
+  if(state.toggles.diverge){
+    const dv = recentDivergence(n, 10);
+    if(dv) add('ダイバージェンス',
+      `RSIの${dv.dir > 0 ? '強気' : '弱気'}ダイバージェンス(${n - dv.at === 0 ? '直近の足' : (n - dv.at) + '本前'}に確定)`,
+      dv.dir > 0
+        ? '株価は安値を切り下げましたが、RSIは安値を切り上げています。下げの勢いが弱まっている形とされます。'
+        : '株価は高値を切り上げましたが、RSIは高値を切り下げています。上げの勢いが弱まっている形とされます。',
+      dv.dir > 0 ? 'bull' : 'bear', dv.dir);
   }
   /* 4. RSI */
   const rsi = d.rsi[n];
@@ -5249,7 +6056,7 @@ function buildSignals(){
   const vm = d.volMa[n];
   if(isNum(vm) && vm > 0 && d.v[n] > 0){
     const r = d.v[n] / vm;
-    add('出来高', `25日平均の ${r.toFixed(2)}倍`,
+    add('出来高', `${volAvgName()}の ${r.toFixed(2)}倍`,
       r >= 2 ? '平均の2倍以上。まとまった売買が入っており、値動きの信頼度が上がります。'
       : r >= 1.3 ? '平均より活発です。' : r <= .6 ? '平均を大きく下回り、閑散としています。' : 'ほぼ平常の商いです。',
       r >= 1.3 ? 'info' : 'flat', 0);
@@ -5408,7 +6215,8 @@ function buildSignals(){
   /* volatility + 52-week position */
   const atr = d.atr[n];
   if(isNum(atr)) add('変動率', `ATR ${fmtNum(atr, cur)}(株価の ${(atr/d.c[n]*100).toFixed(1)}%)`,
-    '1日あたりの平均的な値幅です。損切り幅やポジションサイズの目安に使われます。', 'info', 0);
+    (state.interval === '1d' ? '1日' : `足1本(${IV_LABEL[state.interval] || ''})`)
+    + 'あたりの平均的な値幅です。損切り幅やポジションサイズの目安に使われます。', 'info', 0);
   const per = state.interval === '1d' ? 250 : state.interval === '1wk' ? 52 : 12;
   const ex = TA.extent(d.c, per);
   if(isNum(ex.hi) && ex.hi > ex.lo){
@@ -5577,6 +6385,8 @@ function sanitizeOrder(a){
   return out;
 }
 let panelOrder = sanitizeOrder(Store.get('panelOrder', []));
+subOneOn = !!Store.get('subOne', false);
+subOnePick = cleanText(Store.get('subPick', ''), 20);
 
 const VIEW_TOGGLE_KEYS = Object.keys(state.toggles);
 
@@ -7895,10 +8705,113 @@ function revealCard(id, quiet){
    ふだんは「いま出しているもの」だけ。押すと種類ごとに開きます。 */
 const CHIP_GROUPS = [
   {label:'トレンド',       keys:['ma','bb','ichimoku','st','vwap','don','mtf','osgfc','lorentz','fib']},
-  {label:'オシレーター',    keys:['rsi','macd','stoch','adx']},
+  {label:'オシレーター',    keys:['rsi','diverge','macd','stoch','adx']},
   {label:'需給',          keys:['vol','shortPanel','marginPanel','flow','sizeflow','vprofile','cot']},
   {label:'ファンダ・マクロ', keys:['valuation','sectorAvg','rates','cbank','pivot','session','events','kenri']}
 ];
+/* ---- 指標のセット ----------------------------------------------------
+   「短期売買ならこれ」「需給を見るならこれ」という組み合わせを1回で入れ替えます。
+   入れ替えるのは<b>指標のオンオフだけ</b>です(足種・期間・高さ・並びは
+   銘柄ごとの「見かた」の役目なので触りません)。分割・配当の印は
+   どのセットでも見たいものなので、いまの状態のまま残します。 */
+const SET_KEEP = ['events'];
+const setKeys = () => CHIP_GROUPS.flatMap(g => g.keys).filter(k => SET_KEEP.indexOf(k) < 0);
+const BUILTIN_SETS = [
+  {id: 'simple', name: 'シンプル',     keys: ['ma', 'vol']},
+  {id: 'swing',  name: '短期売買',     keys: ['ma', 'bb', 'vol', 'rsi', 'diverge', 'macd', 'stoch']},
+  {id: 'trend',  name: 'トレンド',     keys: ['ma', 'ichimoku', 'mtf', 'vol', 'macd', 'adx']},
+  {id: 'supply', name: '需給(日本株)', keys: ['ma', 'vol', 'flow', 'sizeflow', 'vprofile', 'shortPanel', 'marginPanel']},
+  {id: 'macro',  name: '為替・マクロ', keys: ['ma', 'bb', 'rsi', 'diverge', 'rates', 'cot', 'cbank', 'pivot', 'session']}
+];
+const SET_MAX = 12;
+function sanitizeSets(a){
+  const ok = new Set(setKeys()), seen = new Set(), out = [];
+  for(const x of Array.isArray(a) ? a.slice(0, SET_MAX * 2) : []){
+    const name = cleanText(x && x.name, 20);
+    if(!name || seen.has(name) || RESERVED_KEY.test(name)) continue;
+    const keys = Array.isArray(x.keys) ? [...new Set(x.keys.filter(k => typeof k === 'string' && ok.has(k)))] : [];
+    seen.add(name);
+    out.push({name, keys});
+    if(out.length >= SET_MAX) break;
+  }
+  return out;
+}
+let userSets = sanitizeSets(Store.get('toggleSets', []));
+let setMsg = '';
+/* 重い指標(と、それを抱えたままの上位足)は計算し直しが要ります。
+   チップを押したときと同じく、待っている表示を出してから計算します。 */
+function applyToggleSet(keys){
+  const want = new Set(keys), changed = [];
+  for(const k of setKeys()){
+    if(!owns(state.toggles, k)) continue;
+    const v = want.has(k);
+    if(state.toggles[k] !== v){ state.toggles[k] = v; changed.push(k); }
+  }
+  /* 業種平均は、重ねる先(PER/PBRのパネル)が無いと出せません */
+  if(state.toggles.sectorAvg && !state.toggles.valuation){ state.toggles.valuation = true; changed.push('valuation'); }
+  syncToggleChips();
+  const finish = () => {
+    if(changed.indexOf('ichimoku') >= 0 && state.toggles.ichimoku && state.raw
+       && state.i1 >= state.raw.bars.length - 1) visibleDefault();
+    renderFundCard(); renderRateCard(); renderKenri(); renderSectorCard();
+    redraw(); renderSignals();
+  };
+  if(!state.raw){ return changed.length; }
+  const heavy = changed.some(k => ['osgfc', 'lorentz', 'sizeflow', 'mtf'].indexOf(k) >= 0);
+  if(!heavy){ finish(); return changed.length; }
+  setBusy(true);
+  setTimeout(() => {
+    try { state.ind = recompute(); finish(); }
+    catch(err){
+      notice(`セットの計算でエラーが起きました(${esc(String((err && err.message) || err), 60)})。`, true);
+    } finally { setBusy(false); }
+  }, 16);
+  return changed.length;
+}
+function saveToggleSet(name){
+  const nm = cleanText(name, 20);
+  if(!nm) return 'セットの名前を入れてください。';
+  if(RESERVED_KEY.test(nm)) return 'その名前は使えません。';
+  if(BUILTIN_SETS.some(b => b.name === nm)) return 'はじめから入っているセットと同じ名前は使えません。';
+  const keys = setKeys().filter(k => state.toggles[k]);
+  const i = userSets.findIndex(x => x.name === nm);
+  if(i < 0 && userSets.length >= SET_MAX) return `保存できるのは${SET_MAX}個までです。使わないものを×で消してください。`;
+  if(i >= 0) userSets[i] = {name: nm, keys}; else userSets.push({name: nm, keys});
+  userSets = sanitizeSets(userSets);
+  Store.set('toggleSets', userSets);
+  return '';
+}
+function renderSetBox(){
+  const box = $('#setBox');
+  if(!box) return;
+  const btn = (attr, name, extra) =>
+    `<button class="chip" ${attr}>${esc(name, 20)}${extra || ''}</button>`;
+  /* いまのオンオフと同じセットには印を付けます(どれを当てているか分かるように) */
+  const now = setKeys().filter(k => state.toggles[k]).sort().join(',');
+  const same = keys => keys.slice().sort().join(',') === now;
+  box.innerHTML = '<div class="chiphead">はじめから入っているセット</div><div class="chipline">'
+    + BUILTIN_SETS.map(b => btn(`data-set="b:${b.id}" aria-pressed="${same(b.keys)}"`
+        + ` title="${esc(b.keys.map(k => PANEL_NAME[k] || chipLabel(k)).join('・'), 200)}"`, b.name)).join('')
+    + '</div><div class="chiphead">保存したセット(この端末)</div><div class="chipline">'
+    + (userSets.length
+        ? userSets.map((u, i) => btn(`data-set="u:${i}" aria-pressed="${same(u.keys)}"`, u.name)
+            + `<button class="chip" data-setdel="${i}" aria-label="${esc(u.name, 20)}を消す"`
+            + ` title="${esc(u.name, 20)}を消す" style="padding:2px 9px">×</button>`).join('')
+        : '<span class="qsrc">まだありません。下で、いまの組み合わせに名前を付けて保存できます。</span>')
+    + '</div><div class="setsave">'
+    + '<label class="sr" for="setName">セットの名前</label>'
+    + '<input type="text" id="setName" maxlength="20" placeholder="名前(例: ドル円の朝)" spellcheck="false">'
+    + '<button class="chip" id="setSave">いまの組み合わせを保存</button></div>'
+    + `<div class="setmsg" role="status">${esc(setMsg, 120)}</div>`
+    + '<p class="qsrc" style="margin:6px 0 0;line-height:1.7">セットが入れ替えるのは指標のオンオフだけです'
+    + '(足種・期間・パネルの高さはそのまま)。分割・配当の印はいまの状態のまま残します。</p>';
+}
+/* チップの表示名(色見本を除いた文字) */
+function chipLabel(k){
+  const b = document.querySelector(`.chip[data-t="${k}"]`);
+  return b ? b.textContent.trim() : k;
+}
+
 function buildChipGroups(){
   const first = document.querySelector('.chip[data-t]');
   if(!first) return;
@@ -7920,6 +8833,15 @@ function buildChipGroups(){
   more.style.borderStyle = 'dashed';
   more.setAttribute('aria-expanded', 'false');
   row.insertBefore(more, first);
+
+  const setMore = document.createElement('button');
+  setMore.id = 'setMore';
+  setMore.className = 'chip';
+  setMore.style.borderStyle = 'dashed';
+  setMore.textContent = 'セット';
+  setMore.setAttribute('aria-expanded', 'false');
+  setMore.setAttribute('aria-controls', 'setBox');
+  row.insertBefore(setMore, first);
 
   const wrap = document.createElement('div');
   wrap.id = 'chipAll';
@@ -7950,6 +8872,45 @@ function buildChipGroups(){
      開いたパネルが画面の右外に出ます。 */
   (row.parentElement || row).insertBefore(wrap, row.nextSibling);
   more.setAttribute('aria-controls', 'chipAll');
+
+  const setBox = document.createElement('div');
+  setBox.id = 'setBox';
+  setBox.className = 'chipall setbox hide';
+  (row.parentElement || row).insertBefore(setBox, wrap.nextSibling);
+  setMore.addEventListener('click', () => {
+    const open = !setBox.classList.toggle('hide');
+    setMore.setAttribute('aria-expanded', String(open));
+    setMsg = '';
+    if(open) renderSetBox();
+  });
+  setBox.addEventListener('click', e => {
+    const del = e.target.closest('[data-setdel]');
+    if(del){
+      const u = userSets[+del.dataset.setdel];
+      if(u){ userSets.splice(+del.dataset.setdel, 1); Store.set('toggleSets', userSets);
+             setMsg = `「${u.name}」を消しました。`; }
+      renderSetBox();
+      return;
+    }
+    const b = e.target.closest('[data-set]');
+    if(b){
+      const [kind, id] = b.dataset.set.split(':');
+      const set = kind === 'b' ? BUILTIN_SETS.find(x => x.id === id) : userSets[+id];
+      if(!set) return;
+      const n = applyToggleSet(set.keys);
+      setMsg = n ? `「${set.name}」にしました。` : `すでに「${set.name}」の組み合わせです。`;
+      renderSetBox();
+      return;
+    }
+    if(e.target.closest('#setSave')){
+      const err = saveToggleSet($('#setName').value);
+      setMsg = err || `「${cleanText($('#setName').value, 20)}」として保存しました。`;
+      renderSetBox();
+    }
+  });
+  setBox.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && e.target.id === 'setName'){ e.preventDefault(); $('#setSave').click(); }
+  });
 
   more.addEventListener('click', () => {
     const open = !wrap.classList.toggle('hide');
@@ -7990,6 +8951,9 @@ function renderChipSummary(){
   const wrap = $('#chipAll'), more = $('#chipMore'), sum = $('#chipNow');
   if(!wrap || !more || !sum) return;
   const open = !wrap.classList.contains('hide');
+  /* セットの箱を開いていれば、どのセットと同じかの印を付け直します */
+  const sb = $('#setBox');
+  if(sb && !sb.classList.contains('hide')) renderSetBox();
   more.textContent = open ? '指標をとじる' : '指標をえらぶ';
   sum.classList.toggle('hide', open);
   if(open) return;
@@ -8034,7 +8998,28 @@ function orderSubs(subs){
     .map(x => x.s);
 }
 function visiblePanelKeys(){
+  /* 1枚ずつ表示のときも、出している全部(並び替えは全部に対してするもの) */
+  if(LAY && LAY.allSubs) return LAY.allSubs.map(sp => sp.key);
   return (LAY && LAY.panels ? LAY.panels : []).map(p => p.key).filter(k => k !== 'main');
+}
+/* 1枚ずつ表示のタブ。狭い画面で下のパネルが2枚以上あるときだけ出します */
+function renderSubTabs(){
+  const box = $('#subTabs');
+  if(!box || !LAY) return;
+  const all = LAY.allSubs || [];
+  if(!LAY.oneApplies || all.length < 2){ box.classList.add('hide'); box.innerHTML = ''; return; }
+  box.classList.remove('hide');
+  if(!LAY.oneMode){
+    box.innerHTML = '<button class="chip submode" data-subone="1">下のパネルを1枚ずつ表示</button>';
+    return;
+  }
+  const cur = (LAY.panels[1] || {}).key;
+  box.innerHTML = all.map(sp =>
+      `<button class="chip" data-subpick="${esc(sp.key, 20)}" aria-pressed="${sp.key === cur}">${esc(sp.short, 16)}</button>`).join('')
+    + '<button class="chip submode" data-subone="0">すべて表示</button>';
+  /* 選んだタブが見えるところまで横に流します */
+  const on = box.querySelector('[aria-pressed="true"]');
+  if(on && on.scrollIntoView) try { on.scrollIntoView({block: 'nearest', inline: 'nearest'}); } catch(e){}
 }
 /* 隣の<b>見えているパネル</b>と入れ替えます。あいだに隠れたパネルが
    あっても、そちらは動かしません(押した結果が画面と食い違わないように)。 */
@@ -8072,6 +9057,7 @@ function renderPanelOrder(){
     `<li><span class="pnum">${i + 1}</span>`
     + `<span class="pname">${esc(PANEL_NAME[k] || k, 24)}</span>`
     + `<span class="pobtns">`
+    + `<button class="chip pobtn" data-help="${esc(k,20)}" aria-label="${esc(PANEL_NAME[k]||k,24)}の読み方">?</button>`
     + `<button class="chip pobtn" data-move="up" data-k="${esc(k,20)}"`
     + `${i === 0 ? ' disabled' : ''} aria-label="${esc(PANEL_NAME[k]||k,24)}を上へ">▲</button>`
     + `<button class="chip pobtn" data-move="down" data-k="${esc(k,20)}"`
@@ -12436,9 +13422,8 @@ function drawShortPanel(g){
     g.textAlign = 'left'; g.textBaseline = 'middle';
     const name = e.us ? '空売り比率' : '空売り残高';
     const has = e.ratio.some(v => isNum(v) && v > 0);
-    g.fillText(has ? `この期間には${name}のデータがありません(あるのは直近だけです)`
-                   : `この期間に報告された${name}はありません`,
-               p.x + 6, p.y + p.h / 2);
+    fitFill(g, has ? `この期間には${name}のデータがありません(あるのは直近だけです)`
+                   : `この期間に報告された${name}はありません`, p.x + 6, p.y + p.h / 2, p.w - 12, LAY.narrow?10:11);
     state._shortY = null;
     return;
   }
@@ -12483,7 +13468,9 @@ function drawMarginPanel(g){
   if(L && p.h >= 64){
     const hTop = Math.round(p.h * 0.55);
     const top = Object.assign({}, p, {h: hTop});
-    const bot = Object.assign({}, p, {y: p.y + hTop, h: p.h - hTop, title: '貸借残(日証金・日次)'});
+    /* 下段は帯を持たない区画なので、題名は枠の中に書きます(headH: 0) */
+    const bot = Object.assign({}, p, {y: p.y + hTop, h: p.h - hTop, title: '貸借残(日証金・日次)',
+                                      headH: 0});
     drawMarginPair(g, top, e, false, Ext.margin && Ext.margin.points);
     state._marginY = state._pairY;
     drawMarginPair(g, bot, L, true, Ext.lend && Ext.lend.points);
@@ -12511,9 +13498,8 @@ function drawMarginPair(g, p, e, ln, held){
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
     const has = held && held.length;
-    g.fillText(has ? 'この期間には' + (ln ? '貸借残' : '信用残') + 'のデータがありません(あるのは直近だけです)'
-                   : (ln ? '貸借残' : '信用残') + 'のデータがまだありません',
-               p.x + 6, p.y + p.h / 2 + 6);
+    fitFill(g, has ? 'この期間には' + (ln ? '貸借残' : '信用残') + 'のデータがありません(あるのは直近だけです)'
+                   : (ln ? '貸借残' : '信用残') + 'のデータがまだありません', p.x + 6, p.y + p.h / 2 + 6, p.w - 12, LAY.narrow?10:11);
     state._pairY = null;
     return;
   }
@@ -12524,7 +13510,7 @@ function drawMarginPair(g, p, e, ln, held){
   gridline(g, p, y(mx)); yLabel(g, p, y(mx), fmtVol(mx) + '株');
   /* both series are share counts, so one axis is honest here */
   line(g, p, e.buy,  y, C.up, 2);
-  line(g, p, e.sell, y, C.down, 2);
+  line(g, p, e.sell, y, C.down, 2, [5,3]);    /* 赤青に加えて実線/破線でも */
   endLabel(g, p, e.buy,  y, C.up,   ln ? '融資残' : '信用買残');
   endLabel(g, p, e.sell, y, C.down, ln ? '貸株残' : '信用売残');
   panelFrame(g, p);
@@ -12566,8 +13552,7 @@ function drawRates(g){
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
     /* ここはキャンバスなので押せません。行き先だけはっきり書きます。 */
-    g.fillText('この期間の金利がありません。「吸い出し」→「金利」で取得してください',
-               p.x + 6, p.y + p.h / 2);
+    fitFill(g, 'この期間の金利がありません。「吸い出し」→「金利」で取得してください', p.x + 6, p.y + p.h / 2, p.w - 12, LAY.narrow?10:11);
     return;
   }
   const pad = Math.max((mx - mn) * 0.12, 0.05);
@@ -12631,7 +13616,7 @@ function drawCot(g){
     g.fillStyle = C.ink3;
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
-    g.fillText('この期間の建玉がありません', p.x + 6, p.y + p.h / 2);
+    fitFill(g, 'この期間の建玉がありません', p.x + 6, p.y + p.h / 2, p.w - 12, LAY.narrow?10:11);
     return;
   }
   /* ゼロを必ず入れます。「買い越しか売り越しか」がこの図の全部なので、
@@ -12709,9 +13694,8 @@ function drawValuation(g){
     g.fillStyle = C.ink3;
     g.font = `${LAY.narrow?10:11}px ${cssVar('--font') || 'system-ui'}`;
     g.textAlign = 'left'; g.textBaseline = 'middle';
-    g.fillText(kinds[0] === 'per' ? 'この期間は赤字のためPERがありません'
-                                  : 'この期間は計算できる値がありません',
-               p.x + 6, p.y + p.h / 2);
+    fitFill(g, kinds[0] === 'per' ? 'この期間は赤字のためPERがありません'
+                                  : 'この期間は計算できる値がありません', p.x + 6, p.y + p.h / 2, p.w - 12, LAY.narrow?10:11);
     return;
   }
   resetSlots();
@@ -12806,8 +13790,9 @@ function drawValuation(g){
     g.textAlign = 'left'; g.textBaseline = 'middle';
     for(const t of tk){
       const Y = yPbr(t);
-      /* 題名(左上)の下から。重ねると両方読めなくなります */
-      if(!isNum(Y) || Y < p.y + 18 || Y > p.y + p.h - 4) continue;
+      /* 題名(左上)の下から。重ねると両方読めなくなります。
+         題名を見出しの帯へ出したパネルでは、枠の上端から使えます */
+      if(!isNum(Y) || Y < p.y + (p.headH ? 6 : 18) || Y > p.y + p.h - 4) continue;
       const txt = fmtTick(t, step, '倍');
       const w = g.measureText(txt).width + 6;
       /* 線の上に素で書くと読めないので、下敷きを敷きます */
@@ -15535,6 +16520,9 @@ const RULES = [
     edges(d, i => isNum(d.rsi[i]) && d.rsi[i] <= 30, i => isNum(d.rsi[i]))},
   {k: 'rsiHi', t: 'RSIが70を超える', dir: -1, fn: d =>
     edges(d, i => isNum(d.rsi[i]) && d.rsi[i] >= 70, i => isNum(d.rsi[i]))},
+  /* 確定した足(谷 + 5本)で数えます。谷の足で数えると後出しになります */
+  {k: 'divUp', t: 'RSIの強気ダイバージェンス', dir: 1, fn: d => d.div ? d.div.bull.map(x => x.at) : []},
+  {k: 'divDn', t: 'RSIの弱気ダイバージェンス', dir: -1, fn: d => d.div ? d.div.bear.map(x => x.at) : []},
   {k: 'macdUp', t: 'MACDがシグナルを上抜け', dir: 1, fn: d =>
     edges(d, i => cmpOk(d.macd.line[i], d.macd.signal[i]) && d.macd.line[i] > d.macd.signal[i],
           i => cmpOk(d.macd.line[i], d.macd.signal[i]))},
@@ -15934,58 +16922,134 @@ function kessanUrl(href){
 
 /* The filenames carry a publication date and change, so the links are read
    off the page rather than guessed. */
-async function findKessanFiles(){
-  const html = await relayFetch(JPX_KESSAN_INDEX, {text: true, timeout: 12000});
-  const seen = new Set(), out = [];
-  for(const m of html.matchAll(/href="([^"]*kessan[^"]*\.xlsx?)"/gi)){
-    const h = kessanUrl(m[1]);
+/* ページの中の Excel へのリンク。
+
+   JPX は<b>決算期末の月ごと</b>にファイルを分けて載せています(8月期・9月期…)。
+   以前は「kessan を含む .xlsx」を先頭から4件だけ取りにいっていたので、
+   ページの並び次第で、いま必要な月のファイルを取り逃していました
+   (イオンのような2月期決算の会社の中間決算は「8月期」のファイルにあります)。
+   このページの Excel はどれも予定表なので、名前は問わず全部拾います
+   (kessan を含むものを先に)。引用符は ' でも " でも。 */
+const KESSAN_MAX_FILES = 12;
+function kessanLinks(html){
+  const seen = new Set(), hit = [], rest = [];
+  for(const m of String(html || '').matchAll(/href\s*=\s*["']([^"'#?]+\.xlsx?)(?:[?#][^"']*)?["']/gi)){
+    const h = kessanUrl(m[1].replace(/&amp;/g, '&'));
     if(!h || seen.has(h)) continue;
     seen.add(h);
-    out.push(h);
+    (/kessan/i.test(h) ? hit : rest).push(h);
   }
-  if(!out.length) throw new Error('JPXのページに決算発表予定のファイルが見つかりません');
   /* the plain kessan.xlsx first: it is the stable, largest one */
-  out.sort((a, b) => (/kessan\.xlsx$/.test(b) ? 1 : 0) - (/kessan\.xlsx$/.test(a) ? 1 : 0));
-  return out.slice(0, 4);
+  hit.sort((a, b) => (/kessan\.xlsx$/i.test(b) ? 1 : 0) - (/kessan\.xlsx$/i.test(a) ? 1 : 0));
+  return hit.concat(rest).slice(0, KESSAN_MAX_FILES);
+}
+async function findKessanFiles(){
+  let html;
+  try { html = await relayFetch(JPX_KESSAN_INDEX, {text: true, timeout: 12000}); }
+  catch(e){ throw new Error('JPXの決算発表予定のページを開けませんでした(中継サーバーが混んでいるか、JPXに断られています)。'); }
+  const out = kessanLinks(html);
+  if(!out.length) throw new Error('JPXのページは開けましたが、予定表のExcelへのリンクが見つかりませんでした(ページの作りが変わった可能性)。');
+  return out;
 }
 
-/* Header cells are merged and contain newlines, and there are title rows
-   above the header, so the header row is located by content. */
-function parseKessanSheet(XLSX, buf){
-  /* 日付のセルは yyyy/mm/dd で文字にします。指定しないと、Excel の組み込み
-     日付書式は SheetJS の既定で "10/30/26" になり、年が2桁のまま渡ります。 */
-  const wb = XLSX.read(new Uint8Array(buf), {type: 'array', cellDates: true, dateNF: 'yyyy/mm/dd'});
-  const map = new Map();
-  for(const name of wb.SheetNames.slice(0, 6)){
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: false, defval: ''});
+/* ---- 予定表の1行を読むための部品(Excel を介さないので、表のままテストできます) ---- */
+const KESSAN_FW = s => String(s == null ? '' : s)
+  .replace(/[０-９Ａ-Ｚａ-ｚ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+  /* 長音の「ー」は変えません(「コード」が「コ-ド」になります)。全角のハイフンとマイナスだけ */
+  .replace(/[／]/g, '/').replace(/[－−]/g, '-');
+/* 銘柄コード。5桁(末尾0)で載せる表もあるので、4桁に直します(82670 → 8267、285A0 → 285A) */
+function kessanCode(v){
+  let c = KESSAN_FW(v).toUpperCase().replace(/[^0-9A-Z]/g, '');
+  if(/^(\d{4}|\d{3}[A-Z])0$/.test(c)) c = c.slice(0, 4);
+  return isJpCode(c) ? c : null;
+}
+/* 日付。セルの<b>中身</b>から読みます。
+
+   以前は Excel の「見た目」の文字(書式を当てた結果)を読んでいたので、
+   日付の書式が「10月30日」のように年を出さないものだと、1行も読めずに
+   「見出しを読み取れませんでした」になっていました。数値ならシリアル値として
+   そのまま日付にし、文字なら和暦・全角・年なしも読みます。 */
+function kessanDate(v, date1904, today){
+  if(v instanceof Date && !isNaN(v)) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  if(typeof v === 'number'){
+    if(!(v > 20000 && v < 80000)) return null;          /* 1954〜2119年の範囲だけ */
+    const t = new Date(Date.UTC(1899, 11, 30) + Math.round((v + (date1904 ? 1462 : 0)) * 86400000));
+    return new Date(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
+  }
+  const sx = KESSAN_FW(v).trim().replace(/[(（][^)）]*[)）]/g, '');
+  if(!sx || /未定|調整中|-$/.test(sx)) return null;
+  let m = sx.match(/^(?:令和|R)\s*(元|\d{1,2})\s*[年.\/]\s*(\d{1,2})\s*[月.\/]\s*(\d{1,2})/);
+  if(m) return new Date(2018 + (m[1] === '元' ? 1 : +m[1]), +m[2] - 1, +m[3]);
+  if(/^\d{4}/.test(sx)){ const d = parseJPDate(sx); return d && !isNaN(d) ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null; }
+  /* 年が書いていない(10/30、10月30日)。いちばん近い年を当てます(前後6か月) */
+  m = sx.match(/^(\d{1,2})\s*[\/月]\s*(\d{1,2})/);
+  if(m){
+    const now = today || new Date();
+    let best = null;
+    for(const y of [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]){
+      const d = new Date(y, +m[1] - 1, +m[2]);
+      if(d.getMonth() !== +m[1] - 1) continue;
+      if(!best || Math.abs(d - now) < Math.abs(best - now)) best = d;
+    }
+    return best;
+  }
+  return null;
+}
+/* 表(シートごとの行の配列)から {コード → [{d, kind, name}]} を作ります。
+
+   見出しは「コード」「証券コード」「銘柄コード」、日付は「決算発表予定日」
+   「発表予定日」などを、上から30行まで探します。種別(本決算・第2四半期…)は
+   「種別」を優先します。以前は「種別|決算期|四半期」の最初に当たった列を
+   使っていたので、「決算期末」の列が左にあると「2027/2」を種別として出していました。 */
+function parseKessanRows(sheets, opts){
+  const o = opts || {}, map = new Map();
+  let rowsRead = 0;
+  for(const rows of sheets || []){
+    if(!Array.isArray(rows)) continue;
     let head = -1, iCode = -1, iName = -1, iDate = -1, iKind = -1;
-    for(let r = 0; r < Math.min(rows.length, 12); r++){
-      const cells = (rows[r] || []).map(c => String(c).replace(/\s+/g, ''));
+    for(let r = 0; r < Math.min(rows.length, 30); r++){
+      const cells = (rows[r] || []).map(c => KESSAN_FW(c).replace(/\s+/g, ''));
       const find = re => cells.findIndex(c => re.test(c));
-      const c = find(/^コード|銘柄コード/), d = find(/決算発表予定日|発表予定日|予定日/);
-      if(c >= 0 && d >= 0){
+      const c = cells.findIndex(x => /^(銘柄|証券)?コード/.test(x) && !/業種|市場/.test(x));
+      const d = find(/決算発表予定日|発表予定日|予定日|発表日/);
+      if(c >= 0 && d >= 0 && c !== d){
         head = r; iCode = c; iDate = d;
-        iName = find(/会社名|銘柄名/);
-        iKind = find(/種別|決算期|四半期/);
+        iName = cells.findIndex(x => /会社名|銘柄名/.test(x) && !/英文|English/i.test(x));
+        iKind = find(/種別/);
+        if(iKind < 0) iKind = cells.findIndex(x => /四半期|決算区分/.test(x));
         break;
       }
     }
     if(head < 0) continue;
     for(let r = head + 1; r < rows.length; r++){
       const row = rows[r] || [];
-      const code = String(row[iCode] || '').replace(/[^0-9A-Za-z]/g, '');
-      if(!isJpCode(code)) continue;
-      const d = parseJPDate(row[iDate]);
+      const code = kessanCode(row[iCode]);
+      if(!code) continue;
+      const d = kessanDate(row[iDate], o.date1904, o.today);
       if(!d) continue;
-      const rec = {d: dkey(d), kind: cleanText(row[iKind], 20),
+      rowsRead++;
+      const rec = {d: dkey(d), kind: cleanText(iKind >= 0 ? row[iKind] : '', 20),
                    name: cleanText(iName >= 0 ? row[iName] : '', 40)};
       const arr = map.get(code) || [];
       if(!arr.some(x => x.d === rec.d)) arr.push(rec);
       map.set(code, arr);
     }
   }
-  if(!map.size) throw new Error('決算発表予定の見出しを読み取れませんでした(様式変更の可能性)');
-  return map;
+  return {map, rows: rowsRead};
+}
+
+/* Header cells are merged and contain newlines, and there are title rows
+   above the header, so the header row is located by content. */
+function parseKessanSheet(XLSX, buf){
+  /* セルの<b>中身</b>(日付はシリアル値)を読みます(kessanDate)。書式を当てた文字だと、
+     年を出さない書式の日付が読めませんでした。 */
+  const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
+  const date1904 = !!(wb.Workbook && wb.Workbook.WBProps && wb.Workbook.WBProps.date1904);
+  const sheets = wb.SheetNames.slice(0, 6).map(name =>
+    XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: true, defval: ''}));
+  const r = parseKessanRows(sheets, {date1904});
+  if(!r.map.size) throw new Error('見出しを読み取れませんでした');
+  return r.map;
 }
 
 async function fetchKessan(){
@@ -15994,22 +17058,35 @@ async function fetchKessan(){
   freezeProto();
   const urls = await findKessanFiles();
   const merged = new Map();
-  let ok = 0, lastErr = null;
-  for(const url of urls){
-    try{
-      const buf = await relayFetchBinary(url, 20000);
-      const m = parseKessanSheet(XLSX, buf);
-      for(const [code, list] of m){
-        const arr = merged.get(code) || [];
-        for(const rec of list) if(!arr.some(x => x.d === rec.d)) arr.push(rec);
-        merged.set(code, arr);
-      }
-      ok++;
-    }catch(e){ lastErr = e; }
+  const st = {links: urls.length, fetched: 0, parsed: 0};
+  /* 3本ずつ並べて取ります(12件を1本ずつだと、混んでいる日は数分かかります) */
+  let next = 0;
+  const worker = async () => {
+    while(next < urls.length){
+      const url = urls[next++];
+      let buf;
+      try { buf = await relayFetchBinary(url, 20000); st.fetched++; }
+      catch(e){ continue; }
+      try{
+        const m = parseKessanSheet(XLSX, buf);
+        for(const [code, list] of m){
+          const arr = merged.get(code) || [];
+          for(const rec of list) if(!arr.some(x => x.d === rec.d)) arr.push(rec);
+          merged.set(code, arr);
+        }
+        st.parsed++;
+      }catch(e){}
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  if(!st.parsed){
+    throw new Error(st.fetched
+      ? `JPXの予定表(Excel ${st.fetched}件)は取れましたが、見出しを読み取れませんでした(様式変更の可能性)。`
+      : `JPXの予定表(Excel ${st.links}件)を中継サーバー経由で取得できませんでした。時間をおいてもう一度押してください。`);
   }
-  if(!ok) throw lastErr || new Error('決算予定を取得できませんでした');
   for(const arr of merged.values()) arr.sort((a, b) => a.d.localeCompare(b.d));
-  kessanCache = {map: merged, at: Date.now()};
+  st.companies = merged.size;
+  kessanCache = {map: merged, at: Date.now(), stats: st};
   return merged;
 }
 
@@ -16158,8 +17235,12 @@ function renderEarnings(st){
   if(st.loading){ box.innerHTML = '<p class="qsrc">JPXの決算発表予定表を取得しています…</p>'; return; }
   if(st.error){ box.innerHTML = `<p class="qsrc">${esc(st.error, 120)}</p>`; return; }
   if(!st.list.length){
-    box.innerHTML = '<p class="qsrc">この銘柄はJPXの予定表に載っていませんでした。'
-      + '(掲載が無くても発表されることはあります)</p>';
+    /* 「取れなかった」と「載っていなかった」を見分けられるよう、読んだ量を添えます */
+    const k = kessanCache && kessanCache.stats;
+    box.innerHTML = '<p class="qsrc">この銘柄はJPXの予定表に載っていませんでした'
+      + (k ? `(読んだ予定表: Excel ${k.parsed}件・${k.companies}社)` : '') + '。'
+      + '予定表は決算期末の翌月上旬に載るので、まだ載っていないこともあります'
+      + '(掲載が無くても発表はされます)。</p>';
     return;
   }
   const fmt = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
@@ -16552,6 +17633,9 @@ const noInjection = (root, label) => {
 
 async function runSelfTests(){
   window.__xssFired = 0;
+  /* 1枚ずつ表示を使っている端末でも、パネルの枚数を数えるテストが同じ結果に
+     なるよう、テストのあいだは止めます(最後に戻します) */
+  subOneHold = true;
   T.list = [];
   const saved = {raw: state.raw, ind: state.ind, i0: state.i0, i1: state.i1,
                  toggles: Object.assign({}, state.toggles),
@@ -16732,9 +17816,11 @@ async function runSelfTests(){
       state.i0 = keep.i0; state.i1 = keep.i1; state.toggles.marginPanel = keep.t;
       try { sizeCanvas(); redraw(); } catch(e){}
     }
-    return (texts.includes('融資残') ? true : '融資残の名札がありません')
-        && (texts.includes('信用買残') ? true : '信用買残の名札がありません')
-        && (texts.some(t => /貸借残\(日証金・日次\)/.test(t)) ? true : '下段の見出しがありません');
+    /* 文字列をそのまま && でつなぐと、前の失敗が後ろの合格に隠れます
+       (v50 で eq について塞いだのと同じ穴)。tfail で記録します。 */
+    return (texts.includes('融資残') ? true : tfail('融資残の名札がありません'))
+        && (texts.includes('信用買残') ? true : tfail('信用買残の名札がありません'))
+        && (texts.some(t => /貸借残\(日証金・日次\)/.test(t)) ? true : tfail('下段の見出しがありません'));
   });
   test('日付: m/d/yy(Excelの組み込み書式)を2000年代として読む', () => {
     const d = parseJPDate('10/30/26');
@@ -16990,6 +18076,34 @@ async function runSelfTests(){
     stampBars(bars, null);
     return eq(applyTick(bars, {price: 999, time: new Date(Date.UTC(2024,9,24,0,0))}, '1d'), 'none');
   });
+  test('ストリーム: 週足は同じ週のティックを同じ足に入れ、出来高を1日ぶんで上書きしない', () => {
+    const keepTz = tickTz;
+    setTickTz('Asia/Tokyo');
+    try{
+      /* 2024/10/14(月)と 10/21(月)の週足。水曜 10/23 のティック */
+      const bars = stampBars([
+        {t: new Date(Date.UTC(2024, 9, 14, 0, 0)), o:1, h:1, l:1, c:1, v:5e6},
+        {t: new Date(Date.UTC(2024, 9, 21, 0, 0)), o:1, h:1, l:1, c:1, v:4e6}], 'Asia/Tokyo');
+      const r = applyTick(bars, {price: 2, time: new Date(Date.UTC(2024, 9, 23, 2, 0)), dayVolume: 9e5}, '1wk');
+      const r2 = applyTick(bars, {price: 3, time: new Date(Date.UTC(2024, 9, 28, 1, 0))}, '1wk');
+      return eq(r, 'update', '同じ週') && eq(bars[1].v, 4e6, '週の出来高')
+          && eq(r2, 'new', '次の週') && eq(bars.length, 3, '本数');
+    } finally { setTickTz(keepTz); }
+  });
+  test('ストリーム: 4時間足に1日ぶんの高値・安値・出来高を入れない', () => {
+    const keepTz = tickTz;
+    setTickTz('Asia/Tokyo');
+    try{
+      const bars = stampBars([{t: new Date(Date.UTC(2024, 9, 25, 0, 0)), o:100, h:101, l:99, c:100, v:1000}], 'Asia/Tokyo');
+      const a = applyTick(bars, {price: 100.5, time: new Date(Date.UTC(2024, 9, 25, 1, 0)),
+                                 dayHigh: 120, dayLow: 80, dayVolume: 9e6}, '4h');
+      const h = bars[0].h, l = bars[0].l, v = bars[0].v;
+      /* 14:00 は 9:00 から4時間を過ぎているので次の足 */
+      const b = applyTick(bars, {price: 101, time: new Date(Date.UTC(2024, 9, 25, 5, 0))}, '4h');
+      return eq(a, 'update') && eq(h, 101, '高値') && eq(l, 99, '安値') && eq(v, 1000, '出来高')
+          && eq(b, 'new', '4時間後');
+    } finally { setTickTz(keepTz); }
+  });
 
   /* ---------------------------------------------------------------- */
   tgroup('データ読み込みの異常系');
@@ -17011,6 +18125,34 @@ async function runSelfTests(){
     const r = parseCSV('日付\t終値\n2025/01/01\t100\n2025/01/02\t101');
     return eq(r.bars.length, 2);
   });
+  test('桁区切りのあるタブ区切りを読める', () => {
+    const r = parseCSV('日付\t始値\t高値\t安値\t終値\t出来高\n'
+      + Array.from({length: 5}, (_, i) => `2025/01/0${i+1}\t2,400\t2,450\t2,390\t2,430\t1,200,000`).join('\n'));
+    return eq(r.bars.length, 5, '本数') && eq(r.bars[0].c, 2430, '終値') && eq(r.bars[0].v, 1200000, '出来高');
+  });
+  test('全角のカンマを桁区切りとして読む', () => eq(toNum('１，２３４'), 1234));
+  test('日時の時刻を捨てない(分足のCSV)', () => {
+    const d = parseJPDate('2024/03/05 09:05');
+    const d2 = parseJPDate('2024-03-05T14:30:00');
+    return eq(d && d.getHours(), 9, '時') && eq(d && d.getMinutes(), 5, '分')
+        && eq(d2 && d2.getHours(), 14, 'Tつき') && eq(dkey(parseJPDate('2026年9月26日')), '20260926', '和式');
+  });
+  test('Datetime の見出しを日付の列として読む', () => {
+    const r = parseCSV('Datetime,Close\n' + Array.from({length: 10}, (_, i) =>
+      `2024-03-05 09:${String(i * 5).padStart(2, '0')}:00,${100 + i}`).join('\n'));
+    return eq(new Set(r.bars.map(b => +b.t)).size, 10, '時刻の種類');
+  });
+  /* test() は同期なので(Promise を返すと「真」で素通りします)、
+     ファイルの読み込みだけ先に済ませてから比べます */
+  const csvGran = await (async () => {
+    const rows = Array.from({length: 40}, (_, i) => {
+      const d = new Date(2025, 0, 6 + i + Math.floor(i / 5) * 2);
+      return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()},${100 + i}`;
+    });
+    const f = new File(['日付,終値\n' + rows.join('\n')], 'x.csv', {type: 'text/csv'});
+    try { return (await readCSVFile(f)).granularity; } catch(e){ return '読めません: ' + e.message; }
+  })();
+  test('CSVは中身の足種を名乗る', () => eq(csvGran, '1d'));
   test('信用残CSVの見出しを判別する', () => {
     const p = parseMarginCSV('週末日,信用買残,信用売残\n2025/09/05,"2,400,000","900,000"');
     return eq(p[0].buy, 2400000) === true && near(p[0].ratio, 2400000/900000, 1e-9) === true;
@@ -18102,6 +19244,316 @@ async function runSelfTests(){
     return lowestBottom <= (p2.y + p2.h - 2) - 11 + 0.01
       ? true : 'ラベル下端 ' + lowestBottom;
   });
+  /* ---- v57: 下のパネルの見出しの帯 ---- */
+  test('下のパネルには見出しの帯があり、線の場所と重ならない', () => {
+    const keepT = Object.assign({}, state.toggles);
+    try{
+      for(const k of ['vol', 'rsi', 'macd', 'stoch', 'adx']) state.toggles[k] = true;
+      sizeCanvas();
+      const subs = LAY.panels.filter(q => q.key !== 'main');
+      if(subs.length < 4) return tfail('パネルが ' + subs.length + ' 枚しかありません');
+      for(const q of subs){
+        if(!(q.headH > 0)) return tfail(q.key + ' に帯がありません');
+        if(Math.abs(q.headY + q.headH - q.y) > 0.01) return tfail(q.key + ' の帯が線の場所に重なっています');
+        if(!(q.h >= 24)) return tfail(q.key + ' の線を描く場所が ' + q.h + 'px');
+      }
+      return panel('main').headH ? tfail('価格パネルにまで帯が付きました') : true;
+    } finally {
+      Object.assign(state.toggles, keepT); sizeCanvas(); redraw();
+    }
+  });
+  test('MACDとシグナルが色だけでなく線の形でも分かれる', () => {
+    const sp = headSpec('macd', state.raw.bars.length - 1);
+    if(!sp || sp.items.length < 2) return tfail('凡例がありません');
+    const [a, b] = sp.items;
+    return (a.color !== b.color ? true : tfail('同じ色です'))
+        && (!a.dash && Array.isArray(b.dash) ? true : tfail('実線/破線で分かれていません'))
+        && (C.ma.indexOf(a.color) < 0 && C.ma.indexOf(b.color) < 0
+              ? true : tfail('移動平均の緑を使っています'));
+  });
+  test('見出しの帯に状態を言葉で出す(RSI・ADX)', () => {
+    const keep = state.ind, n = state.raw.bars.length - 1;
+    try{
+      const rsi = keep.rsi.slice(); rsi[n] = 75;
+      const dmi = {adx: keep.dmi.adx.slice(), pdi: keep.dmi.pdi.slice(), ndi: keep.dmi.ndi.slice()};
+      dmi.adx[n] = 12;
+      state.ind = Object.assign({}, keep, {rsi, dmi});
+      const r = headSpec('rsi', n), a = headSpec('adx', n);
+      rsi[n] = 22;
+      const r2 = headSpec('rsi', n);
+      return eq(r && r.status && r.status.short, '買われすぎ', 'RSI 75')
+          && eq(r2 && r2.status && r2.status.short, '売られすぎ', 'RSI 22')
+          && eq(a && a.status && a.status.short, 'もみ合い', 'ADX 12');
+    } finally {
+      state.ind = keep;
+    }
+  });
+  test('見出しの帯の字が、狭い画面でも右へはみ出さない', () => {
+    const keepT = Object.assign({}, state.toggles), keepL = LAY;
+    const cv2 = document.createElement('canvas'); cv2.width = 320; cv2.height = 900;
+    const g2 = cv2.getContext('2d');
+    const over = [];
+    try{
+      for(const k of ['vol', 'rsi', 'macd', 'stoch', 'adx', 'flow']) state.toggles[k] = true;
+      LAY = layout();
+      /* 幅320pxのスマホを、いまの画面の配置から作ります */
+      const sx = 320 / LAY.w;
+      LAY = Object.assign({}, LAY, {w: 320, narrow: true,
+        panels: LAY.panels.map(q => Object.assign({}, q, {x: 6, w: Math.round(q.w * sx)}))});
+      const ft = g2.fillText;
+      g2.fillText = function(t, x, y){
+        const w = this.measureText(String(t)).width;
+        const right = this.textAlign === 'center' ? x + w / 2 : this.textAlign === 'right' ? x : x + w;
+        if(right > LAY.w + 0.5) over.push(String(t) + '→' + Math.round(right));
+        return ft.apply(this, arguments);
+      };
+      drawPanelHeads(g2);
+      return over.length ? tfail('はみ出し: ' + over.slice(0, 3).join(', ')) : true;
+    } finally {
+      LAY = keepL; Object.assign(state.toggles, keepT); sizeCanvas(); redraw();
+    }
+  });
+  test('スマホ幅の吹き出しは、帯に出ている値を繰り返さない', () => {
+    const keepT = Object.assign({}, state.toggles), keepL = LAY;
+    try{
+      state.toggles.rsi = true; state.toggles.macd = true;
+      sizeCanvas();
+      const i = state.raw.bars.length - 1;
+      LAY = Object.assign({}, LAY, {narrow: true});
+      showTip(i, 10, 10);
+      const narrowHtml = tip.innerHTML;
+      LAY = Object.assign({}, LAY, {narrow: false});
+      showTip(i, 10, 10);
+      const wideHtml = tip.innerHTML;
+      return (!/<span>RSI<\/span>/.test(narrowHtml) ? true : tfail('スマホ幅でRSIの行が残っています'))
+          && (/<span>RSI<\/span>/.test(wideHtml) ? true : tfail('広い画面でRSIの行が消えました'))
+          && (/<span>終値<\/span>/.test(narrowHtml) ? true : tfail('終値まで消えました'));
+    } finally {
+      LAY = keepL; hideTip(); Object.assign(state.toggles, keepT); sizeCanvas(); redraw();
+    }
+  });
+
+  /* ---- v58: 指標の読み方 ---- */
+  test('下のパネルの全種類に読み方がある', () => {
+    const none = PANEL_KEYS.filter(k => /まだありません/.test(panelHelpText(k)) || panelHelpText(k).length < 60);
+    return none.length ? tfail('読み方が無い: ' + none.join(', ')) : true;
+  });
+  test('見出しの帯から読み方を開いて、Escで閉じられる', () => {
+    try{
+      redraw();
+      const p = LAY.panels.find(q => q.headH);
+      if(!p) return tfail('帯のあるパネルがありません');
+      if(!openPanelHelp(p.key)) return tfail('開けませんでした');
+      const shown = !$('#phelp').classList.contains('hide') && $('#phelpTtl').textContent === p.title;
+      document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+      const closed = $('#phelp').classList.contains('hide') && helpKey === null;
+      return (shown ? true : tfail('題名が出ていません')) && (closed ? true : tfail('Escで閉じません'));
+    } finally { closePanelHelp(); }
+  });
+  test('見出しの帯を押して離すと読み方が開く(なぞったら開かない)', () => {
+    const keepDrag = drag;
+    try{
+      redraw();
+      const p = LAY.panels.find(q => q.headH);
+      const r = cv.getBoundingClientRect();
+      const at = (type, dx) => cv.dispatchEvent(new PointerEvent(type, {pointerId: 91, pointerType: 'mouse',
+        button: 0, buttons: type === 'pointerdown' ? 1 : 0, bubbles: true,
+        clientX: r.left + p.x + 30 + dx, clientY: r.top + p.headY + p.headH / 2}));
+      at('pointerdown', 0); at('pointerup', 40);          /* 40px なぞった */
+      const swiped = helpKey;
+      at('pointerdown', 0); at('pointerup', 2);           /* 押して離した */
+      const tapped = helpKey;
+      return eq(swiped, null, 'なぞったとき') && eq(tapped, p.key, '押したとき');
+    } finally { closePanelHelp(); drag = keepDrag; }
+  });
+  test('読み方は帯の位置で引ける(帯の外では引かない)', () => {
+    redraw();
+    const p = LAY.panels.find(q => q.headH);
+    return eq(headAt(p.headY + 2) && headAt(p.headY + 2).key, p.key, '帯の中')
+        && eq(headAt(p.y + p.h / 2), null, '線の場所');
+  });
+
+  /* ---- v58: ダイバージェンス ---- */
+  const divCase = n => {
+    /* RSIの谷: 10本目に20、25本目に30(切り上げ)。株価の安値: 100 → 95(切り下げ) */
+    const osc = Array.from({length: n}, (_, i) =>
+      Math.min(50 - Math.max(0, 30 - 3 * Math.abs(i - 10)), 50 - Math.max(0, 20 - 3 * Math.abs(i - 25))));
+    const l = Array.from({length: n}, (_, i) => i === 10 ? 100 : i === 25 ? 95 : 110);
+    const h = l.map(v => v + 5);
+    return {osc, l, h};
+  };
+  test('ダイバージェンス: 株価は安値切り下げ・RSIは切り上げを強気と読む', () => {
+    const c = divCase(40), r = TA.divergence(c.osc, c.h, c.l);
+    const b = r.bull[0] || {};
+    return eq(r.bull.length, 1, '強気の数') && eq(b.p1, 10, '1つ目の谷') && eq(b.p2, 25, '2つ目の谷')
+        && eq(b.at, 30, '確定した足(谷+5本)') && eq(r.bear.length, 0, '弱気の数');
+  });
+  test('ダイバージェンス: 株価は高値切り上げ・RSIは切り下げを弱気と読む', () => {
+    const c = divCase(40);
+    const osc = c.osc.map(v => 100 - v), h = c.l.map(v => 210 - v), l = h.map(v => v - 5);
+    const r = TA.divergence(osc, h, l);
+    return eq(r.bear.length, 1, '弱気の数') && eq(r.bear[0] && r.bear[0].at, 30, '確定した足')
+        && eq(r.bull.length, 0, '強気の数');
+  });
+  test('ダイバージェンス: 谷から5本たつまでは出さない(後出ししない)', () => {
+    const early = divCase(30), ok = divCase(31);
+    return eq(TA.divergence(early.osc, early.h, early.l).bull.length, 0, '谷+4本まで')
+        && eq(TA.divergence(ok.osc, ok.h, ok.l).bull.length, 1, '谷+5本');
+  });
+  test('ダイバージェンスはシグナルの成績にも、確定した足で入る', () => {
+    const r = RULES.find(x => x.k === 'divUp');
+    if(!r) return tfail('成績の表にありません');
+    const d = {div: {bull: [{p1: 3, p2: 9, at: 14}], bear: []}};
+    return eq(JSON.stringify(r.fn(d)), '[14]', '数える足');
+  });
+
+  /* ---- v58: 指標のセット ---- */
+  test('組み込みのセットは、実在する指標だけでできている', () => {
+    const ok = new Set(setKeys());
+    const bad = BUILTIN_SETS.flatMap(b => b.keys.filter(k => !ok.has(k)).map(k => b.name + ':' + k));
+    return bad.length ? tfail('知らない指標: ' + bad.join(', ')) : true;
+  });
+  test('セットを当てると、その組み合わせだけになる(分割・配当の印は残す)', () => {
+    const keepT = Object.assign({}, state.toggles);
+    try{
+      state.toggles.events = true; state.toggles.stoch = true; state.toggles.lorentz = false;
+      applyToggleSet(BUILTIN_SETS.find(b => b.id === 'simple').keys);
+      const on = setKeys().filter(k => state.toggles[k]).sort().join(',');
+      return eq(on, 'ma,vol', 'オンの指標') && eq(state.toggles.events, true, '分割・配当')
+          && eq(document.querySelector('.chip[data-t="stoch"]').getAttribute('aria-pressed'), 'false', 'チップの見た目');
+    } finally {
+      Object.assign(state.toggles, keepT); syncToggleChips(); state.ind = recompute(); redraw();
+    }
+  });
+  test('セットの保存: 名前の検査・上限・注入文字列', () => {
+    const keep = userSets.slice(), keepStore = Store.get('toggleSets', []);
+    try{
+      userSets = [];
+      const e1 = saveToggleSet(''), e2 = saveToggleSet('シンプル'), e3 = saveToggleSet(XSS);
+      for(let k = 0; k < SET_MAX + 2; k++) saveToggleSet('s' + k);
+      const capped = userSets.length;
+      const box = $('#setBox'), wasHidden = box.classList.contains('hide');
+      renderSetBox();
+      const safe = noInjection('#setBox', 'セットの箱');
+      if(wasHidden) box.classList.add('hide');
+      return (e1 ? true : tfail('空の名前を受け付けました')) && (e2 ? true : tfail('組み込みと同じ名前を受け付けました'))
+          && eq(e3, '', '記号入りの名前は保存してよい(表示で無害化)') && eq(capped, SET_MAX, '上限')
+          && safe;
+    } finally {
+      userSets = keep; Store.set('toggleSets', keepStore); renderSetBox();
+    }
+  });
+
+  /* ---- v58: 下のパネルを1枚ずつ ---- */
+  test('1枚ずつ表示: 狭い画面では選んだ1枚だけを大きめに出し、並び替えは全部が対象', () => {
+    const keepT = Object.assign({}, state.toggles), keep = {on: subOneOn, pick: subOnePick};
+    try{
+      for(const k of ['vol', 'rsi', 'macd', 'stoch']) state.toggles[k] = true;
+      subOneHold = false; subOneForce = true; subOneOn = false;
+      sizeCanvas();
+      const allH = LAY.panels.find(q => q.key === 'macd').h;
+      subOneOn = true; subOnePick = 'macd';
+      sizeCanvas();
+      const subs = LAY.panels.filter(q => q.key !== 'main');
+      return eq(subs.length, 1, '出ている枚数') && eq(subs[0] && subs[0].key, 'macd', '選んだパネル')
+          && (subs[0].h > allH ? true : tfail('大きくなっていません ' + subs[0].h + ' / ' + allH))
+          && eq(visiblePanelKeys().length >= 4, true, '並び替えの対象は全部');
+    } finally {
+      subOneOn = keep.on; subOnePick = keep.pick; subOneForce = false; subOneHold = true;
+      Object.assign(state.toggles, keepT); sizeCanvas(); redraw();
+    }
+  });
+  test('1枚ずつ表示: 広い画面では効かない', () => {
+    const keepT = Object.assign({}, state.toggles), keep = subOneOn;
+    try{
+      for(const k of ['vol', 'rsi', 'macd']) state.toggles[k] = true;
+      subOneHold = false; subOneForce = false; subOneOn = true;
+      sizeCanvas();
+      const wide = LAY.w >= 620 && (window.innerHeight || 800) >= 560 && !document.body.classList.contains('chart-full');
+      if(!wide) return true;               /* この端末自体が狭いので確かめようがない */
+      return eq(LAY.panels.filter(q => q.key !== 'main').length, 3, '枚数');
+    } finally {
+      subOneOn = keep; subOneHold = true;
+      Object.assign(state.toggles, keepT); sizeCanvas(); redraw();
+    }
+  });
+
+  /* ---- v59: 決算発表予定 ---- */
+  test('決算予定: ページのExcelを全部拾う(引用符・名前・並びによらず、よそのサイトは拾わない)', () => {
+    const P0 = '/listing/event-schedules/financial-announcement/';
+    const html = `<a href="${P0}att/kessan04.xlsx">4</a><a href='${P0}att/kessan05.xlsx'>5</a>`
+      + `<a href="att/kessan06.xlsx">6</a><a href="att/kessan07.xlsx">7</a>`
+      + `<a href="att/yotei_08.xlsx?2026">8</a><a href="https://www.jpx.co.jp${P0}att/kessan09.xlsx">9</a>`
+      + `<a href="https://evil.example.com/kessan.xlsx">x</a><a href="${P0}att/kessan.xlsx">all</a>`;
+    const got = kessanLinks(html).map(u => u.replace(/^.*\/att\//, ''));
+    return eq(got.length, 7, '件数') && eq(got[0], 'kessan.xlsx', '総合のファイルが先頭')
+        && eq(got.indexOf('yotei_08.xlsx') >= 0, true, '名前に kessan が無いファイル')
+        && eq(got.indexOf('kessan05.xlsx') >= 0, true, '引用符が \' のリンク')
+        && eq(kessanLinks(html).some(u => /evil/.test(u)), false, 'よそのサイト');
+  });
+  test('決算予定: 日付はセルの中身から読む(シリアル値・年なし・和暦・未定)', () => {
+    const today = new Date(2026, 9, 11);
+    const k = v => { const d = kessanDate(v, false, today); return d ? dkey(d) : null; };
+    return eq(k(46309), '20261014', 'シリアル値') && eq(k('10月30日'), '20261030', '年なし')
+        && eq(kessanDate('1/15', false, new Date(2026, 11, 20)) && dkey(kessanDate('1/15', false, new Date(2026, 11, 20))), '20270115', '年なし(年をまたぐ)')
+        && eq(k('令和8年10月30日'), '20261030', '和暦') && eq(k('２０２６／１０／３０（金）'), '20261030', '全角・曜日')
+        && eq(k('未定'), null, '未定') && eq(k(8267), null, '日付でない数');
+  });
+  test('決算予定: コードは5桁・全角でも4桁に直す', () =>
+    eq(kessanCode('82670'), '8267', '5桁') && eq(kessanCode('２８５Ａ'), '285A', '全角')
+    && eq(kessanCode(7203), '7203', '数値') && eq(kessanCode('業種'), null, 'コードでない'));
+  test('決算予定: 見出しの揺れ(証券コード・下のほうの見出し)と、種別の列を取り違えない', () => {
+    const rows = [['決算発表予定日(2026年8月期)']];
+    for(let k = 0; k < 14; k++) rows.push([]);
+    rows.push(['決算発表\n予定日', '証券コード', '会社名', '会社名(英文)', '決算期末', '業種名', '種別']);
+    rows.push([46309, 82670, 'イオン', 'AEON', '2027/2', '小売業', '第2四半期']);
+    rows.push(['未定', 7203, 'トヨタ自動車', 'TOYOTA', '2027/3', '輸送用機器', '第2四半期']);
+    const r = parseKessanRows([rows], {today: new Date(2026, 9, 11)});
+    const a = (r.map.get('8267') || [])[0] || {};
+    return eq(a.d, '20261014', '日付') && eq(a.kind, '第2四半期', '種別(決算期末ではなく)')
+        && eq(a.name, 'イオン', '会社名(英文ではなく)') && eq(r.map.has('7203'), false, '未定の行');
+  });
+
+  /* ---- v57: 操作 ---- */
+  test('横向きのホイール(トラックパッドの横スワイプ)で拡大しない', () => {
+    const k0 = state.i0, k1 = state.i1;
+    try{
+      const r = cv.getBoundingClientRect();
+      const n = state.i1 - state.i0;
+      for(const dx of [60, -60, 60])
+        cv.dispatchEvent(new WheelEvent('wheel', {deltaX: dx, deltaY: 0, clientX: r.left + 100,
+                                                  clientY: r.top + 50, bubbles: true, cancelable: true}));
+      return eq(state.i1 - state.i0, n, '表示している本数');
+    } finally {
+      state.i0 = k0; state.i1 = k1; clampView(); renderBase(); paint();
+    }
+  });
+  test('右クリックでパンを始めない', () => {
+    const keep = drag;
+    try{
+      drag = null;
+      cv.dispatchEvent(new PointerEvent('pointerdown', {button: 2, buttons: 2, pointerType: 'mouse',
+                                                        clientX: 50, clientY: 50, bubbles: true}));
+      return drag === null ? true : tfail('右ボタンでドラッグが始まりました');
+    } finally { drag = keep; }
+  });
+  test('足種のボタンから何も取れなかったら、足種を元に戻す', () => {
+    const keep = {iv: state.interval, rg: state.range, sym: $('#sym').value};
+    try{
+      /* ボタンと同じ順番: 先に足種を書き換えてから、押す前の値を渡して run() */
+      const was = {interval: state.interval, range: state.range};
+      state.interval = state.interval === '15m' ? '1d' : '15m';
+      setPreset(state.interval);
+      $('#sym').value = '';            /* 入力が空 = 取りにいかずに終わる道 */
+      run(was);                        /* 最初の await より前に戻すので、同期で確かめられます */
+      return eq(state.interval, was.interval, '足種') && eq(P.ma.join('/'), PRESETS[isIntradayIv(was.interval) ? 'intraday' : 'daily'].ma.join('/'), 'プリセット');
+    } finally {
+      $('#sym').value = keep.sym; notice('');
+      if(state.interval !== keep.iv || state.range !== keep.rg){
+        state.interval = keep.iv; state.range = keep.rg; setPreset(keep.iv); buildRanges(); syncControls();
+      }
+    }
+  });
 
   await new Promise(r => setTimeout(r, 60));
   tgroup('為替の桁');
@@ -19098,10 +20550,10 @@ async function runSelfTests(){
     const us = kenriLinksHtml();
     state.raw = keep;
     return eq(us, '', '米国株には出さない')
-        && (jp.indexOf('minkabu.jp/stock/8267/yutai') >= 0 ? true : 'みんかぶのURLが違う: ' + jp)
-        && (jp.indexOf('8267.T/incentive') >= 0 ? true : 'Yahoo優待のURLが違う')
-        && (jp.indexOf('8267.T/dividend') >= 0 ? true : 'Yahoo配当のURLが違う')
-        && (/^<div class="links">/.test(jp) ? true : '入れ物が違う');
+        && (jp.indexOf('minkabu.jp/stock/8267/yutai') >= 0 ? true : tfail('みんかぶのURLが違う: ' + jp))
+        && (jp.indexOf('8267.T/incentive') >= 0 ? true : tfail('Yahoo優待のURLが違う'))
+        && (jp.indexOf('8267.T/dividend') >= 0 ? true : tfail('Yahoo配当のURLが違う'))
+        && (/^<div class="links">/.test(jp) ? true : tfail('入れ物が違う'));
   });
   test('束のタブは画面の広さで置き場所が変わる', () => {
     const keep = layoutMode, bar = $('#secBar');
@@ -19387,8 +20839,8 @@ async function runSelfTests(){
     state.raw = Object.assign({}, state.raw, {code:'z3'});
     const c = kenriDates();
     state.raw = keep; state.interval = ki;
-    return (a === b ? true : '同じ足で組み直している')
-        && (c !== a ? true : '銘柄が変わっても控えを使っている');
+    return (a === b ? true : tfail('同じ足で組み直している'))
+        && (c !== a ? true : tfail('銘柄が変わっても控えを使っている'));
   });
   test('配当の履歴が無ければ何も出さない', () => {
     const keep = state.raw;
@@ -19408,6 +20860,7 @@ async function runSelfTests(){
   tgroup('XSS(表示部への注入)');
   test('注入コードが一度も実行されていない', () => eq(window.__xssFired, 0));
   /* 途中のテストが state.ind を差し替えても、利用者の画面は元の足で組み直す */
+  subOneHold = false; subOneForce = false;
   if(state.raw === saved.raw && state.raw){
     try { state.ind = recompute(); state.i0 = saved.i0; state.i1 = saved.i1;
           redraw(); renderSignals(); renderTable(); applyQuoteStrip(); } catch(e){}
@@ -19495,6 +20948,9 @@ function redraw(){
   if(!state.raw) return;
   saveWorkspaceSoon();      /* debounced — panning does not write per frame */
   sizeCanvas();
+  /* 説明を出しているパネルを消したら、説明も閉じます */
+  if(helpKey && !LAY.panels.some(q => q.key === helpKey)) closePanelHelp();
+  renderSubTabs();
   resolveFit();
   clampView();
   renderBase();
@@ -19678,8 +21134,55 @@ function dividerY(key){
 
 cv.addEventListener('pointermove', e => {
   if(sizing || e.pointerType === 'touch') return;
-  cv.style.cursor = panelAtEdge(localY(e), localX(e)) ? 'row-resize' : '';
+  const y = localY(e);
+  cv.style.cursor = panelAtEdge(y, localX(e)) ? 'row-resize' : headAt(y) ? 'help' : '';
 });
+/* 見出しの帯を押したら、その指標の読み方。押して離すまでに動いていなければ
+   「押した」です(帯の上から横になぞってもパンになります)。
+   高さのつまみ(帯のすぐ上の線)を掴んだときは sizing が先に立ちます。 */
+let headDown = null;
+cv.addEventListener('pointerdown', e => {
+  headDown = null;
+  if(sizing || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const y = localY(e), hp = headAt(y);
+  if(hp) headDown = {key: hp.key, id: e.pointerId, x: localX(e), y};
+});
+cv.addEventListener('pointerup', e => {
+  const hd = headDown;
+  headDown = null;
+  if(!hd || sizing || e.pointerId !== hd.id) return;
+  if(Math.hypot(localX(e) - hd.x, localY(e) - hd.y) > 8) return;
+  const hp = headAt(localY(e));
+  if(!hp || hp.key !== hd.key) return;
+  /* 指のタップは、このあと window の pointerup で「その足を読む」になり、
+     続けて押すとダブルタップ(表示を戻す)にも数えられます。どちらも止めます */
+  if(tdrag && tdrag.id === e.pointerId) tdrag.mode = 'help';
+  if(helpKey === hp.key) closePanelHelp(); else openPanelHelp(hp.key);
+});
+$('#phelpX').addEventListener('click', closePanelHelp);
+$('#subTabs').addEventListener('click', e => {
+  const m = e.target.closest('[data-subone]');
+  if(m){
+    subOneOn = m.dataset.subone === '1';
+    Store.set('subOne', subOneOn);
+    redraw();
+    return;
+  }
+  const b = e.target.closest('[data-subpick]');
+  if(b){
+    subOnePick = cleanText(b.dataset.subpick, 20);
+    Store.set('subPick', subOnePick);
+    redraw();
+  }
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && helpKey) closePanelHelp(); });
+/* 説明の外を押したら閉じます(見出しの帯は上の pointerup が開き直します) */
+document.addEventListener('pointerdown', e => {
+  if(!helpKey) return;
+  if(e.target.closest && e.target.closest('#phelp')) return;
+  if(e.target === cv && headAt(localY(e))) return;
+  closePanelHelp();
+}, true);
 cv.addEventListener('pointerdown', e => {
   if(sizing) return;
   /* the handle also has to be inside the plot, not out in the price gutter */
@@ -19687,7 +21190,7 @@ cv.addEventListener('pointerdown', e => {
   const p = panelAtEdge(localY(e), x);
   if(!p || x < p.x || x > p.x + p.w) return;
   sizing = {key: p.key, id: e.pointerId, y0: localY(e), h0: p.h,
-            base: p.h / (panelScale[p.key] || 1)};
+            base: (p.h + (p.headH || 0)) / (panelScale[p.key] || 1)};
   drag = null;
   grabPointer(e.pointerId);
   e.preventDefault();
@@ -19765,6 +21268,8 @@ function localX(e){
 function onMove(e){
   if(!state.raw || !LAY) return;
   const p = panel('main'), x = localX(e);
+  /* 左ボタンを離した通知を取りこぼしていたら、ここで終わりにします */
+  if(drag && e.pointerType === 'mouse' && isNum(e.buttons) && !(e.buttons & 1)) drag = null;
   if(drag && drag.active){
     const dx = x - drag.x;
     const shift = Math.round(-dx / barW(p));
@@ -19831,6 +21336,10 @@ cv.addEventListener('pointerdown', e => {
     }, READ_HOLD);
     return;
   }
+  /* 右クリック(や中ボタン)はパンではありません。macOS・Linux では右ボタンを
+     離した通知がメニューに吸われるので、ボタンを押していないマウスの動きで
+     チャートが流れ続けていました */
+  if(e.button !== 0) return;
   drag = {x: localX(e), active: true};
   grabPointer(e.pointerId);
 });
@@ -19878,16 +21387,21 @@ cv.addEventListener('pointermove', e => {
   onMove(e);
 }, {passive: false});
 
+/* 指を離したのが「タップ」だったか。ダブルタップ(表示を戻す)の判定に使います。
+   pointerup は touchend より先に来るので、ここで覚えておきます。
+   null は「分からない」で、以前どおりタップとして数えます。 */
+let touchTapKind = null;
 window.addEventListener('pointerup', e => {
   drag = null;
   if(tdrag && e.pointerId === tdrag.id){
     /* a tap that never became a direction is a request to read that bar */
     if(tdrag.mode === '?') onMove(e);
+    touchTapKind = (tdrag.mode === '?' || tdrag.mode === 'read') ? 'tap' : 'move';
     endTouchDrag();
   }
 });
 window.addEventListener('pointercancel', e => {
-  if(tdrag && e.pointerId === tdrag.id) endTouchDrag();
+  if(tdrag && e.pointerId === tdrag.id){ touchTapKind = 'move'; endTouchDrag(); }
 });
 /* A touch pointer stops existing after pointerup, so the browser fires
    pointerleave immediately afterwards — in the same task. That wiped the
@@ -19900,10 +21414,25 @@ cv.addEventListener('pointerleave', e => {
 });
 cv.addEventListener('dblclick', () => { visibleDefault(); redraw(); });
 
+let wheelPanAcc = 0;
 cv.addEventListener('wheel', e => {
   if(!state.raw) return;
   e.preventDefault();
   const p = panel('main'), x = localX(e);
+  /* 横向きのスクロール(トラックパッドの横スワイプ、Shift+ホイール)は
+     deltaY が 0 です。それを「縮小ではない = 拡大」と読んでいたので、
+     左右どちらに払っても拡大していました。横は左右への移動にします */
+  if(Math.abs(e.deltaX) > Math.abs(e.deltaY)){
+    wheelPanAcc += e.deltaX;
+    const bw = barW(p), shift = Math.trunc(wheelPanAcc / bw);
+    if(shift !== 0){
+      wheelPanAcc -= shift * bw;
+      state.i0 += shift; state.i1 += shift;
+      clampView(); renderBase(); paint(); renderNavPos();
+    }
+    return;
+  }
+  if(!e.deltaY) return;
   const anchor = clamp(iAtX(p, x), state.i0, state.i1);
   const n = state.i1 - state.i0 + 1;
   const factor = e.deltaY > 0 ? 1.18 : 1/1.18;
@@ -19937,6 +21466,10 @@ cv.addEventListener('touchstart', e => {
   }
 }, {passive:true});
 cv.addEventListener('touchmove', e => {
+  /* 高さのつまみを指で動かしているあいだは、ページのスクロールに渡しません。
+     touch-action が pan-y なので、縦に20pxほど動かすとブラウザが引き取って
+     スクロールになり、つまみの操作が途中で切れていました */
+  if(sizing){ if(e.cancelable) e.preventDefault(); return; }
   const tt = e.targetTouches;
   if(pinch && tt.length === 2){
     e.preventDefault();
@@ -19956,7 +21489,10 @@ cv.addEventListener('touchmove', e => {
     if(wantY && Math.abs(Math.log(ry)) >= Math.abs(Math.log(rx))){
       state.yZoom = clamp(pinch.yz * ry, 0.5, 4);
     }
-    if(wantX || !wantY){
+    /* 横の比が縦の比より大きいときだけ時間軸を動かします。2本の指は横には
+       ほとんど離れていないので、縦に広げるあいだの横のわずかなぶれ(12→20px)
+       でも比では大きく、縦に広げただけで時間軸まで縮んでいました */
+    if(!wantY || (wantX && Math.abs(Math.log(rx)) > Math.abs(Math.log(ry)))){
       const nn = clamp(Math.round(pinch.n * pinch.d / d), 20, state.raw.bars.length + 60);
       const shift = Math.round(-(mx - pinch.mx) / (p.w / nn));   /* two-finger drag pans */
       const mid = pinch.i0 + pinch.n / 2;
@@ -19990,6 +21526,11 @@ cv.addEventListener('touchend', e => {
   pinch = null;
   const now = performance.now();
   if(now - pinchedRecently < 600){ lastTap = 0; return; }   /* tail of a pinch */
+  /* 横に払った指はタップではありません。数えていたので、続けて2回払うと
+     ダブルタップとみなされ、さかのぼった表示が最新へ跳ね戻っていました */
+  const wasTap = touchTapKind !== 'move';
+  touchTapKind = null;
+  if(!wasTap){ lastTap = 0; return; }
   if(now - lastTap < 320){
     /* on a divider this means "reset this panel", the same as a mouse
        double-click; anywhere else it means "reset the zoom" */
@@ -20045,7 +21586,10 @@ function applyLayout(mode){
   const w = window.innerWidth || 1024;
   const two = layoutMode === 'two' || (layoutMode === 'auto' && w >= 1180);
   document.body.classList.toggle('two', two && layoutMode !== 'full');
+  const wasFull = document.body.classList.contains('chart-full');
   document.body.classList.toggle('chart-full', layoutMode === 'full');
+  /* 全画面に入ったら上から。下へ流れたまま入ると、測った上の余白と合いません */
+  if(layoutMode === 'full' && !wasFull) window.scrollTo(0, 0);
   const sel = $('#layoutSel');
   if(sel && sel.value !== layoutMode) sel.value = layoutMode;
   placeSecBar();
@@ -20354,15 +21898,21 @@ function csvLocked(){
        + ' 別の足種で見るには銘柄コードを入れて「分析」を押してください。', true);
   return true;
 }
-segWire('#rangeSeg', 'r', v => { if(csvLocked()) return; state.range = v; run(); });   /* Compare.refresh runs inside run() */
+segWire('#rangeSeg', 'r', v => {
+  if(csvLocked()) return;
+  const was = {interval: state.interval, range: state.range};
+  state.range = v;
+  run(was);                 /* Compare.refresh runs inside run() */
+});
 segWire('#ivSeg',   'i', v => {
   if(csvLocked()) return;
+  const was = {interval: state.interval, range: state.range};
   const prev = state.interval;
   state.interval = v;
   setPreset(v);
   buildRanges(prev);      /* the old interval decides how much chart to keep */
   showPreset();
-  run();
+  run(was);
 });
 function showPreset(){
   const intra = isIntradayIv(state.interval);
@@ -20575,11 +22125,16 @@ function onTick(tick){
     lastTickAt = now;
     /* the heavy studies are not recomputed on every tick — on a long series
        that is over a second of blocked main thread per update */
+    /* 足が1本増えたときは、前の計算を使い回せません(1本短い配列が残り、
+       OSGFC と大口/小口の判定行が消えていました)。refreshQuietly と同じく、
+       並びが変わったときだけ全部を計算し直します。 */
     const light = Object.assign({}, state.toggles, {lorentz:false, osgfc:false, sizeflow:false});
     const keep = state.ind;
-    state.ind = recompute(state.raw.bars, light);
-    for(const k of ['lorentz','osgfc','sizeflow'])
-      if(state.toggles[k] && keep && keep[k]) state.ind[k] = keep[k];
+    const aligned = what !== 'new';
+    state.ind = recompute(state.raw.bars, aligned ? light : state.toggles);
+    if(aligned)
+      for(const k of ['lorentz','osgfc','sizeflow'])
+        if(state.toggles[k] && keep && keep[k]) state.ind[k] = keep[k];
     /* follow the new bar, keeping the WIDTH — moving only i1 widened the
        window by one bar each time, so an intraday session on a stream slowly
        zoomed itself out. refreshQuietly() shifts both, the same way. */
@@ -20966,17 +22521,39 @@ function apply(data){
 }
 
 /* ---- main flow ------------------------------------------------------ */
-async function run(){
+/* switched … 足種・期間のボタンから来たときの<b>押す前の</b>足種と期間。
+
+   ボタンは state.interval を書き換えてから run() を呼ぶので、run() の中で
+   「前の値」を取ると、もう新しい値になっています。取得に失敗しても戻す先が
+   無く、日足のチャートに「15分」のボタンが押されたまま、吹き出しには
+   「0:00」「前の足から」、MA75 の値に「MA60」の名前が付いていました。 */
+async function run(switched){
+  /* 何も取らずに終わるとき、ボタンで変えた足種・期間を元に戻します */
+  const undoSwitch = () => {
+    if(!switched) return false;
+    if(state.interval === switched.interval && state.range === switched.range) return false;
+    state.interval = switched.interval; state.range = switched.range;
+    setPreset(state.interval); buildRanges(); showPreset(); syncControls();
+    if(state.raw){
+      try { state.ind = recompute(); redraw(); renderSignals(); renderTable(); }catch(e2){}
+    }
+    return true;
+  };
   if($('#go').disabled){
     /* A pick made while a load was in flight used to stay armed and then
        hijack the NEXT run — clicking a favourite loaded whatever had been
        chosen from the suggestion list minutes earlier. */
     pendingPick = null;
+    undoSwitch();
     return;
   }
   let raw = $('#sym').value;
   if($('#liveSel').value === 'stream' && Stream.state !== 'off') Stream.disconnect();
-  if(!raw.trim()){ notice('銘柄名か銘柄コードを入力してください(例: トヨタ、7203、ドル円、AAPL)', true); return; }
+  if(!raw.trim()){
+    undoSwitch();
+    notice('銘柄名か銘柄コードを入力してください(例: トヨタ、7203、ドル円、AAPL)', true);
+    return;
+  }
   hideSuggestNow();
 
   /* Turn whatever was typed into one symbol. A name that matches several
@@ -20995,6 +22572,7 @@ async function run(){
         ? `「${raw.trim()}」に一致する銘柄が${r.options.length}件あります。選んでください。`
         : (r.error || ''));
       notice(r.options.length ? '' : (r.error || '見つかりませんでした'), !r.options.length);
+      undoSwitch();
       $('#sym').focus();
       return;
     }
@@ -21002,13 +22580,14 @@ async function run(){
   raw = chosen.y || chosen.code;
   $('#sym').value = chosen.code || raw;
   if(!normalizeSymbol(raw)){
+    undoSwitch();
     notice('銘柄コードに使えない文字が含まれています。', true);
     return;
   }
   setBusy(true);
   notice('');
   const op = beginOp('load');
-  const prev = {interval: state.interval, range: state.range};
+  const prev = switched || {interval: state.interval, range: state.range};
   /* この銘柄に「見かた」を覚えさせてあるなら、<b>取りにいく前</b>に
      足種と期間を合わせます。あとから変えると取り直しになります。
 
@@ -21044,9 +22623,13 @@ async function run(){
     }
   }catch(err){
     if(!opValid(op)) return;
-    /* 見かたで足種を動かしていたなら、まず戻します。ここを通るのは
-       「取れなかった」ときで、画面にはまだ前の銘柄が出ています。 */
-    if(viewMoved && (state.interval !== prev.interval || state.range !== prev.range)){
+    /* 見かたで、またはボタンで足種を動かしていたなら、まず戻します。ここを
+       通るのは「取れなかった」ときで、画面にはまだ前の銘柄・前の足が出ています。
+       (以前は見かたのときだけ戻していて、ボタンからの失敗は戻りませんでした) */
+    const demoLike = state.raw && (state.raw.code === 'CSV' || state.raw.code === 'DEMO');
+    /* サンプル・CSVの上でボタンを押した場合は、下の枝が戻して理由を書きます */
+    if((viewMoved || (switched && !demoLike))
+       && (state.interval !== prev.interval || state.range !== prev.range)){
       state.interval = prev.interval; state.range = prev.range;
       setPreset(state.interval); buildRanges(); showPreset(); syncControls();
       if(state.raw){
@@ -21475,8 +23058,20 @@ $('#phList').addEventListener('click', e => {
   if(!b) return;
   const key = b.closest('[data-ph]').dataset.ph;
   const dir = +b.dataset.phd;
-  const next = phScaleOf(key) * (dir > 0 ? PH_STEP : 1 / PH_STEP);
+  const before = phScaleOf(key);
+  const next = before * (dir > 0 ? PH_STEP : 1 / PH_STEP);
+  const p0 = LAY && LAY.panels.find(q => q.key === key), h0 = p0 ? p0.h : null;
   setPanelScale(key, clamp(next, PH_MIN, PH_MAX));
+  /* 価格パネルは「1画面に収める」上限で止まることがあります。止まっているのに
+     倍率だけ 125%→156%→195% と増やして保存していたので、表示は変わらないまま、
+     あとで下のパネルを減らしたときに急に跳ねていました(ドラッグと同じ扱いに) */
+  const p1 = LAY && LAY.panels.find(q => q.key === key);
+  if(p1 && isNum(h0) && Math.abs(p1.h - h0) < 1){
+    setPanelScale(key, before);
+    notice(dir > 0
+      ? 'これ以上は高くできません(チャート全体を1画面に収めているため)。下のパネルを減らすか低くすると、そのぶん高くなります。'
+      : 'これ以上は低くできません。', true);
+  }
   renderPanelHeights();
 });
 $('#phReset').addEventListener('click', () => { resetPanelScales(); renderPanelHeights(); });
@@ -21599,6 +23194,18 @@ $('#kenriPanelBtn').addEventListener('click', () => {
   redraw(); renderSignals();
 });
 $('#panelOrderBox').addEventListener('click', e => {
+  const h = e.target.closest('[data-help]');
+  if(h){
+    /* 説明はチャートの上に出ます。見えるところまで運んでから開きます */
+    const p = LAY && LAY.panels.find(q => q.key === h.dataset.help);
+    if(p){
+      const r = cv.getBoundingClientRect();
+      const to = r.top + window.scrollY + p.headY - 120;
+      try { window.scrollTo({top: Math.max(0, to), behavior: 'auto'}); } catch(err){ window.scrollTo(0, Math.max(0, to)); }
+      openPanelHelp(p.key);
+    }
+    return;
+  }
   const b = e.target.closest('[data-move]');
   if(!b) return;
   movePanel(b.dataset.k, b.dataset.move === 'up' ? -1 : 1);
@@ -21875,6 +23482,7 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
         `<div class="vsub">テストの実行中にエラーが起きました: ${esc(String((err && err.message) || err), 90)}</div>`;
     }finally{
       wsRestoring = false;
+      subOneHold = false; subOneForce = false;
       $('#selfBtn').disabled = false;
     }
     $('#selfWrap').scrollIntoView({block:'start'});
