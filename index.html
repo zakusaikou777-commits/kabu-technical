@@ -20335,6 +20335,11 @@ async function runSelfTestsInner(){
       + `<a href='att/20261030_mtall.pdf'>30</a><a href="att/20261030_daily.pdf">日々公表</a>`, B).map(u => u.replace(/^.*\//, ''));
     return eq(got.join(','), '20261030_mtall.pdf,20261029_mtall.pdf');
   });
+  test('信用残(PDF): JPXの実際のリンクの形(tvdivq0000001rnl-att/20261030_mtall.pdf)から、そのURLを作る', () => {
+    const B = 'https://www.jpx.co.jp/markets/statistics-equities/margin/01.html';
+    const got = jpxMarginLinks('<a href="/markets/statistics-equities/margin/tvdivq0000001rnl-att/20261030_mtall.pdf">2026年10月30日申込分</a>', B);
+    return eq(got[0], 'https://www.jpx.co.jp/markets/statistics-equities/margin/tvdivq0000001rnl-att/20261030_mtall.pdf');
+  });
   test('pdf.js に改ざん検知(SRI)が付いている', () =>
     eq(/^sha384-.{40,}$/.test(PDFJS_SRI.lib) && /^sha384-.{40,}$/.test(PDFJS_SRI.worker), true));
 
