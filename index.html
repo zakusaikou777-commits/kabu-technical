@@ -931,6 +931,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   <div class="card" id="marginCard">
     <h2>信用取引残高</h2>
     <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="jpxMarginBtn">JPXの信用残を取得(日次)</button>
+      <button class="chip" id="jpxMarginMore" style="border-style:dashed">過去20日分も</button>
       <button class="chip" id="jsfBtn">日証金の当日残を取得</button>
       <button class="chip" id="marginFileBtn" style="border-style:dashed">CSV / Excelを読み込む</button>
       <input type="file" id="marginFile" accept=".csv,.txt,.xls,.xlsx" class="sr" aria-hidden="true" tabindex="-1">
@@ -957,14 +959,18 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
             Webページの表をコピーするとタブ区切りになるので、そのまま貼れます。
             スペース区切り・全角スペースも読みます。桁区切りのカンマ(12,345,600)も、
             タブ区切りならそのままで大丈夫です。</p>
-          <p style="margin:0 0 8px"><b>見出しに使える言葉</b>（一部でも含まれていれば拾います）</p>
+          <p style="margin:0 0 8px"><b>見出しに使える言葉と、入る先</b>（一部でも含まれていれば拾います）</p>
           <table class="wtab" style="margin-bottom:8px"><tbody>
-            <tr><td class="wl">日付</td><td class="wl">日付 / 年月日 / 週末 / 申込日 / 基準日</td></tr>
-            <tr><td class="wl">信用買残</td><td class="wl">信用買残 / 買残 / 融資残高</td></tr>
-            <tr><td class="wl">信用売残</td><td class="wl">信用売残 / 売残 / 貸株残高</td></tr>
-            <tr><td class="wl">信用倍率</td><td class="wl">信用倍率 / 倍率 / 貸借倍率</td></tr>
-            <tr><td class="wl">逆日歩</td><td class="wl">逆日歩 / 品貸料率</td></tr>
+            <tr><td class="wl">日付</td><td class="wl">日付 / 年月日 / 週末 / 申込日 / 基準日</td><td class="wl">—</td></tr>
+            <tr><td class="wl">信用買残・信用売残</td><td class="wl">信用買残 / 買残 / 買い残 ・ 信用売残 / 売残 / 売り残</td>
+              <td class="wl"><b>信用残</b>(市場全体)</td></tr>
+            <tr><td class="wl">融資残・貸株残</td><td class="wl">融資残(高) / 貸株残(高)</td>
+              <td class="wl"><b>貸借残</b>(日証金を通した分。信用残のパネルの下段に別の目盛りで)</td></tr>
+            <tr><td class="wl">倍率</td><td class="wl">信用倍率 / 倍率 / 貸借倍率</td><td class="wl">上のどちらか(表に合わせて)</td></tr>
+            <tr><td class="wl">逆日歩</td><td class="wl">逆日歩 / 品貸料率</td><td class="wl">逆日歩の欄</td></tr>
           </tbody></table>
+          <p style="margin:0 0 8px"><b>入る銘柄は、いま開いている銘柄</b>です(取り込む前の確認に出ます)。
+            見出しが2段の表(「融資」の下に「新規・返済・残高」)は、残高の列を読みます。</p>
           <p style="margin:0 0 8px"><b>見出しが無いときは</b>、
             <code>日付, 信用買残, 信用売残</code> の順とみなします。</p>
           <p style="margin:0 0 8px">日付は <code>2026/08/07</code> <code>2026-08-07</code>
@@ -978,7 +984,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <!-- Only the links that are about margin balances. 株主優待 has nothing
          to do with this card and was confusing next to it. -->
     <div class="links" style="margin-top:12px">
-      <a id="lnkMargin" target="_blank" rel="noopener noreferrer">JPX 信用取引残高(PDF)</a>
+      <a id="lnkMargin" target="_blank" rel="noopener noreferrer">JPX 銘柄別信用取引残高</a>
       <a id="lnkJsf" target="_blank" rel="noopener noreferrer">日証金 貸借取引残高(日次)</a>
       <a id="lnkNkTrust" target="_blank" rel="noopener noreferrer">日経 信用残の推移</a>
       <a id="lnkNkGyaku" target="_blank" rel="noopener noreferrer">日経 逆日歩・貸借残</a>
@@ -1514,8 +1520,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v59';
-const APP_DATE = '2026-10-11';
+const APP_VER = 'v60';
+const APP_DATE = '2026-11-02';
 
 /* ============================================================
    1. Small helpers
@@ -3216,6 +3222,10 @@ function parseJPDate(s){
   if(m) return new Date(+m[1], +m[2]-1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
   m = s.match(new RegExp('^(\\d{1,2})[-/](\\d{1,2})[-/](\\d{4})' + TM));
   if(m) return new Date(+m[3], +m[1]-1, +m[2], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+  /* 20261030(区切りなし)。日証金の CSV などがこの形です。以前は読めず、
+     「今日」の日付で記録していました */
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
   /* m/d/yy。Excel の組み込み日付書式(14番)を SheetJS はこの形で文字にします。
      下の new Date() に任せると、2桁の年の読み方がブラウザごとに違います。 */
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
@@ -3591,6 +3601,13 @@ const state = {
   range: '1y', interval: '1d'
 };
 
+/* 指標のオンオフの既定。古い書き出しや別の端末の記録に<b>無い</b>指標は、
+   「オフ」ではなくこの既定にします(v58 のダイバージェンスは既定でオンなのに、
+   v57 の書き出しを取り込むと全部のタブで消えていました) */
+const TOGGLE_DEFAULTS = Object.freeze(Object.assign({}, state.toggles));
+const togglesFrom = t => Object.fromEntries(Object.keys(state.toggles).map(k =>
+  [k, owns(t, k) ? !!t[k] : !!TOGGLE_DEFAULTS[k]]));
+
 const cv   = $('#chart');
 const ctx  = cv.getContext('2d');
 const base = document.createElement('canvas');
@@ -3610,6 +3627,9 @@ function readColors(){
     band: cssVar('--band'), warn: cssVar('--warn'),
     sig: cssVar('--sig'), osc3: cssVar('--osc3'), head: cssVar('--head')
   };
+  /* 明るいテーマか(地の色の明るさで) */
+  const m = /^#([0-9a-f]{6})$/i.exec(C.surface || '');
+  C.lightBg = !!m && (parseInt(m[1].slice(0, 2), 16) + parseInt(m[1].slice(2, 4), 16) + parseInt(m[1].slice(4, 6), 16)) / 3 > 140;
 }
 
 /* ---- geometry ------------------------------------------------------ */
@@ -3791,7 +3811,10 @@ function layout(){
   const twoUp = k => k === 'marginPanel' && state.ind && state.ind.extLend;
   /* いちばん縮めても、帯の下に線を描く場所を24px残します */
   /* 1枚ずつのときは、空いたぶん大きめに(1.6倍) */
-  const hOf = k => Math.max(headH + 24, Math.round(subH * scaleOf(k) * (twoUp(k) ? 1.6 : 1) * (oneMode ? 1.6 : 1)));
+  /* 1枚ずつのときは、空いたぶん大きめに(1.6倍)。ただし全画面と低い画面では
+     タブまで1画面に収めたいので大きくしません */
+  const boost = oneMode && !full && !shortScreen ? 1.6 : 1;
+  const hOf = k => Math.max(headH + 24, Math.round(subH * scaleOf(k) * (twoUp(k) ? 1.6 : 1) * boost));
   const subsH = subs.reduce((t, sp) => t + hOf(sp.key) + gap, 0);
   let mainH;
   if(full){
@@ -3801,8 +3824,12 @@ function layout(){
        はみ出していました */
     const above = Math.max(46, Math.round(host.getBoundingClientRect().top + (window.scrollY || 0)) + 4);
     /* 1枚ずつのタブ(チャートのすぐ下)も画面に収めます */
-    const tabsH = (!subOneHold && allSubs.length >= 2 && subOneApplies(w, vh)) ? 54 : 0;
-    mainH = Math.max(140, Math.round(vh - above - tabsH) - subsH - axisH * (subs.length ? 2 : 1) - 8);
+    const tb = document.getElementById('subTabs');
+    const tabsH = (!subOneHold && allSubs.length >= 2 && subOneApplies(w, vh))
+      ? (tb && tb.offsetHeight ? tb.offsetHeight + 12 : 54) : 0;
+    /* 1枚ずつのタブまで収めるときは、価格パネルの下限を100pxまで下げます
+       (高さ360pxの横向きでは、140pxのままだとタブが画面の外でした) */
+    mainH = Math.max(tabsH ? 100 : 140, Math.round(vh - above - tabsH) - subsH - axisH * (subs.length ? 2 : 1) - 8);
     mainH = Math.round(mainH * scaleOf('main'));
   } else {
     mainH = clamp(Math.round(w * (narrow ? 0.72 : 0.40)), narrow ? 250 : 280, 430);
@@ -4000,6 +4027,16 @@ function clipPanel(g, p){
    それでも入らない凡例だけ後ろから落とします。名前を題名より後に削るのは、
    「RSI 25.0 / MFI 18.7」のほうが「(14)」という期間より読むときに要るからです。 */
 const HEAD_TONE = () => ({up: C.up, down: C.down, flat: C.ink2});
+/* 色の付いた<b>字</b>。明るいテーマでは、見出しの帯や札の薄い色の上で 3:1 を
+   切っていた(状態の札 2.8:1、値 3.5:1)ので、墨に35%寄せて濃くします。
+   線の色はそのまま(字だけ) */
+function mixHex(a, b, t){
+  const pa = /^#([0-9a-f]{6})$/i.exec(String(a || '').trim()), pb = /^#([0-9a-f]{6})$/i.exec(String(b || '').trim());
+  if(!pa || !pb) return a;
+  const ch = (x, i) => parseInt(x[1].slice(i, i + 2), 16);
+  return '#' + [0, 2, 4].map(i => Math.round(ch(pa, i) * (1 - t) + ch(pb, i) * t).toString(16).padStart(2, '0')).join('');
+}
+const textInk = col => C.lightBg ? mixHex(col, C.ink1, .35) : col;
 
 /* オシレーターの値。桁はパネルごとに違う(MACDは株価次第で 0.0012 にも
    120 にもなる)ので、大きさから決めます。 */
@@ -4283,7 +4320,7 @@ function drawPanelHead(g, p, i){
       g.fillText(it.name, x, mid);
       x += g.measureText(it.name).width + 4;
     }
-    g.font = `600 ${fI}px ${font}`; g.fillStyle = it.color;
+    g.font = `600 ${fI}px ${font}`; g.fillStyle = textInk(it.color);
     g.fillText(it.val, x, mid);
     x += g.measureText(it.val).width + 10;
   }
@@ -4297,7 +4334,7 @@ function drawPanelHead(g, p, i){
     if(g.roundRect) g.roundRect(bx, by, w, bh, bh / 2); else g.rect(bx, by, w, bh);
     g.fill();
     g.globalAlpha = 1;
-    g.fillStyle = col; g.textAlign = 'center';
+    g.fillStyle = textInk(col); g.textAlign = 'center';
     g.fillText(t, bx + w / 2, mid);
   }
   g.restore();
@@ -4391,6 +4428,16 @@ function openPanelHelp(key){
   $('#phelpNow').textContent = sp && sp.status ? 'いま: ' + sp.status.text : '';
   $('#phelpBody').innerHTML = panelHelpText(key);
   box.classList.remove('hide');
+  placePanelHelp(key);
+  hideTip();
+  try { $('#phelpX').focus({preventScroll: true}); } catch(e){}
+  return true;
+}
+/* 置き場所だけ決め直します(画面を回した・パネルが動いたとき。焦点は動かしません) */
+function placePanelHelp(key){
+  const box = $('#phelp');
+  const p = LAY && LAY.panels.find(q => q.key === key);
+  if(!box || !p || box.classList.contains('hide')) return;
   /* 帯のすぐ下に。<b>画面に見えている範囲</b>に入りきらなければ帯の上、
      どちらにも入らなければ見えている範囲の上端に寄せます(吹き出しと同じ考え方。
      キャンバスの高さで決めると、画面の外に出て読めませんでした) */
@@ -4407,9 +4454,6 @@ function openPanelHelp(key){
   else top = Math.max(band.top + 4, Math.min(below, visBottom - bh - 4));
   box.style.top = Math.max(0, top) + 'px';
   box.style.left = clamp(p.x, 4, Math.max(4, W - bw - 4)) + 'px';
-  hideTip();
-  try { $('#phelpX').focus({preventScroll: true}); } catch(e){}
-  return true;
 }
 function closePanelHelp(){
   const box = $('#phelp');
@@ -4448,8 +4492,8 @@ function oscZones(g, p, y, lo, hi, top = 100, bot = 0, avoid){
     return !(avoid || []).some(a => b[0] < a[2] && b[2] > a[0] && b[1] < a[3] && b[3] > a[1]);
   };
   const yA = (yTop + yHi) / 2, yB = (yLo + yBot) / 2;
-  if(yHi - yTop >= fs + 1 && clear('買われすぎ', yA)){ g.fillStyle = C.up;   g.fillText('買われすぎ', p.x + 4, yA); }
-  if(yBot - yLo >= fs + 1 && clear('売られすぎ', yB)){ g.fillStyle = C.down; g.fillText('売られすぎ', p.x + 4, yB); }
+  if(yHi - yTop >= fs + 1 && clear('買われすぎ', yA)){ g.fillStyle = textInk(C.up);   g.fillText('買われすぎ', p.x + 4, yA); }
+  if(yBot - yLo >= fs + 1 && clear('売られすぎ', yB)){ g.fillStyle = textInk(C.down); g.fillText('売られすぎ', p.x + 4, yB); }
   g.restore();
 }
 
@@ -5115,7 +5159,7 @@ function drawDivergence(g, p, plan){
   for(const L of plan.labels){
     g.globalAlpha = .85; g.fillStyle = C.surface;
     g.fillRect(L.x - L.w / 2, L.y - fs / 2 - 2, L.w, fs + 4);
-    g.globalAlpha = 1; g.fillStyle = L.col;
+    g.globalAlpha = 1; g.fillStyle = textInk(L.col);
     g.fillText(L.t, L.x, L.y);
   }
   g.restore();
@@ -6755,6 +6799,7 @@ const Tabs = {
          貼りついたまま描かれます。 */
       Ext.forget();
       state.raw = t.raw;
+      try { applyViewLayout(t.raw.code); } catch(e){}
       /* 指標は、無ければその場で作ります。
 
          リロード直後の復元では、開いていたタブぶんしか指標を組み立てて
@@ -6810,6 +6855,10 @@ const Tabs = {
   add(symbol){
     if(this.list.length >= this.MAX) return false;
     this.snapshot();
+    /* 新しいタブは比較なしで始めます。前のタブの比較が残ったままだと、
+       最初の読み込みでそれを取り直して、頼んでいない線が出ていました */
+    Compare.active = [];
+    try { Compare.renderChips(); } catch(e){}
     this.list.push({id: this.seq++, label: symbol || '新規', symbol: symbol || '',
                     interval: '1d', range: '1y', i0: 0, i1: 0, pristine: true,
                     toggles: Object.assign({}, state.toggles), compare: []});
@@ -6825,6 +6874,16 @@ const Tabs = {
   close(i){
     if(this.list.length <= 1) return;
     this.snapshot();          /* keep the active tab's latest view */
+    /* 閉じたタブの読み込みが途中なら、その結果は<b>どこにも</b>入れません。
+       印が無いと「持ち主のいなくなった結果」として、前に出ているタブに
+       入れていました(トヨタを読み込み中のタブを閉じると、残ったタブが
+       トヨタに置き換わって保存されました) */
+    const gone = this.list[i];
+    if(gone) gone.closed = true;
+    if(i === this.active){
+      if(Stream.state !== 'off'){ Stream.disconnect(); $('#liveSel').value = 'off'; stopLive(); }
+      OP.refresh++; OP.news++; OP.shorts++; OP.margin++;
+    }
     this.list.splice(i, 1);
     if(this.active >= this.list.length) this.active = this.list.length - 1;
     else if(this.active > i) this.active--;
@@ -6941,9 +7000,28 @@ const Compare = {
   /* Re-pull every active series — needed when the interval or range changes */
   async refresh(){
     if(!this.active.length) return;
+    /* 取り直しは<b>始めたタブのもの</b>です。途中でタブを切り替えると、残りを
+       切り替え先のタブで1本ずつ「切り替え」ていたので、元のタブの比較は消え、
+       切り替え先には頼んでいない線が足されたり、持っていた線が外れたりしました */
+    const tab = Tabs.list[Tabs.active];
+    const before = this.active.slice();
     const wanted = this.active.map(a => ({sym: a.sym, label: a.label}));
     this.active = [];
-    for(const w of wanted) await this.toggle(w.sym, w.label);
+    for(const w of wanted){
+      if(Tabs.list[Tabs.active] !== tab) break;
+      if(this.has(w.sym)) continue;          /* 取り直しで外すことはしません */
+      await this.toggle(w.sym, w.label);
+    }
+    if(Tabs.list[Tabs.active] !== tab){
+      /* 元のタブには、取り直せた分と、取り直す前の分を返しておきます
+         (前に出したときに、その足種のものだけが描かれます) */
+      if(tab){
+        const got = (tab.compare || []).slice();
+        for(const b of before) if(!got.some(x => x.sym === b.sym)) got.push(b);
+        tab.compare = got;
+      }
+      return;
+    }
     /* toggle() writes its own message per symbol and the next one wipes it,
        so say once, at the end, what did not come back. */
     const lost = wanted.filter(w => !this.has(w.sym));
@@ -7641,7 +7719,8 @@ function renderMarginStatus(status){
   }
   const pts = Ext.margin ? Ext.margin.points : null;
   if(!pts || !pts.length){
-    if(!bits.length) bits.push('<p class="qsrc">信用買残・売残のCSV(またはExcel)を読み込むと、推移をチャートに重ねます。'
+    if(!bits.length) bits.push('<p class="qsrc">「JPXの信用残を取得(日次)」を押すと、東証が毎営業日公表している'
+      + '信用買残・信用売残を取り込みます(2026年9月28日から日次)。CSV・Excelの読み込みや、表の貼り付けでも足せます。'
       + '見出しに「日付」「信用買残」「信用売残」があれば自動で判別します。</p>');
     box.innerHTML = bits.join('');
     return;
@@ -7660,7 +7739,7 @@ function renderMarginStatus(status){
   bits.push(`<p class="qsrc" style="margin:5px 0 0">出所: ${esc(Ext.margin.src || '—', 60)}`
     + (loanKind
       ? ' ・ 日証金を通した分だけの<b>貸借残</b>です(市場全体の信用残ではありません)'
-      : ' ・ 市場全体の<b>信用残</b>(週次)です') + '</p>');
+      : ' ・ 市場全体の<b>信用残</b>です') + '</p>');
   /* Say when the stored series has been cleaned up. Silently changing
      numbers the user has already looked at is worse than the bug. */
   if(marginDropped){
@@ -7726,7 +7805,8 @@ function updateExternalLinks(){
     a.classList.toggle('hide', !on);
   };
   set('#lnkKarauri', `https://karauri.net/${code}/`, jp);
-  set('#lnkMargin',  'https://www.jpx.co.jp/markets/statistics-equities/margin/05.html', jp);
+  /* 銘柄別のページ(01.html)へ。05.html は市場全体の合計の推移でした */
+  set('#lnkMargin',  'https://www.jpx.co.jp/markets/statistics-equities/margin/01.html', jp);
   set('#lnkTdnet',   'https://www.release.tdnet.info/inbs/I_main_00.html', jp);
   set('#lnkJsf',     jp ? `https://www.taisyaku.jp/app/stock?code=${code}` : 'https://www.taisyaku.jp/', jp);
   set('#lnkJpx',     JPX_SHORT_INDEX, jp);
@@ -8806,6 +8886,14 @@ function renderSetBox(){
     + '<p class="qsrc" style="margin:6px 0 0;line-height:1.7">セットが入れ替えるのは指標のオンオフだけです'
     + '(足種・期間・パネルの高さはそのまま)。分割・配当の印はいまの状態のまま残します。</p>';
 }
+function markSetButtons(){
+  const now = setKeys().filter(k => state.toggles[k]).sort().join(',');
+  for(const b of document.querySelectorAll('#setBox [data-set]')){
+    const [kind, id] = b.dataset.set.split(':');
+    const set = kind === 'b' ? BUILTIN_SETS.find(x => x.id === id) : userSets[+id];
+    b.setAttribute('aria-pressed', String(!!set && set.keys.slice().sort().join(',') === now));
+  }
+}
 /* チップの表示名(色見本を除いた文字) */
 function chipLabel(k){
   const b = document.querySelector(`.chip[data-t="${k}"]`);
@@ -8951,9 +9039,10 @@ function renderChipSummary(){
   const wrap = $('#chipAll'), more = $('#chipMore'), sum = $('#chipNow');
   if(!wrap || !more || !sum) return;
   const open = !wrap.classList.contains('hide');
-  /* セットの箱を開いていれば、どのセットと同じかの印を付け直します */
+  /* セットの箱を開いていれば、どのセットと同じかの印<b>だけ</b>を付け直します
+     (箱ごと作り直すと、打ちかけのセットの名前が消えていました) */
   const sb = $('#setBox');
-  if(sb && !sb.classList.contains('hide')) renderSetBox();
+  if(sb && !sb.classList.contains('hide')) markSetButtons();
   more.textContent = open ? '指標をとじる' : '指標をえらぶ';
   sum.classList.toggle('hide', open);
   if(open) return;
@@ -9017,9 +9106,15 @@ function renderSubTabs(){
   box.innerHTML = all.map(sp =>
       `<button class="chip" data-subpick="${esc(sp.key, 20)}" aria-pressed="${sp.key === cur}">${esc(sp.short, 16)}</button>`).join('')
     + '<button class="chip submode" data-subone="0">すべて表示</button>';
-  /* 選んだタブが見えるところまで横に流します */
+  /* 選んだタブが見えるところまで<b>帯だけ</b>横に流します。scrollIntoView は
+     ページごと縦にも動かすので、描き直すたび(ストリームなら2秒ごと)に
+     画面が引き戻されていました。選び直したときだけ動かします。 */
   const on = box.querySelector('[aria-pressed="true"]');
-  if(on && on.scrollIntoView) try { on.scrollIntoView({block: 'nearest', inline: 'nearest'}); } catch(e){}
+  if(on && box.dataset.shown !== cur){
+    box.dataset.shown = cur || '';
+    const left = on.offsetLeft - (box.clientWidth - on.offsetWidth) / 2;
+    box.scrollLeft = Math.max(0, left);
+  }
 }
 /* 隣の<b>見えているパネル</b>と入れ替えます。あいだに隠れたパネルが
    あっても、そちらは動かしません(押した結果が画面と食い違わないように)。 */
@@ -9154,12 +9249,34 @@ Object.assign(Book, {
         if(typeof v.toggles[k] === 'boolean') state.toggles[k] = v.toggles[k];
       syncToggleChips();
     }
-    panelScale = v.scale ? sanitizeScales(v.scale) : baseScale;
-    panelOrder = v.order ? sanitizeOrder(v.order) : baseOrder;
-    viewActive = cleanSymbol(code) || null;
+    applyViewLayout(code);
     return true;
   }
 });
+
+/* 見かたのうち<b>画面の形</b>(通貨・パネルの高さ・並び)だけを当てます。
+   指標のオンオフはタブごとに持っているので触りません。
+
+   タブを切り替えたときと、再読み込みで復元したときに使います。apply() でしか
+   当てていなかったので、ドル建てで見る銘柄のタブから円の銘柄のタブへ移ると、
+   円の銘柄がドル建てで描かれ、高さと並びも前のタブのものでした(その状態で
+   「覚えさせる」と、前の銘柄の通貨で保存されます)。再読み込み後は逆に何も
+   当たっていませんでした。
+
+   高さの記録が無い見かたでは、端末の既定を<b>写して</b>使います。そのまま
+   同じものを指していたので、その銘柄でパネルを伸ばすと端末の既定まで
+   伸び、ほかの銘柄にも広がっていました。 */
+function applyViewLayout(code){
+  const v = Book.viewFor(code);
+  viewCur = (v && typeof v.cur === 'string') ? v.cur : null;
+  const sel = $('#curSel');
+  if(sel) sel.value = wantCurrency();
+  if(!v){ panelScale = baseScale; panelOrder = baseOrder; viewActive = null; return false; }
+  panelScale = v.scale ? sanitizeScales(v.scale) : Object.assign(Object.create(null), baseScale);
+  panelOrder = v.order ? sanitizeOrder(v.order) : baseOrder.slice();
+  viewActive = cleanSymbol(code) || null;
+  return true;
+}
 
 function syncToggleChips(){
   for(const b of document.querySelectorAll('.chip[data-t]')){
@@ -9676,11 +9793,17 @@ const Macro = {
     this.note = '';
     try { renderRateCard(); } catch(e){}      /* 「取得中…」を出す */
     const msgs = [];
+    /* 最後の点から何日空いているか。差分だけを頼む作り(米は3か月、日本は今月分、
+       建玉は12週)なので、それより長く開かなかったあいだの日は、二度と埋まらずに
+       前の値のまま引き伸ばされていました。空いた幅に合わせて頼む量を増やします。 */
+    const todayK = dkey(new Date());
+    const gapOf = key => { const l = this.latest(key); return l ? daysBetweenKeys(l.d, todayK) : Infinity; };
     try{
       /* --- 米10年債 --------------------------------------------------- */
       try{
         const first = !this.us10 || !this.us10.points.length;
-        const y = await fetchYahoo('^TNX', first || force ? 'max' : '3mo', '1d');
+        const g = gapOf('us10');
+        const y = await fetchYahoo('^TNX', first || force || g > 330 ? 'max' : g > 80 ? '1y' : '3mo', '1d');
         const pts = [];
         let scaled = 0;
         for(const b of y.bars){
@@ -9695,7 +9818,11 @@ const Macro = {
 
       /* --- 日10年債 --------------------------------------------------- */
       try{
-        const needAll = force || !this.jp10 || !this.jp10.full;
+        /* jgbcm.csv は<b>今月の分だけ</b>です。最後の点が先月以前なら、先月末までの
+           日を取りこぼすので、全期間のファイルを取り直します(月に1回だけ) */
+        const lastJp = this.latest('jp10');
+        const needAll = force || !this.jp10 || !this.jp10.full
+          || !lastJp || lastJp.d.slice(0, 6) < todayK.slice(0, 6);
         const url = needAll ? JGB_ALL : JGB_NOW;
         const txt = await relayFetch(url, {text: true, timeout: needAll ? 25000 : 9000});
         const pts = parseJgbCsv(txt, 10);
@@ -9747,7 +9874,11 @@ const Macro = {
       /* --- CFTC 円の建玉 ---------------------------------------------- */
       try{
         const first = !this.cot || !this.cot.points.length;
-        const rows = await relayFetch(COT_URL + (first || force ? 1200 : 12), {timeout: 15000});
+        /* 週1回なので、空いた週数+4 だけ頼みます */
+        const gc = this.cot && this.cot.points.length
+          ? daysBetweenKeys(this.cot.points[this.cot.points.length - 1].d, todayK) : Infinity;
+        const lim = first || force || !isFinite(gc) ? 1200 : clamp(Math.ceil(gc / 7) + 4, 12, 1200);
+        const rows = await relayFetch(COT_URL + lim, {timeout: 15000});
         const pts = parseCot(rows);
         if(!pts.length) throw new Error('中身が読めませんでした');
         const n = this.mergeCot(pts, 'CFTC (TFF)');
@@ -9862,7 +9993,9 @@ function reportFromRows(rows, stamp){
     /* the 委託者 that distinguishes two funds run by the same manager */
     tr:     cleanText(r.trustor, 80),
     ratio: isNum(r.ratio) ? r.ratio : null,
-    qty:   isNum(r.qty) ? r.qty : null
+    qty:   isNum(r.qty) ? r.qty : null,
+    /* 計算年月日。同じ日のファイルに同じ報告者の行が複数あるとき、新しいほうを残すため */
+    cd:    r.date instanceof Date && !isNaN(r.date) ? dkey(r.date) : ''
   })).filter(r => r.holder)};
 }
 
@@ -9942,7 +10075,11 @@ function foldShortReports(reports){
   const held = new Map();
   const out = [];
   for(const day of days){
-    for(const r of day.rows || []){
+    /* 計算年月日の古い順に当てはめます。表示のために割合の大きい順に並べた行を
+       そのまま当てはめていたので、同じ報告者の行が2つあると<b>小さいほうが残り</b>、
+       0.48% の解消と 0.51% の再報告が並ぶと、残っている建玉が消えていました */
+    const rows = (day.rows || []).slice().sort((a, b) => String(a.cd || '').localeCompare(String(b.cd || '')));
+    for(const r of rows){
       /* An explicit zero is a closing report: the entity is out.
          An unreadable one is not — it says nothing, so the previous
          balance stands rather than being silently wiped. */
@@ -10003,7 +10140,7 @@ function scrapeShortLinks(html, into, seen){
    The month a page covers is taken from the FILENAMES on it, never from the
    page number: the window rolls forward every month. */
 const JPX_ARCHIVE_MAX = 12;
-async function findShortFiles(months){
+async function findShortFiles(months, needFiles){
   const want = clamp(months || 1, 1, JPX_ARCHIVE_MAX + 1);
   const seen = new Set(), out = [];
   const pages = [JPX_SHORT_INDEX];
@@ -10012,7 +10149,11 @@ async function findShortFiles(months){
       + String(i).padStart(2, '0') + '.html');
 
   let failed = 0;
-  for(const url of pages){
+  /* 今月のページは今月の分だけです。月の初めに「10日分」を押すと1〜2日分しか
+     取れず、最初のファイルが出る前は「リンクが見つかりません」でした。
+     足りなければ、先月のページを1枚だけ足します */
+  for(let k = 0; k < pages.length; k++){
+    const url = pages[k];
     try{
       const html = await relayFetch(url, {text: true, timeout: 12000});
       scrapeShortLinks(html, out, seen);
@@ -10020,7 +10161,11 @@ async function findShortFiles(months){
       failed++;
       if(url === JPX_SHORT_INDEX) throw e;      /* the current month is not optional */
     }
-    if(onArchiveStep) onArchiveStep(out.length, pages.indexOf(url) + 1, pages.length);
+    if(k === pages.length - 1 && needFiles && out.length < needFiles && pages.length === want
+       && want <= JPX_ARCHIVE_MAX)
+      pages.push('https://www.jpx.co.jp/markets/public/short-selling/00-archives-'
+        + String(want).padStart(2, '0') + '.html');
+    if(onArchiveStep) onArchiveStep(out.length, k + 1, pages.length);
   }
   out.sort((a, b) => b.d.localeCompare(a.d));
   if(!out.length) throw new Error('JPXのページに空売り残高ファイルのリンクが見つかりません');
@@ -10196,7 +10341,7 @@ async function loadUsShortVol(maxDays){
     renderShorts({error: 'FINRAの空売り比率は米国上場株のみです(指数・為替・商品・暗号資産にはありません)。', us: true});
     return false;
   }
-  if(usVolBusy) return false;
+  if(usVolBusy){ renderShorts({error: '空売り比率の取得がまだ進んでいます(別の銘柄の分かもしれません)。終わってからもう一度押してください。'}); return false; }
   usVolBusy = true;
   renderShorts({loading: true, msg: 'FINRAの日次ファイルを取得しています…'});
   try{
@@ -10273,7 +10418,8 @@ async function loadShortSeries(maxDays, months){
     renderShorts({error: '空売り残高報告は日本株(東証コード)のみの制度です。'});
     return false;
   }
-  if(shortBusy) return false;
+  /* 押しても何も出ないと、壊れているように見えます */
+  if(shortBusy){ renderShorts({error: '空売り残高の取得がまだ進んでいます(別の銘柄の分かもしれません)。終わってからもう一度押してください。'}); return false; }
   shortBusy = true;
   renderShorts({loading: true, msg: 'JPXのファイル一覧を確認しています…'});
   try{
@@ -10282,7 +10428,7 @@ async function loadShortSeries(maxDays, months){
       renderShorts({loading: true,
         msg: `JPXの月別ページを読んでいます… ${i}/${total}(${n}日分のリンク)`}); };
     let files;
-    try { files = await findShortFiles(months || 1); }
+    try { files = await findShortFiles(months || 1, maxDays); }
     finally { onArchiveStep = null; }
     const have = new Set((Ext.short ? Ext.short.points : []).map(p => p.d));
     const todo = files.filter(f => !have.has(f.d)).slice(0, maxDays);
@@ -10471,17 +10617,32 @@ const JSF_URLS = code => [
 let jsfCache = null;
 
 async function fetchJSFTable(){
-  if(jsfCache) return jsfCache;
+  /* 毎営業日更新なので、開きっぱなしで日をまたいだら取り直します */
+  if(jsfCache && Date.now() - jsfCache.at < 3600e3) return jsfCache;
   const buf = await relayFetchBinary(JSF_CSV, 20000);
   let text;
   try { text = new TextDecoder('shift_jis', {fatal: false}).decode(buf); }
   catch(e){ text = new TextDecoder('utf-8', {fatal: false}).decode(buf); }
   if((text.match(/�/g) || []).length > 40)
     text = new TextDecoder('utf-8', {fatal: false}).decode(buf);
-  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  jsfCache = parseJsfCsv(text);
+  return jsfCache;
+}
+/* 取ってくる部分と読む部分を分けてあります(読む部分は表のままテストできます) */
+function parseJsfCsv(text){
+  const lines = String(text || '').split(/\r?\n/).filter(l => l.trim() !== '');
   if(lines.length < 10) throw new Error('日証金のファイルが空でした');
 
-  const head = splitLine(lines[0]).map(c => String(c).replace(/["\s]/g, ''));
+  /* 見出しは<b>先頭の行とは限りません</b>。同じ日証金の品貸料率(shina.csv)は
+     題名と注記の行のあとに見出しがあり、こちらも1行目を見出しと決め打ちに
+     していると、題名の行が付いた日に「見出しを読み取れませんでした」で全部の
+     銘柄が取れなくなります。上から10行の中で探します。 */
+  let hi = 0;
+  for(let i = 0; i < Math.min(lines.length, 10); i++){
+    const cells = splitLine(lines[i]).map(c => String(c).replace(/["\s]/g, ''));
+    if(cells.some(c => /銘柄コード|^コード$/.test(c)) && cells.some(c => /融資|貸株/.test(c))){ hi = i; break; }
+  }
+  const head = splitLine(lines[hi]).map(c => String(c).replace(/["\s]/g, ''));
   const find = (re, avoid) => head.findIndex(h => re.test(h) && !(avoid && avoid.test(h)));
   const iCode = find(/銘柄コード|^コード$/);
   const iDate = find(/申込日|公表日|基準日|年月日/);
@@ -10492,18 +10653,18 @@ async function fetchJSFTable(){
     throw new Error('日証金ファイルの見出しを読み取れませんでした(様式変更の可能性)');
 
   const rows = new Map();
-  for(let i = 1; i < lines.length; i++){
+  for(let i = hi + 1; i < lines.length; i++){
     const c = splitLine(lines[i]);
-    const code = String(c[iCode] || '').replace(/["\s]/g, '');
-    if(!isJpCode(code) || rows.has(code)) continue;
+    /* 5桁(末尾0)や全角のコードも4桁に直します(kessanCode) */
+    const code = kessanCode(String(c[iCode] || '').replace(/["\s]/g, ''));
+    if(!code || rows.has(code)) continue;
     rows.set(code, c);
   }
   /* the extra columns worth having: what is actually lent out, and the
      ratio between the two sides */
   const iNet   = find(/差引.*残高|貸借残/, /金額|代金/);
   const iRatio = find(/貸借倍率|信用倍率/);
-  jsfCache = {rows, iDate, iBuy, iSell, iNet, iRatio, at: Date.now()};
-  return jsfCache;
+  return {rows, iDate, iBuy, iSell, iNet, iRatio, at: Date.now()};
 }
 
 /* ---- 逆日歩 (品貸料率) -----------------------------------------------
@@ -10673,6 +10834,200 @@ async function loadJSF(){
   }
   renderMarginStatus({error: lastErr + ' — 日証金のサイトはJavaScriptで描画されるため、自動取得できないことがあります。'
     + 'その場合は下のリンクから開いて、表示された数字をCSVにするか、証券会社の信用残CSVを読み込んでください。'});
+}
+
+/* ---- JPX の銘柄別信用取引残高(日次) ------------------------------------
+   2026年9月28日から、東証は全銘柄の信用買残・信用売残を<b>毎営業日</b>公表し、
+   Excel でも出しています(それまでは週1回で、銘柄別は PDF だけでした)。
+   このツールはずっと「信用残は自動では取れない」前提で、自動で取りにいくのは
+   日証金の貸借残(日証金を通した分だけの別の統計)だけでした。
+
+   <b>注意</b>: 作った環境から JPX に接続できなかったので、本物のページと
+   ファイルでは確かめられていません。見出しの言葉で列を探す作りにして、
+   どこで止まったかを画面に出します(ページ・リンク・取得・見出し・日付)。 */
+const JPX_MARGIN_PAGES = [
+  'https://www.jpx.co.jp/markets/statistics-equities/margin/01.html'
+];
+const JPX_MARGIN_SRC = 'JPX 銘柄別信用取引残高';
+const jpxMarginFiles = new Map();     /* url -> {d, map(code -> {buy, sell, ratio})} 1回の起動のあいだ */
+
+function jpxMarginLinks(html, base){
+  const seen = new Set(), out = [];
+  for(const m of String(html || '').matchAll(/href\s*=\s*["']([^"'#?]+\.xlsx?)(?:[?#][^"']*)?["']/gi)){
+    let u = null;
+    try{
+      const x = new URL(m[1].replace(/&amp;/g, '&'), base);
+      if(x.protocol === 'https:' && /(^|\.)jpx\.co\.jp$/.test(x.hostname)) u = x.href;
+    }catch(e){}
+    if(!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  /* ファイル名に日付(20261030)があれば新しい順に。無ければページの順のまま */
+  const dOf = u => { const m = /(20\d{2})(\d{2})(\d{2})/.exec(u.replace(/^.*\//, '')); return m ? m[0] : ''; };
+  return out.map((u, i) => ({u, i, d: dOf(u)}))
+    .sort((a, b) => (a.d && b.d) ? b.d.localeCompare(a.d) : a.i - b.i)
+    .map(x => x.u);
+}
+
+/* 2段の見出しを1段にします。上の段のまとめ(「売残高」「融資」)を、下の段
+   (「株数」「前日比」「残高」)に前から付けます。上の段の空欄は左のまとめを引き継ぎます。 */
+function mergeHeadRows(r1, r2){
+  const n = Math.max((r1 || []).length, (r2 || []).length), out = [];
+  let group = '';
+  for(let j = 0; j < n; j++){
+    const a = String((r1 || [])[j] == null ? '' : r1[j]).replace(/\s+/g, '');
+    const b = String((r2 || [])[j] == null ? '' : r2[j]).replace(/\s+/g, '');
+    if(a) group = a;
+    out.push(b ? (a || group) + b : (a || ''));
+  }
+  return out;
+}
+
+/* 2段の見出しか。上の段に空欄があり、下の段が<b>文字</b>(数字や日付ではない)で
+   その空欄を埋めているとき。上の段にも「信用売残」と書いてあると、1段だけで
+   読めたことになり、下の段の「前日比」の列を残高として読んでいました。
+   表の上の題名(1つのセルだけの行)は、ここには当たりません。 */
+function groupHeadPair(r1, r2){
+  const t = r => (r || []).map(c => String(c == null ? '' : c).replace(/\s+/g, ''));
+  const a = t(r1), b = t(r2);
+  const filled = x => x.filter(Boolean).length;
+  if(filled(a) < 2 || filled(b) < 2) return false;
+  if(b.some(c => c && (pasteNum(c) !== null || pasteDate(c)))) return false;
+  return a.some((c, j) => !c && b[j]);
+}
+
+/* 全銘柄の表 → {d, map}。列は見出しの言葉で探します。 */
+function parseJpxMarginRows(sheets, opts){
+  const o = opts || {}, map = new Map();
+  let date = null;
+  const EXCL = /前日比|前週比|増減|比率|上場比|金額|円|倍率|新規|返済/;
+  const findDate = v => {
+    const x = KESSAN_FW(v).replace(/\s+/g, '');
+    let m = /(?:令和|R)(元|\d{1,2})[年.\/](\d{1,2})[月.\/](\d{1,2})/.exec(x);
+    if(m) return mkDate(2018 + (m[1] === '元' ? 1 : +m[1]), +m[2], +m[3]);
+    m = /(20\d{2})[年\/.\-](\d{1,2})[月\/.\-](\d{1,2})/.exec(x);
+    return m ? mkDate(+m[1], +m[2], +m[3]) : null;
+  };
+  for(const rows of sheets || []){
+    if(!Array.isArray(rows)) continue;
+    let hd = -1, cols = null;
+    for(let r = 0; r < Math.min(rows.length, 30) && hd < 0; r++){
+      const one = [rows[r] || [], 1], two = [mergeHeadRows(rows[r], rows[r + 1]), 2];
+      /* 2段を合わせるのは2段らしいときだけ(題名の行と見出しを合わせないように) */
+      for(const [labels, span] of groupHeadPair(rows[r], rows[r + 1]) ? [two, one] : [one]){
+        const L = labels.map(c => KESSAN_FW(c).replace(/\s+/g, ''));
+        const code = L.findIndex(x => /コード/.test(x) && !/業種|市場/.test(x));
+        const sell = L.findIndex(x => /売残|売り残/.test(x) && !EXCL.test(x));
+        const buy  = L.findIndex(x => /買残|買い残/.test(x) && !EXCL.test(x));
+        if(code >= 0 && (buy >= 0 || sell >= 0)){
+          const unit = i => i >= 0 && /千株/.test(L[i]) ? 1e3 : 1;
+          cols = {code, buy, sell, ratio: L.findIndex(x => /倍率/.test(x) && !/前日|前週/.test(x)),
+                  ub: unit(buy), us: unit(sell)};
+          hd = r + span - 1;
+          break;
+        }
+      }
+    }
+    if(hd < 0) continue;
+    /* 日付は見出しより上の題名(「2026年10月30日現在」など)から */
+    if(!date) for(let r = 0; r <= hd && !date; r++)
+      for(const c of rows[r] || []){ const d = findDate(c); if(d){ date = d; break; } }
+    const num = v => typeof v === 'number' ? v : pasteNum(String(v == null ? '' : v));
+    for(let r = hd + 1; r < rows.length; r++){
+      const row = rows[r] || [];
+      const code = kessanCode(row[cols.code]);
+      /* 1銘柄2行(株数の行と金額の行)の表では、最初の行が株数です */
+      if(!code || map.has(code)) continue;
+      if(row.some(c => /^(金額|千円|百万円|円)$/.test(String(c).trim()))) continue;
+      const b = cols.buy >= 0 ? num(row[cols.buy]) : null;
+      const sl = cols.sell >= 0 ? num(row[cols.sell]) : null;
+      const buy = isNum(b) && b >= 0 ? b * cols.ub : null, sell = isNum(sl) && sl >= 0 ? sl * cols.us : null;
+      if(!isNum(buy) && !isNum(sell)) continue;
+      const rt = cols.ratio >= 0 ? num(row[cols.ratio]) : null;
+      map.set(code, {buy, sell, ratio: isNum(rt) && rt >= 0 ? rt
+        : (isNum(buy) && isNum(sell) && sell > 0) ? buy / sell : null});
+    }
+  }
+  /* ファイル名の日付(…20261030.xlsx)は、題名に日付が無いときだけ使います */
+  if(!date && o.fileName){
+    const m = /(20\d{2})(\d{2})(\d{2})/.exec(String(o.fileName).replace(/^.*\//, ''));
+    if(m) date = mkDate(+m[1], +m[2], +m[3]);
+  }
+  return {d: date ? dkey(date) : null, map};
+}
+
+async function jpxMarginFile(XLSX, url){
+  if(jpxMarginFiles.has(url)) return jpxMarginFiles.get(url);
+  const buf = await relayFetchBinary(url, 25000);
+  const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
+  const sheets = wb.SheetNames.slice(0, 8).map(n =>
+    XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: ''}));
+  const r = parseJpxMarginRows(sheets, {fileName: url});
+  if(!r.map.size) throw new Error('head');
+  if(!r.d) throw new Error('date');
+  jpxMarginFiles.set(url, r);
+  return r;
+}
+
+let jpxMarginBusy = false;
+/* days … 何日ぶん取るか(1 = いちばん新しいファイルだけ)。返り値: 取り込めたか */
+async function loadJpxMargin(days){
+  const code = Ext.codeKey();
+  if(!isJpCode(code)){
+    renderMarginStatus({error: '信用取引残高は日本株(東証コード)のみです。'});
+    return false;
+  }
+  if(jpxMarginBusy) return false;
+  jpxMarginBusy = true;
+  renderMarginStatus({loading: true});
+  try{
+    const XLSX = await loadXLSX();
+    freezeProto();
+    let links = [];
+    let opened = false;
+    for(const page of JPX_MARGIN_PAGES){
+      try{
+        const html = await relayFetch(page, {text: true, timeout: 12000});
+        opened = true;
+        links = links.concat(jpxMarginLinks(html, page));
+      }catch(e){}
+    }
+    if(!opened) throw new Error('JPXの銘柄別信用取引残高のページを開けませんでした(中継サーバーが混んでいるか、JPXに断られています)。');
+    if(!links.length) throw new Error('JPXのページは開けましたが、信用残のExcelへのリンクが見つかりませんでした(ページの作りが変わった可能性)。');
+    const want = links.slice(0, clamp(days || 1, 1, 20));
+    const pts = [];
+    let got = 0, heads = 0, dates = 0, fails = 0;
+    for(const url of want){
+      try{
+        const r = await jpxMarginFile(XLSX, url);
+        got++;
+        const v = r.map.get(code);
+        if(v) pts.push({d: r.d, buy: v.buy, sell: v.sell, ratio: v.ratio});
+      }catch(e){
+        if(e && e.message === 'head') heads++;
+        else if(e && e.message === 'date') dates++;
+        else fails++;
+      }
+      if(Ext.codeKey() !== code){ renderMarginStatus({error: '取得中に別の銘柄へ切り替わったため中止しました。'}); return false; }
+    }
+    if(!got){
+      throw new Error(heads ? `JPXの信用残のExcel(${heads}件)は取れましたが、見出しを読み取れませんでした(様式変更の可能性)。`
+        : dates ? 'JPXの信用残のExcelから、いつの残高かを読み取れませんでした。'
+        : `JPXの信用残のExcel(${want.length}件)を中継サーバー経由で取得できませんでした。時間をおいてもう一度押してください。`);
+    }
+    if(!pts.length) throw new Error(`この銘柄はJPXの表(${got}日分)に載っていませんでした。`);
+    const res = Ext.mergeMargin(pts, JPX_MARGIN_SRC, code, 'credit');
+    afterExtUpdate();
+    renderMarginStatus(res && res.empty ? {zero: true, name: JPX_MARGIN_SRC}
+      : {ok: true, added: pts.length, name: JPX_MARGIN_SRC + `(${got}日分)`, replaced: res && res.replaced});
+    return true;
+  }catch(e){
+    renderMarginStatus({error: cleanText(e.message, 160)});
+    return false;
+  }finally{
+    jpxMarginBusy = false;
+  }
 }
 
 async function loadMarginFile(file){
@@ -11933,7 +12288,9 @@ function sectorLinks(html){
   return [...out.entries()].sort((a, b) => b[0].localeCompare(a[0]));   /* 新しい順 */
 }
 function sectorListLink(html){
-  const m = String(html || '').match(/href="([^"]*data_j\.xlsx)"/i);
+  /* 東証上場銘柄一覧は data_j.xls(古い Excel 形式)で出ています。.xlsx だけを
+     探していたので一覧が見つからず、業種の平均がどの銘柄にも出ませんでした */
+  const m = String(html || '').match(/href\s*=\s*["']([^"']*data_j\.xlsx?)["']/i);
   return m ? jpxUrl(m[1], SEC_LIST_PAGE) : null;
 }
 
@@ -13090,8 +13447,20 @@ const secDay = s => Date.parse(s + 'T00:00:00Z');
    「通期 − 第3四半期までの累計」で示すため、これは例外ではなく<b>毎年
    1回必ず</b>起きます。第4四半期は通期から引いて作り、それでも埋まらない
    期間は通期をそのまま使います。 */
-function secTtm(units, key){
+/* splits … [{d:'YYYYMMDD', f}]。分割をまたいで足すとき、値の株数の基準をそろえます。
+
+   end ごとに<b>いちばん早い提出</b>を採るので、分割前に出た四半期は分割前の
+   1株利益、分割後に出た四半期は分割後の1株利益です。そのまま4本足すと
+   10分割なら10倍の値が混ざり(エヌビディア型で 2.13 のはずが 15.28)、
+   第4四半期を通期から引いて作るとマイナスになって PER が消えていました。
+   ここでは窓の<b>最後の提出日</b>の基準にそろえて足します(それより後の分割は
+   splitAdjustFund がこれまでどおり直します)。 */
+function secTtm(units, key, splits){
   const raw = (units && units[key]) ? units[key] : [];
+  const sp = (splits || []).filter(e => e && /^\d{8}$/.test(String(e.d)) && isNum(e.f) && e.f > 0 && e.f !== 1);
+  const k8 = d => String(d).replace(/-/g, '');
+  /* from の提出から to の提出までに起きた分割の倍率 */
+  const fac = (from, to) => { let k = 1; for(const e of sp) if(e.d > k8(from) && e.d <= k8(to)) k *= e.f; return k; };
   const qs = [], ys = [];
   for(const f of raw){
     if(!f || !isNum(+f.val)) continue;
@@ -13127,7 +13496,7 @@ function secTtm(units, key){
     if(!(total - covered >= 80 && total - covered <= 100)) continue;
     const last = inside[inside.length - 1];
     q.push({start: last.end, end: fy.end, filed: fy.filed,
-            val: fy.val - inside.reduce((t, f) => t + f.val, 0)});
+            val: fy.val - inside.reduce((t, f) => t + f.val / fac(f.filed, fy.filed), 0)});
     have.add(fy.end);
   }
   q.sort((a, b) => a.end.localeCompare(b.end));
@@ -13145,7 +13514,7 @@ function secTtm(units, key){
     const total = (secDay(win[3].end) - secDay(win[0].start)) / DAY;
     if(!ok || !(total >= 330 && total <= 400)) continue;
     out.push({end: win[3].end, filed: win[3].filed,
-              val: win.reduce((t, f) => t + f.val, 0)});
+              val: win.reduce((t, f) => t + f.val / fac(f.filed, win[3].filed), 0)});
   }
   /* 四半期でまかなえない範囲は通期で埋めます */
   const covered = new Set(out.map(f => f.end));
@@ -13220,16 +13589,17 @@ async function loadUsFund(){
     const equity = secByEnd(eqU && eqU.USD);
     const assets = secByEnd(asU && asU.USD);
     const shares = secByEnd(shU && shU.shares);
-    let epsT = secTtm(epsU, 'USD/shares');
+    const splits = ((state.raw && state.raw.events) || []).filter(e => e && e.kind === 'split');
+    let epsT = secTtm(epsU, 'USD/shares', splits);
     /* 希薄化後を出していない会社だけ、基本を取りにいきます。毎回両方を
        取ると、持っていない側は404まで中継の全段を試すので5往復が無駄に
        なります(ほとんどの会社は希薄化後を出しています)。 */
     if(epsT.length < 2){
       const epsB = await secConcept(cik, 'us-gaap', 'EarningsPerShareBasic');
-      const alt = secTtm(epsB, 'USD/shares');
+      const alt = secTtm(epsB, 'USD/shares', splits);
       if(alt.length > epsT.length) epsT = alt;
     }
-    const dpsT = secTtm(dpsU, 'USD/shares');
+    const dpsT = secTtm(dpsU, 'USD/shares', splits);
     if(!equity.length && !epsT.length) throw new Error('この会社のXBRLに必要な項目がありません');
 
     /* 貸借対照表の日を軸にして、そこに載る数字を集めます */
@@ -13385,6 +13755,14 @@ async function autoFetchExt(){
        stock was then skipped for the rest of the day. */
     if(fresh(Ext.short && Ext.short.points)) worked = true;
     else if(await loadShortSeries(10, 1)){ done.push('空売り残高10日分'); worked = true; }
+  }catch(e){}
+  if(Ext.codeKey() !== code) return;
+  try{
+    /* JPX の信用残(日次・2026年9月28日〜)。いちばん新しいファイルだけ */
+    const cr = Ext.margin && (Ext.margin.kind || 'credit') === 'credit' ? Ext.margin.points : null;
+    if(!(cr && cr.length && daysBetweenKeys(cr[cr.length - 1].d, today) <= 1)){
+      if(await loadJpxMargin(1)) done.push('信用残(JPX)');
+    }
   }catch(e){}
   if(Ext.codeKey() !== code) return;
   try{
@@ -14064,6 +14442,8 @@ async function restoreWorkspace(){
     if(t.raw){
       state.raw = t.raw;
       setTickTz(t.raw.tz);
+      /* 見かた(通貨・高さ・並び)も当て直します。apply() を通らないので */
+      try { applyViewLayout(t.raw.code); } catch(e){}
       state.ind = recompute(t.raw.bars);
       state.i0 = t.i0; state.i1 = t.i1;
       redraw(); applyQuoteStrip(); renderSignals(); renderTable(); renderCompareStats();
@@ -14244,8 +14624,7 @@ function sanitizeBundle(raw){
       /* typeof null === 'object', so a hand-edited or truncated file with
          "toggles": null threw out of the very function whose job is to not
          trust the file, and the user got a raw English TypeError */
-      toggles: (t && t.toggles && typeof t.toggles === 'object')
-        ? Object.fromEntries(Object.keys(state.toggles).map(k => [k, !!t.toggles[k]])) : null,
+      toggles: (t && t.toggles && typeof t.toggles === 'object') ? togglesFrom(t.toggles) : null,
       compare: (Array.isArray(t && t.compare) ? t.compare : []).map(cleanSymbol).filter(Boolean).slice(0, 4)
     })),
     activeTab: isNum(raw.activeTab) ? raw.activeTab : 0,
@@ -14355,7 +14734,10 @@ async function applyBundle(raw, mode){
         }
         if(x.view && (x.view.at || 0) > (cur.viewDel || 0)
            && (!cur.view || (x.view.at || 0) > (cur.view.at || 0))){
-          cur.view = x.view;
+          /* パネルの高さは端末ごとのもので、書き出しにも同期にも入りません。
+             丸ごと置き換えると、この端末で決めた高さが消えていました */
+          cur.view = Object.assign({}, x.view,
+            cur.view && cur.view.scale ? {scale: cur.view.scale} : {});
           delete cur.viewDel;
         }
       }
@@ -15380,13 +15762,14 @@ function syncNow(opts){
 }
 
 function scheduleSync(delay){
-  if(!driveOn() || !driveAuto() || syncApplying) return;
+  if(selfTesting || !driveOn() || !driveAuto() || syncApplying) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => { syncNow().catch(() => {}); }, delay || 2500);
 }
 
 async function doSync(opts){
   opts = opts || {};
+  if(selfTesting) return;                 /* 試験用のお気に入りを送らない */
   if(!driveOn() && !opts.interactive) return;
   if(!driveUsable()){
     driveStatus('この開き方(' + esc(location.protocol, 12) + ')ではGoogle接続を使えません。'
@@ -15511,8 +15894,7 @@ async function applyRemoteView(){
     range: /^[0-9a-z]{1,8}$/.test(t && t.range) ? t.range : '1y',
     i0: 0, i1: 0, pristine: true,
     toggles: Object.assign({}, state.toggles,
-      (t && t.toggles && typeof t.toggles === 'object')
-        ? Object.fromEntries(Object.keys(state.toggles).map(k => [k, !!t.toggles[k]])) : {}),
+      (t && t.toggles && typeof t.toggles === 'object') ? togglesFrom(t.toggles) : {}),
     compare: (Array.isArray(t && t.compare) ? t.compare : []).map(cleanSymbol).filter(Boolean).slice(0, 4)
       .map(sym => ({sym, label: (CMP_PRESETS.find(p => p.sym === sym) || {}).label || sym, map: new Map()}))
   }));
@@ -16912,6 +17294,12 @@ const JPX_KESSAN_INDEX =
 
 let kessanCache = null;      /* {map: Map(code -> [{d, kind}]), at} */
 const KESSAN_TTL = 12 * 3600 * 1000;
+function kessanFresh(){
+  if(!kessanCache || !kessanCache.map) return false;
+  const st = kessanCache.stats;
+  const ttl = st && st.parsed < st.links ? 10 * 60e3 : KESSAN_TTL;
+  return Date.now() - kessanCache.at < ttl;
+}
 
 function kessanUrl(href){
   try{
@@ -17053,7 +17441,9 @@ function parseKessanSheet(XLSX, buf){
 }
 
 async function fetchKessan(){
-  if(kessanCache && Date.now() - kessanCache.at < KESSAN_TTL) return kessanCache.map;
+  /* 全部のファイルが取れたときだけ12時間覚えます。一部が中継サーバーで落ちたときに
+     12時間覚えていたので、そのファイルに載っている銘柄は半日「載っていません」でした */
+  if(kessanFresh()) return kessanCache.map;
   const XLSX = await loadXLSX();
   freezeProto();
   const urls = await findKessanFiles();
@@ -17214,7 +17604,7 @@ function resetEarnings(){
      one item deliberately placed at the top of the verdict list — vanished
      silently on a tab switch and did not come back until the user pressed
      分析 again. */
-  if(kessanCache && kessanCache.map && Date.now() - kessanCache.at < KESSAN_TTL && isJpCode(code)){
+  if(kessanFresh() && isJpCode(code)){
     const list = kessanCache.map.get(code) || [];
     earnings = {code, list, next: nextEarning(list)};
     renderEarnings(earnings);
@@ -17238,7 +17628,9 @@ function renderEarnings(st){
     /* 「取れなかった」と「載っていなかった」を見分けられるよう、読んだ量を添えます */
     const k = kessanCache && kessanCache.stats;
     box.innerHTML = '<p class="qsrc">この銘柄はJPXの予定表に載っていませんでした'
-      + (k ? `(読んだ予定表: Excel ${k.parsed}件・${k.companies}社)` : '') + '。'
+      + (k ? `(読んだ予定表: Excel ${k.parsed}件・${k.companies}社`
+           + (k.parsed < k.links ? `。<b>取れなかったファイルが${k.links - k.parsed}件</b>あるので、10分ほどして押し直すと載っているかもしれません` : '')
+           + ')' : '') + '。'
       + '予定表は決算期末の翌月上旬に載るので、まだ載っていないこともあります'
       + '(掲載が無くても発表はされます)。</p>';
     return;
@@ -17410,15 +17802,33 @@ function parsePasted(text){
 
   /* find a heading row in the first few lines */
   let map = null, start = 0;
+  /* 見出しが2段の表(上の段「融資 / 貸株」、下の段「新規 / 返済 / 残高」)。
+     1段ずつ見ると「融資」だけでは残高の列と決められず、見出しが無いものとして
+     左から「日付・信用買残・信用売残」と読み、<b>融資の新規と返済を信用買残・
+     信用売残として</b>取り込んでいました。2段を1段(「融資残高」)にして読みます。 */
+  /* 1段で読める行を先に全部試してから、2段を試します。逆にすると、表の上の
+     題名の行(「イオン(8267) 信用残」)を見出しの上の段とみなしてしまいます */
+  /* 2段の見出しらしい行(groupHeadPair)だけは2段を先に試します */
+  const tries = [];
   for(let i = 0; i < Math.min(lines.length, 8); i++){
-    const raw = pasteSplit(lines[i]).map(c => String(c).replace(/[\s"]/g, ''));
+    if(i + 1 < lines.length && groupHeadPair(pasteSplit(lines[i]), pasteSplit(lines[i + 1]))) tries.push({i, span: 2});
+    tries.push({i, span: 1});
+  }
+  for(const {i, span} of tries){
+    const r1 = pasteSplit(lines[i]).map(c => String(c).replace(/[\s"]/g, ''));
+    const raw = span === 1 ? r1
+      : mergeHeadRows(r1, pasteSplit(lines[i + 1]).map(c => String(c).replace(/[\s"]/g, '')));
     /* how wide are the DATA rows below this one */
-    const body = lines.slice(i + 1, i + 12).map(pasteSplit).filter(r => pasteDate(r[0]));
+    const body = lines.slice(i + span, i + span + 11).map(pasteSplit).filter(r => pasteDate(r[0]));
     const al = alignHeader(raw, modalWidth(body), body);
     const cand = {};
+    /* 買残・売残の列に「前週比」「新規」「返済」などは取りません(2段の見出しを
+       1段にすると「信用買残前週比」のような列ができるため) */
+    const notBal = /前日比|前週比|増減|比率|新規|返済/;
     al.cells.forEach(h => {
       for(const k in PASTE_COLS)
-        if(cand[k] === undefined && PASTE_COLS[k].some(w => h.c.includes(w))) cand[k] = h.i;
+        if(cand[k] === undefined && PASTE_COLS[k].some(w => h.c.includes(w))
+           && !((k === 'buy' || k === 'sell') && notBal.test(h.c))) cand[k] = h.i;
     });
     if(cand.date !== undefined &&
        (cand.buy !== undefined || cand.sell !== undefined || cand.gyaku !== undefined)){
@@ -17431,7 +17841,7 @@ function parsePasted(text){
         unit[k] = /[（(]千株?[)）]/.test(t) ? 1e3 : /[（(]万株?[)）]/.test(t) ? 1e4 : 1;
       }
       cand.unit = unit;
-      map = cand; start = i + 1;
+      map = cand; start = i + span;
       out.head = al.cells.map(x => x.c).filter(Boolean).slice(0, 8).join(' / ');
       if(al.fixed) out.note = al.inserted
         ? '見出しの無い列(「日証金」など)を挟んで、数字の並びに合わせました。'
@@ -17484,6 +17894,11 @@ function parsePasted(text){
     }
     out.rows.push(pt);
   }
+  /* 表の上に銘柄コードが書いてあれば拾います(「イオン(8267)」「8267.T」「コード 8267」)。
+     いま開いている銘柄と違えば、取り込む前に知らせます */
+  const top = lines.slice(0, Math.max(start, 3)).join(' ');
+  const cm = /[(（]\s*(\d{3}[0-9A-Z])\s*[)）]|(\d{3}[0-9A-Z])\.T\b|コード[:：\s]*(\d{3}[0-9A-Z])/.exec(KESSAN_FW(top).toUpperCase());
+  if(cm) out.code = cm[1] || cm[2] || cm[3];
   /* newest last, and one row per date */
   const byDate = new Map(out.rows.map(r => [r.d, r]));
   out.rows = [...byDate.values()].sort((a, b) => a.d.localeCompare(b.d));
@@ -17523,14 +17938,28 @@ function renderPastePreview(res, done, r){
   const fmtD = d => `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}`;
   const num = v => isNum(v) ? Math.round(v).toLocaleString('ja-JP') : '—';
   const show = res.rows.slice(-6).reverse();
+  /* 取り込む<b>前に</b>、どの銘柄の・どの記録に入るかを言います。以前は押したあとに
+     しか出ず、別の銘柄を開いたまま貼っても気づけませんでした */
+  const cur = Ext.codeKey();
+  const live = state.raw && cur && state.raw.code !== 'DEMO' && state.raw.code !== 'CSV';
+  const dest = live
+    ? `<br><b>取り込み先: ${esc(state.raw.name || cur, 40)}(${esc(cur, 8)})の`
+      + (loan ? '貸借残(日証金)' : '信用残') + '</b>'
+      + (res.rows.some(x => isNum(x.gyaku)) ? '・逆日歩は逆日歩の欄' : '')
+    : '<br><b>銘柄を読み込んでから「取り込む」を押してください</b>(貼った表は、いま開いている銘柄に入ります)';
+  const other = live && res.code && res.code !== cur
+    ? `<br><span style="color:var(--critical)"><b>貼った表には「${esc(res.code, 6)}」とありますが、`
+      + `いま開いているのは ${esc(cur, 8)} です。</b>違う銘柄の表なら、その銘柄を開いてから貼り直してください。</span>`
+    : '';
   box.innerHTML = `<div class="pprev">`
     + `<b>${res.rows.length}件</b>を読み取りました`
     + (res.skipped ? `(${res.skipped}行は日付として読めず飛ばしました)` : '')
     + ` ・ ${fmtD(res.rows[0].d)} 〜 ${fmtD(res.rows[res.rows.length-1].d)}`
     + (res.head ? `<br>見出し: ${esc(res.head, 90)}` : '')
     + (res.note ? `<br>${esc(res.note, 140)}` : '')
-    + (loan ? `<br><b>日証金の貸借残(融資残・貸株残)</b>として読みました。市場全体の信用残(週次)とは`
+    + (loan ? `<br><b>日証金の貸借残(融資残・貸株残)</b>として読みました。市場全体の信用残とは`
             + `別の統計なので、信用残の線には混ぜずに別の線で出します。` : '')
+    + dest + other
     + `</div>`
     + `<div class="tscroll" style="padding:0;margin-top:8px"><table class="wtab"><thead><tr>`
     + (loan ? `<th class="wl">日付</th><th>融資残</th><th>貸株残</th><th>貸借倍率</th>`
@@ -17631,7 +18060,53 @@ const noInjection = (root, label) => {
   return bad ? tfail(`${label}: <${bad.tagName.toLowerCase()}> が生成されました`) : true;
 };
 
+/* 自己テストは、この端末の保存領域を<b>いっさい残さずに</b>終わらせます。
+
+   フォルダの試験などが試験用のお気に入り(イオン・トヨタ)を保存したまま、
+   画面上の値しか戻していなかったので、✓ を押して再読み込みすると、
+   利用者のお気に入りとフォルダが試験用のものに置き換わっていました。
+   同期を使っていれば、もう一方の端末にも送っていました。
+   個々の試験を直すのではなく、前後で保存領域を丸ごと控えて戻し、
+   試験のあいだは同期を止めます。 */
+let selfTesting = false;
+function storeSnapshot(){
+  const ls = {};
+  try{
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.startsWith('ta.')) ls[k] = localStorage.getItem(k);
+    }
+  }catch(e){}
+  return {ls, mem: Object.assign({}, Store.mem)};
+}
+function storeRestore(sn){
+  if(!sn) return;
+  try{
+    const now = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.startsWith('ta.')) now.push(k);
+    }
+    for(const k of now) if(!owns(sn.ls, k)) localStorage.removeItem(k);
+    for(const k of Object.keys(sn.ls)) if(localStorage.getItem(k) !== sn.ls[k]) localStorage.setItem(k, sn.ls[k]);
+  }catch(e){}
+  Store.mem = sn.mem;
+}
 async function runSelfTests(){
+  const snap = storeSnapshot();
+  const keep = {baseScale, baseOrder, panelScale, panelOrder, viewActive, viewCur,
+                favs: Book.favs.slice(), groups: Book.groups.slice(), sets: userSets.slice()};
+  selfTesting = true;
+  try { return await runSelfTestsInner(); }
+  finally {
+    storeRestore(snap);
+    ({baseScale, baseOrder, panelScale, panelOrder, viewActive, viewCur} = keep);
+    Book.favs = keep.favs; Book.groups = keep.groups; userSets = keep.sets;
+    selfTesting = false;
+    try { renderBook(); redraw(); } catch(e){}
+  }
+}
+async function runSelfTestsInner(){
   window.__xssFired = 0;
   /* 1枚ずつ表示を使っている端末でも、パネルの枚数を数えるテストが同じ結果に
      なるよう、テストのあいだは止めます(最後に戻します) */
@@ -19514,6 +19989,128 @@ async function runSelfTests(){
         && eq(a.name, 'イオン', '会社名(英文ではなく)') && eq(r.map.has('7203'), false, '未定の行');
   });
 
+  /* ---- v60: 信用残(JPX日次・日証金)と貼り付け ---- */
+  test('信用残: JPXのページのExcelを新しい日付の順に拾う(PDFとよそのサイトは拾わない)', () => {
+    const B = 'https://www.jpx.co.jp/markets/statistics-equities/margin/01.html';
+    const got = jpxMarginLinks(`<a href="att/m20261028.xlsx">a</a><a href='att/m20261030.xls'>b</a>`
+      + `<a href="att/m20261030.pdf">p</a><a href="https://evil.example.com/m20261031.xlsx">x</a>`
+      + `<a href="/markets/statistics-equities/margin/att/m20261029.xlsx">c</a>`, B).map(u => u.replace(/^.*\//, ''));
+    return eq(got.join(','), 'm20261030.xls,m20261029.xlsx,m20261028.xlsx');
+  });
+  test('信用残: 2段の見出し・1銘柄2行(株数と金額)・和暦の日付を読む', () => {
+    const rows = [['令和8年10月29日 申込分'], [],
+      ['コード', '銘柄名', '単位', '売残高', '', '', '買残高', '', ''],
+      ['', '', '', '株数', '前日比', '上場比', '株数', '前日比', '上場比'],
+      ['8267', 'イオン', '株数', 326000, 2000, 0.04, 1222200, -1000, 0.14],
+      ['', '', '金額', 1300000000, 0, '', 4800000000, 0, ''],
+      ['82670', 'イオン(重複)', '株数', 1, 1, 1, 1, 1, 1]];
+    const r = parseJpxMarginRows([rows]);
+    const v = r.map.get('8267') || {};
+    /* 上の段の真下が「前日比」で、残高がその右にある並び。2段を1段にしないと前日比を読みます */
+    const r2 = parseJpxMarginRows([[['2026/10/29'], ['コード', '銘柄名', '信用売残', '', '信用買残', ''],
+      ['', '', '前日比', '残高', '前日比', '残高'], ['8267', 'イオン', 2000, 326000, -1000, 1222200]]]);
+    const w = r2.map.get('8267') || {};
+    return eq(r.d, '20261029', '日付') && eq(v.buy, 1222200, '買残(株数の列)') && eq(v.sell, 326000, '売残(株数の列)')
+        && eq(w.buy, 1222200, '2段: 買残') && eq(w.sell, 326000, '2段: 売残');
+  });
+  test('信用残: 千株の見出しと、ファイル名だけにある日付', () => {
+    const r = parseJpxMarginRows([[['コード', '銘柄名', '信用売残(千株)', '信用買残(千株)'], ['8267', 'イオン', 330, '1,210']]],
+                                 {fileName: 'https://www.jpx.co.jp/x/att/marg20261028.xlsx'});
+    const v = r.map.get('8267') || {};
+    return eq(r.d, '20261028', '日付') && eq(v.buy, 1210000, '買残') && eq(v.sell, 330000, '売残');
+  });
+  test('日証金CSV: 題名の行があっても見出しを探し、20261030の日付と5桁コードを読む', () => {
+    const csv = ['貸借取引残高(株数),,,,', '作成日時:2026/10/30 11:30,,,,',
+      '申込日,決済日,コード,銘柄名,融資残高,貸株残高,差引残高',
+      '20261030,20261104,82670,イオン,"119,400","7,200","112,200"',
+      '20261030,20261104,7203,トヨタ自動車,"1,000","2,000","-1,000"']
+      /* 本物は数千行あります(10行未満は「空のファイル」とみなす作りです) */
+      .concat(Array.from({length: 10}, (_, k) => `20261030,20261104,${1300 + k},x,1,1,0`)).join('\n');
+    const t = parseJsfCsv(csv), row = t.rows.get('8267');
+    if(!row) return tfail('8267 が見つかりません(コード: ' + [...t.rows.keys()].join(',') + ')');
+    return eq(toNum(row[t.iBuy]), 119400, '融資残') && eq(toNum(row[t.iSell]), 7200, '貸株残')
+        && eq(dkey(parseJPDate(row[t.iDate])), '20261030', '申込日');
+  });
+  test('貼り付け: 見出しが2段の日証金系の表は、残高の列を貸借残として読む', () => {
+    const r = parsePasted(['日付\t融資\t\t\t貸株\t\t\t差引', '\t新規\t返済\t残高\t新規\t返済\t残高\t',
+      '2026/10/30\t5,000\t4,000\t119,400\t1,000\t1,200\t7,200\t112,200',
+      '2026/10/29\t3,000\t2,500\t118,400\t900\t800\t7,400\t111,000'].join('\n'));
+    const last = r.rows[r.rows.length - 1] || {};
+    /* 上の段にも「信用買残」と書いてある2段の見出し */
+    const r2 = parsePasted(['日付\t信用売残\t\t信用買残\t', '\t前週比\t残高\t前週比\t残高',
+      '2026/10/30\t-5,000\t321,000\t12,300\t1,234,500'].join('\n'));
+    const l2 = r2.rows[r2.rows.length - 1] || {};
+    return eq(r.stat, 'loan', '入る先') && eq(last.buy, 119400, '融資残高') && eq(last.sell, 7200, '貸株残高')
+        && eq(l2.buy, 1234500, '2段: 信用買残') && eq(l2.sell, 321000, '2段: 信用売残');
+  });
+  test('貼り付け: 表の題名の銘柄コードを拾い、題名の行を見出しと取り違えない', () => {
+    const r = parsePasted(['イオン(8267) 信用残の推移', '日付\t信用買残\t信用売残\t信用倍率',
+      '2026/10/30\t1,234,500\t321,000\t3.85'].join('\n'));
+    const last = r.rows[r.rows.length - 1] || {};
+    return eq(r.code, '8267', 'コード') && eq(r.stat, 'credit', '入る先') && eq(last.buy, 1234500, '買残');
+  });
+
+  test('SEC: 株式分割をまたぐ4四半期の1株利益を、同じ株数の基準で足す', () => {
+    /* 10分割(2024/06/10)の前に出た2四半期は 10ドル、後に出た2四半期は 1ドル */
+    const u = {'USD/shares': [
+      {start: '2023-07-31', end: '2023-10-29', filed: '2023-11-21', val: 10},
+      {start: '2023-10-30', end: '2024-01-28', filed: '2024-02-21', val: 10},
+      {start: '2024-01-29', end: '2024-04-28', filed: '2024-05-29', val: 10},
+      {start: '2024-04-29', end: '2024-07-28', filed: '2024-08-28', val: 1}]};
+    const t = secTtm(u, 'USD/shares', [{d: '20240610', kind: 'split', f: 10}]);
+    const last = t[t.length - 1] || {};
+    return eq(last.end, '2024-07-28', '期末') && near(last.val, 4, 1e-9, '分割後の基準で 1+1+1+1');
+  });
+
+  /* ---- v60: 全体のバグチェックで直したもの ---- */
+  test('業種平均: 東証上場銘柄一覧の data_j.xls を拾う', () =>
+    eq(!!sectorListLink('<a href="/markets/statistics-equities/misc/att/data_j.xls">一覧</a>'), true, '.xls')
+    && eq(!!sectorListLink(`<a href='/x/data_j.xlsx'>一覧</a>`), true, '.xlsx'));
+  test('空売り残高: 同じ日のファイルに同じ報告者が2行あれば、計算日の新しいほうを残す', () => {
+    const out = foldShortReports([{d: '20261028', rows: [
+      {holder: 'A', tr: '', ratio: 0.70, qty: 7, cd: '20261028'},
+      {holder: 'A', tr: '', ratio: 0.60, qty: 6, cd: '20261027'}]}]);
+    return eq(out[0] && out[0].ratio, 0.7);
+  });
+  test('取り込み: 古い記録に無い指標は「オフ」ではなく既定にする', () =>
+    eq(togglesFrom({ma: true}).diverge, true, 'ダイバージェンス') && eq(togglesFrom({ma: true}).stoch, false, 'ストキャス')
+    && eq(togglesFrom({diverge: false}).diverge, false, '記録にあるならその値'));
+  test('見かた: 高さの記録が無い見かたは、端末の既定を写して使う(同じものを指さない)', () => {
+    const keep = {baseScale, panelScale, panelOrder, viewActive, viewCur};
+    const vf = Book.viewFor;
+    try{
+      Book.viewFor = () => ({iv: '1d', at: 1});
+      baseScale = Object.assign(Object.create(null), {rsi: 1.5});
+      applyViewLayout('ZZZ.T');
+      panelScale.macd = 2;
+      return eq(panelScale !== baseScale, true, '別のもの') && eq(baseScale.macd, undefined, '既定は変わらない')
+          && eq(panelScale.rsi, 1.5, '既定の値は写る');
+    } finally {
+      Book.viewFor = vf;
+      ({baseScale, panelScale, panelOrder, viewActive, viewCur} = keep);
+    }
+  });
+  test('高さのつまみ: 見出しの帯の上はつまみにしない(指のつまみ幅でも)', () => {
+    const keepG = GRIP;
+    try{
+      GRIP = GRIP_TOUCH;                  /* 指のつまみ(22px)は、パネルの間(10〜14px)より広い */
+      redraw();
+      const subs = LAY.panels.filter(q => q.headH);
+      const p = subs[1] || subs[0];
+      /* 帯の上端から少し下、右端(状態の札のあたり) */
+      return eq(panelAtEdge(p.headY + 3, p.x + p.w - 10), null);
+    } finally { GRIP = keepG; }
+  });
+  test('決算予定: 一部のファイルしか取れなかった結果は長く覚えない', () => {
+    const keep = kessanCache;
+    try{
+      kessanCache = {map: new Map(), at: Date.now() - 30 * 60e3, stats: {links: 6, parsed: 5}};
+      const partial = kessanFresh();
+      kessanCache = {map: new Map(), at: Date.now() - 30 * 60e3, stats: {links: 6, parsed: 6}};
+      return eq(partial, false, '一部だけ(30分前)') && eq(kessanFresh(), true, '全部(30分前)');
+    } finally { kessanCache = keep; }
+  });
+
   /* ---- v57: 操作 ---- */
   test('横向きのホイール(トラックパッドの横スワイプ)で拡大しない', () => {
     const k0 = state.i0, k1 = state.i1;
@@ -20950,6 +21547,7 @@ function redraw(){
   sizeCanvas();
   /* 説明を出しているパネルを消したら、説明も閉じます */
   if(helpKey && !LAY.panels.some(q => q.key === helpKey)) closePanelHelp();
+  else if(helpKey) placePanelHelp(helpKey);
   renderSubTabs();
   resolveFit();
   clampView();
@@ -20999,7 +21597,8 @@ function opBackground(op){
    back to 分析, the old chart stayed, and nothing said why. Nothing newer
    has been asked for, so it belongs on the tab that is in front. */
 function opOrphaned(op){
-  return !!op && op.gen === OP[op.kind] && !Tabs.list.includes(op.tab);
+  return !!op && op.gen === OP[op.kind] && !Tabs.list.includes(op.tab)
+      && !(op.tab && op.tab.closed);       /* 利用者が閉じたタブの分は捨てます */
 }
 function fillTab(tab, data){
   tab.raw = data;
@@ -21085,6 +21684,10 @@ function gripSpan(p){
    a mouse can see the row-resize cursor and aim at a hairline. */
 function panelAtEdge(y, x){
   if(!LAY) return null;
+  /* 見出しの帯の上はつまみにしません。指のつまみ(22px)はパネルの間(10px)より
+     広く、下のパネルの帯の右端(状態の札)を押すと上のパネルの高さが変わって
+     いました。帯を押したら読み方が開きます */
+  if(typeof headAt === 'function' && headAt(y)) return null;
   const coarse = GRIP > GRIP_MOUSE;
   let best = null, bestD = Infinity;
   for(const p of LAY.panels){
@@ -21482,7 +22085,10 @@ cv.addEventListener('touchmove', e => {
        Comparing the RATIOS rather than the raw pixels keeps a mostly-sideways
        pinch out of the price scale and a mostly-vertical one out of the time
        axis, while still letting a diagonal spread do a bit of both. */
-    const rx = d / pinch.d, ry = dy / pinch.dy;
+    /* 指の間隔に下限(48px)を付けてから比べます。横にほとんど離れていない2本の指
+       (12→20px)では、わずかなぶれでも比が大きく、縦に広げただけで時間軸が
+       縮んでいました */
+    const rx = Math.max(d, 48) / Math.max(pinch.d, 48), ry = Math.max(dy, 48) / Math.max(pinch.dy, 48);
     const wantX = Math.abs(Math.log(rx)) > 0.04;
     const wantY = Math.abs(Math.log(ry)) > 0.04;
 
@@ -22777,6 +23383,8 @@ $('#short260').addEventListener('click', () => {
   jp ? loadShortSeries(250, 13) : loadUsShortVol(250);
 });
 $('#earnBtn').addEventListener('click', () => loadEarnings());
+$('#jpxMarginBtn').addEventListener('click', () => loadJpxMargin(1));
+$('#jpxMarginMore').addEventListener('click', () => loadJpxMargin(20));
 $('#shinaBtn').addEventListener('click', () => loadShina());
 $('#autoExt').addEventListener('change', e => {
   Store.set('autoExt', e.target.checked ? 1 : 0);
@@ -23066,11 +23674,11 @@ $('#phList').addEventListener('click', e => {
      倍率だけ 125%→156%→195% と増やして保存していたので、表示は変わらないまま、
      あとで下のパネルを減らしたときに急に跳ねていました(ドラッグと同じ扱いに) */
   const p1 = LAY && LAY.panels.find(q => q.key === key);
-  if(p1 && isNum(h0) && Math.abs(p1.h - h0) < 1){
+  /* 戻すのは「高くできなかった」ときだけ。低くするほうは、上限に当たって
+     見た目が変わらなくても倍率を下げてよい(下げないと、ずっと戻せませんでした) */
+  if(dir > 0 && p1 && isNum(h0) && Math.abs(p1.h - h0) < 1){
     setPanelScale(key, before);
-    notice(dir > 0
-      ? 'これ以上は高くできません(チャート全体を1画面に収めているため)。下のパネルを減らすか低くすると、そのぶん高くなります。'
-      : 'これ以上は低くできません。', true);
+    notice('これ以上は高くできません(チャート全体を1画面に収めているため)。下のパネルを減らすか低くすると、そのぶん高くなります。', true);
   }
   renderPanelHeights();
 });
@@ -23196,6 +23804,12 @@ $('#kenriPanelBtn').addEventListener('click', () => {
 $('#panelOrderBox').addEventListener('click', e => {
   const h = e.target.closest('[data-help]');
   if(h){
+    /* 1枚ずつ表示で隠れているパネルなら、そのパネルに切り替えてから */
+    if(LAY && LAY.oneMode && !LAY.panels.some(q => q.key === h.dataset.help)){
+      subOnePick = cleanText(h.dataset.help, 20);
+      Store.set('subPick', subOnePick);
+      redraw();
+    }
     /* 説明はチャートの上に出ます。見えるところまで運んでから開きます */
     const p = LAY && LAY.panels.find(q => q.key === h.dataset.help);
     if(p){
