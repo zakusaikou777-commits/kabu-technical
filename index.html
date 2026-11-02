@@ -1520,7 +1520,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v60';
+const APP_VER = 'v61';
 const APP_DATE = '2026-11-02';
 
 /* ============================================================
@@ -10851,6 +10851,19 @@ const JPX_MARGIN_PAGES = [
 const JPX_MARGIN_SRC = 'JPX 銘柄別信用取引残高';
 const jpxMarginFiles = new Map();     /* url -> {d, map(code -> {buy, sell, ratio})} 1回の起動のあいだ */
 
+/* ページにあったファイルのリンクの種類と、名前の例。Excel が見つからなかったとき、
+   「ページの作りが変わった」のか「PDF しか無い」のか「別のページが返ってきた」のかを
+   画面で見分けられるようにします */
+function jpxFileKinds(html){
+  const out = {pdf: 0, xls: 0, csv: 0, zip: 0, sample: []};
+  for(const m of String(html || '').matchAll(/href\s*=\s*["']([^"'#?]+\.(pdf|xlsx?|csv|zip))(?:[?#][^"']*)?["']/gi)){
+    const k = m[2].toLowerCase().replace('xlsx', 'xls');
+    out[k] = (out[k] || 0) + 1;
+    const name = m[1].replace(/^.*\//, '');
+    if(out.sample.length < 2 && !out.sample.includes(name)) out.sample.push(name);
+  }
+  return out;
+}
 function jpxMarginLinks(html, base){
   const seen = new Set(), out = [];
   for(const m of String(html || '').matchAll(/href\s*=\s*["']([^"'#?]+\.xlsx?)(?:[?#][^"']*)?["']/gi)){
@@ -10986,15 +10999,30 @@ async function loadJpxMargin(days){
     freezeProto();
     let links = [];
     let opened = false;
+    const kinds = {pdf: 0, xls: 0, csv: 0, zip: 0, sample: [], len: 0};
     for(const page of JPX_MARGIN_PAGES){
       try{
         const html = await relayFetch(page, {text: true, timeout: 12000});
         opened = true;
         links = links.concat(jpxMarginLinks(html, page));
+        const k = jpxFileKinds(html);
+        for(const t of ['pdf', 'xls', 'csv', 'zip']) kinds[t] += k[t];
+        kinds.sample = kinds.sample.concat(k.sample).slice(0, 2);
+        kinds.len += String(html).length;
       }catch(e){}
     }
     if(!opened) throw new Error('JPXの銘柄別信用取引残高のページを開けませんでした(中継サーバーが混んでいるか、JPXに断られています)。');
-    if(!links.length) throw new Error('JPXのページは開けましたが、信用残のExcelへのリンクが見つかりませんでした(ページの作りが変わった可能性)。');
+    if(!links.length){
+      /* 何があったかを書きます。v60 では「ページの作りが変わった可能性」とだけ
+         出していましたが、実際は<b>日付ごとの PDF だけ</b>のページでした */
+      const ex = kinds.sample.length ? `。例: ${kinds.sample.join('、')}` : '';
+      throw new Error(kinds.pdf
+        ? `JPXのこのページにあるのは日付ごとのPDFだけ(${kinds.pdf}件${ex})で、Excelがありませんでした。`
+          + 'PDFの読み取りは準備中です。それまでは下の「JPX 銘柄別信用取引残高」から開いて確かめるか、'
+          + '表を貼り付けて取り込んでください。'
+        : `JPXのページから、残高のファイルへのリンクを1つも見つけられませんでした(ページの長さ ${kinds.len}文字)。`
+          + '中継サーバーが別のページを返したか、ページの作りが変わった可能性があります。');
+    }
     const want = links.slice(0, clamp(days || 1, 1, 20));
     const pts = [];
     let got = 0, heads = 0, dates = 0, fails = 0;
@@ -20109,6 +20137,12 @@ async function runSelfTestsInner(){
       kessanCache = {map: new Map(), at: Date.now() - 30 * 60e3, stats: {links: 6, parsed: 6}};
       return eq(partial, false, '一部だけ(30分前)') && eq(kessanFresh(), true, '全部(30分前)');
     } finally { kessanCache = keep; }
+  });
+
+  test('信用残: JPXのページにあったファイルの種類を数える(PDFだけのページを見分ける)', () => {
+    const k = jpxFileKinds(`<a href="att/m20261030.pdf">10/30</a><a href='att/m20261029.pdf'>10/29</a>`
+      + `<a href="/x/list.xlsx">x</a><a href="/x/readme.html">r</a>`);
+    return eq(k.pdf, 2, 'PDF') && eq(k.xls, 1, 'Excel') && eq(k.sample[0], 'm20261030.pdf', '名前の例');
   });
 
   /* ---- v57: 操作 ---- */
