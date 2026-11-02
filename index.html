@@ -932,7 +932,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <h2>信用取引残高</h2>
     <div class="filters" style="margin-bottom:8px">
       <button class="chip" id="jpxMarginBtn">JPXの信用残を取得(日次)</button>
-      <button class="chip" id="jpxMarginMore" style="border-style:dashed">過去20日分も</button>
+      <button class="chip" id="jpxMarginMore" style="border-style:dashed">過去10日分も</button>
       <button class="chip" id="jsfBtn">日証金の当日残を取得</button>
       <button class="chip" id="marginFileBtn" style="border-style:dashed">CSV / Excelを読み込む</button>
       <input type="file" id="marginFile" accept=".csv,.txt,.xls,.xlsx" class="sr" aria-hidden="true" tabindex="-1">
@@ -1520,7 +1520,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v60';
+const APP_VER = 'v61';
 const APP_DATE = '2026-11-02';
 
 /* ============================================================
@@ -7448,6 +7448,49 @@ function loadXLSX(){
   return xlsxLoading;
 }
 
+/* ---- pdf.js(JPX の銘柄別信用取引残高は日付ごとの PDF だけなので) ----
+   jsdelivr と unpkg は npm の同じファイルをそのまま配るので、ハッシュ1組で両方に効きます。
+   pdf.js は本来、別スレッド(ワーカー)で動きますが、このページの CSP は worker-src 'self'
+   なので CDN のワーカーは作れません。ワーカーの中身を<b>先に同じスレッドへ</b>読み込んで
+   おくと、pdf.js はそれを使います(重い PDF だと数秒ほど画面が止まります)。 */
+const PDFJS_VER = '3.11.174';
+const PDFJS_BASES = [
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VER}/build/`,
+  `https://unpkg.com/pdfjs-dist@${PDFJS_VER}/build/`
+];
+const PDFJS_SRI = {
+  lib:    'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e',
+  worker: 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2'
+};
+let pdfjsLoading = null;
+function loadPdfJs(){
+  if(window.pdfjsLib && globalThis.pdfjsWorker) return Promise.resolve(window.pdfjsLib);
+  if(pdfjsLoading) return pdfjsLoading;
+  const one = (src, sri, ready) => new Promise((ok, ng) => {
+    const el = document.createElement('script');
+    el.src = src;
+    el.integrity = sri;
+    el.crossOrigin = 'anonymous';
+    el.referrerPolicy = 'no-referrer';
+    el.onload = () => ready() ? ok() : ng(new Error('bad load'));
+    el.onerror = () => ng(new Error('unreachable'));
+    document.head.appendChild(el);
+  });
+  pdfjsLoading = (async () => {
+    for(const base of PDFJS_BASES){
+      try{
+        if(!globalThis.pdfjsWorker) await one(base + 'pdf.worker.min.js', PDFJS_SRI.worker, () => !!globalThis.pdfjsWorker);
+        if(!window.pdfjsLib) await one(base + 'pdf.min.js', PDFJS_SRI.lib, () => !!window.pdfjsLib);
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+        return window.pdfjsLib;
+      }catch(e){ /* 次の配信元へ */ }
+    }
+    pdfjsLoading = null;
+    throw new Error('PDFを読む部品(pdf.js)を読み込めませんでした。オフライン、CDNのブロック、または改ざん検知(SRI)に引っかかった可能性があります');
+  })();
+  return pdfjsLoading;
+}
+
 /* The pinned SheetJS build has a known prototype-pollution issue when reading
    a crafted workbook (CVE-2023-30533). Freezing Object.prototype first removes
    the target: this app never extends it, so nothing legitimate breaks. */
@@ -10851,9 +10894,29 @@ const JPX_MARGIN_PAGES = [
 const JPX_MARGIN_SRC = 'JPX 銘柄別信用取引残高';
 const jpxMarginFiles = new Map();     /* url -> {d, map(code -> {buy, sell, ratio})} 1回の起動のあいだ */
 
+/* ページにあったファイルのリンクの種類と、名前の例。Excel が見つからなかったとき、
+   「ページの作りが変わった」のか「PDF しか無い」のか「別のページが返ってきた」のかを
+   画面で見分けられるようにします */
+function jpxFileKinds(html){
+  const out = {pdf: 0, xls: 0, csv: 0, zip: 0, sample: []};
+  for(const m of String(html || '').matchAll(/href\s*=\s*["']([^"'#?]+\.(pdf|xlsx?|csv|zip))(?:[?#][^"']*)?["']/gi)){
+    const k = m[2].toLowerCase().replace('xlsx', 'xls');
+    out[k] = (out[k] || 0) + 1;
+    const name = m[1].replace(/^.*\//, '');
+    if(out.sample.length < 2 && !out.sample.includes(name)) out.sample.push(name);
+  }
+  return out;
+}
 function jpxMarginLinks(html, base){
   const seen = new Set(), out = [];
-  for(const m of String(html || '').matchAll(/href\s*=\s*["']([^"'#?]+\.xlsx?)(?:[?#][^"']*)?["']/gi)){
+  /* PDF は日付の入った名前のものだけ(注記などの PDF を拾わないように)。
+     全銘柄の表(〜_mtall.pdf)があれば、それを優先します */
+  const all = [...String(html || '').matchAll(/href\s*=\s*["']([^"'#?]+\.(?:xlsx?|pdf))(?:[?#][^"']*)?["']/gi)].map(m => m[1]);
+  const pdfs = all.filter(h => /\.pdf$/i.test(h) && /20\d{6}/.test(h.replace(/^.*\//, '')));
+  const mtall = pdfs.filter(h => /mtall/i.test(h));
+  const xls = all.filter(h => /\.xlsx?$/i.test(h));
+  const pick = xls.length ? xls : (mtall.length ? mtall : pdfs);
+  for(const m of pick.map(h => [null, h])){
     let u = null;
     try{
       const x = new URL(m[1].replace(/&amp;/g, '&'), base);
@@ -10957,6 +11020,111 @@ function parseJpxMarginRows(sheets, opts){
   return {d: date ? dkey(date) : null, map};
 }
 
+/* ---- JPX の PDF(〜_mtall.pdf)から1銘柄を読む ------------------------------
+   実物(2026/10/30 申込み現在、109ページ)で確かめた形です。
+   ・1銘柄2行。上が「株数 Shs.」、下が「金額 Val.」。コードは5桁(13010 = 1301、130A0 = 130A)
+   ・株数の行の数字は左から「合計の 売残高・前日比・上場比・買残高・前日比・上場比、
+     売残高の一般信用・前日比・制度信用・前日比、買残高の一般信用・前日比・制度信用・前日比」
+   ・表はコード順なので、ページを二分探索します(109ページのうち7ページほどを読みます)
+   数字は左から順に読み、上場比(%)・「*」・「-」は飛ばします。売残高 = 一般信用 + 制度信用、
+   買残高 = 一般信用 + 制度信用 が合わないときは、列の読み違いとみなして取り込みません。 */
+const mtallCode = code => {
+  const c = String(code || '').toUpperCase();
+  return /^(\d{4}|\d{3}[A-Z])$/.test(c) ? c + '0' : null;
+};
+/* 1ページの文字を [{s, x, y}] に。回転したページでも、見た目の左右・上下にそろえます */
+async function pdfPageItems(pdfjs, page){
+  const vp = page.getViewport({scale: 1});
+  const tc = await page.getTextContent();
+  return tc.items.filter(i => i.str && i.str.trim()).map(i => {
+    const t = pdfjs.Util.transform(vp.transform, i.transform);
+    return {s: i.str, x: t[4], y: t[5]};
+  });
+}
+function mtallPageCodes(items){
+  return [...new Set(items.map(i => i.s.trim()).filter(s => /^\d{3}[0-9A-Z]0$/.test(s)))].sort();
+}
+function mtallDate(items){
+  for(const i of items){
+    const m = /(20\d{2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*申込/.exec(i.s);
+    if(m){ const d = mkDate(+m[1], +m[2], +m[3]); if(d) return dkey(d); }
+  }
+  return null;
+}
+/* その銘柄の株数の行 → {buy, sell, ratio}。合計が合わなければ {bad} */
+function mtallRow(items, code5){
+  const hits = items.filter(i => i.s.trim() === code5).sort((a, b) => a.y - b.y);
+  if(!hits.length) return null;
+  const c = hits[0];
+  /* 株数の行。名前が長い銘柄は、コードと「株数」が別の行に分かれることがあります */
+  const lab = items.filter(i => /株数/.test(i.s) && i.y >= c.y - 3 && i.y <= c.y + 14)
+    .sort((a, b) => Math.abs(a.y - c.y) - Math.abs(b.y - c.y))[0];
+  const ry = lab ? lab.y : c.y, x0 = lab ? lab.x + 10 : c.x + 15;
+  const row = items.filter(i => Math.abs(i.y - ry) <= 2 && i.x > x0 && !/株数|Shs/.test(i.s))
+    .sort((a, b) => a.x - b.x);
+  const nums = [];
+  let neg = false;
+  for(const it of row) for(const t of it.s.trim().split(/\s+/)){
+    if(t === '▲'){ neg = true; continue; }
+    const m = /^(▲)?([\d,]+)$/.exec(t);
+    if(m){ const v = +m[2].replace(/,/g, ''); nums.push(neg || m[1] ? -v : v); }
+    neg = false;
+  }
+  if(nums.length < 12) return {bad: true, nums};
+  const sell = nums[0], buy = nums[2];
+  if(sell < 0 || buy < 0 || sell !== nums[4] + nums[6] || buy !== nums[8] + nums[10]) return {bad: true, nums};
+  return {sell, buy, ratio: sell > 0 ? buy / sell : null};
+}
+/* 開いた PDF は、開いているあいだ覚えておきます(銘柄を替えても取り直さない)。6つまで */
+const jpxMarginPdfs = new Map();
+async function jpxMarginPdf(url){
+  if(jpxMarginPdfs.has(url)) return jpxMarginPdfs.get(url);
+  const p = (async () => {
+    const pdfjs = await loadPdfJs();
+    const buf = await relayFetchBinary(url, 30000);
+    const doc = await pdfjs.getDocument({data: new Uint8Array(buf), isEvalSupported: false,
+                                         disableFontFace: true, useSystemFonts: false}).promise;
+    const entry = {pdfjs, doc, items: {}, codes: {}};
+    const first = await mtallItems(entry, 1);
+    entry.d = mtallDate(first);
+    if(!entry.d) throw new Error('date');
+    return entry;
+  })();
+  jpxMarginPdfs.set(url, p);
+  p.catch(() => jpxMarginPdfs.delete(url));
+  while(jpxMarginPdfs.size > 6){
+    const [k, old] = jpxMarginPdfs.entries().next().value;
+    jpxMarginPdfs.delete(k);
+    old.then(e => { try { e.doc.destroy(); } catch(err){} }, () => {});
+  }
+  return p;
+}
+async function mtallItems(entry, n){
+  if(!entry.items[n]){
+    entry.items[n] = await pdfPageItems(entry.pdfjs, await entry.doc.getPage(n));
+    entry.codes[n] = mtallPageCodes(entry.items[n]);
+  }
+  return entry.items[n];
+}
+async function mtallFind(entry, code5){
+  let lo = 1, hi = entry.doc.numPages;
+  while(lo <= hi){
+    const mid = (lo + hi) >> 1;
+    await mtallItems(entry, mid);
+    const cs = entry.codes[mid];
+    if(!cs.length){ hi = mid - 1; continue; }      /* 最後の合計表などのページ */
+    if(code5 < cs[0]) hi = mid - 1;
+    else if(code5 > cs[cs.length - 1]) lo = mid + 1;
+    else return mtallRow(entry.items[mid], code5);
+  }
+  /* 並びの想定が外れていたら、全部のページを順に見ます */
+  for(let n = 1; n <= entry.doc.numPages; n++){
+    await mtallItems(entry, n);
+    if(entry.codes[n].includes(code5)) return mtallRow(entry.items[n], code5);
+  }
+  return null;
+}
+
 async function jpxMarginFile(XLSX, url){
   if(jpxMarginFiles.has(url)) return jpxMarginFiles.get(url);
   const buf = await relayFetchBinary(url, 25000);
@@ -10982,41 +11150,69 @@ async function loadJpxMargin(days){
   jpxMarginBusy = true;
   renderMarginStatus({loading: true});
   try{
-    const XLSX = await loadXLSX();
-    freezeProto();
     let links = [];
     let opened = false;
+    const kinds = {pdf: 0, xls: 0, csv: 0, zip: 0, sample: [], len: 0};
     for(const page of JPX_MARGIN_PAGES){
       try{
         const html = await relayFetch(page, {text: true, timeout: 12000});
         opened = true;
         links = links.concat(jpxMarginLinks(html, page));
+        const k = jpxFileKinds(html);
+        for(const t of ['pdf', 'xls', 'csv', 'zip']) kinds[t] += k[t];
+        kinds.sample = kinds.sample.concat(k.sample).slice(0, 2);
+        kinds.len += String(html).length;
       }catch(e){}
     }
     if(!opened) throw new Error('JPXの銘柄別信用取引残高のページを開けませんでした(中継サーバーが混んでいるか、JPXに断られています)。');
-    if(!links.length) throw new Error('JPXのページは開けましたが、信用残のExcelへのリンクが見つかりませんでした(ページの作りが変わった可能性)。');
+    if(!links.length){
+      /* 何があったかを書きます。v60 では「ページの作りが変わった可能性」とだけ
+         出していましたが、実際は<b>日付ごとの PDF だけ</b>のページでした */
+      const ex = kinds.sample.length ? `。例: ${kinds.sample.join('、')}` : '';
+      throw new Error(kinds.pdf
+        ? `JPXのこのページのPDF(${kinds.pdf}件${ex})に、日付の入った残高の表が見つかりませんでした。`
+          + '下の「JPX 銘柄別信用取引残高」から開いて確かめるか、表を貼り付けて取り込んでください。'
+        : `JPXのページから、残高のファイルへのリンクを1つも見つけられませんでした(ページの長さ ${kinds.len}文字)。`
+          + '中継サーバーが別のページを返したか、ページの作りが変わった可能性があります。');
+    }
     const want = links.slice(0, clamp(days || 1, 1, 20));
+    /* Excel が混ざっているときだけ SheetJS を読みます(PDF だけなら要りません) */
+    let XLSX = null;
+    if(want.some(u => /\.xlsx?$/i.test(u))){ XLSX = await loadXLSX(); freezeProto(); }
     const pts = [];
-    let got = 0, heads = 0, dates = 0, fails = 0;
+    let got = 0, heads = 0, dates = 0, fails = 0, sums = 0, lib = '';
     for(const url of want){
       try{
-        const r = await jpxMarginFile(XLSX, url);
-        got++;
-        const v = r.map.get(code);
-        if(v) pts.push({d: r.d, buy: v.buy, sell: v.sell, ratio: v.ratio});
+        if(/\.pdf$/i.test(url)){
+          renderMarginStatus({loading: true});
+          const e = await jpxMarginPdf(url);
+          got++;
+          const v = await mtallFind(e, mtallCode(code));
+          if(v && v.bad) sums++;
+          else if(v) pts.push({d: e.d, buy: v.buy, sell: v.sell, ratio: v.ratio});
+        } else {
+          const r = await jpxMarginFile(XLSX, url);
+          got++;
+          const v = r.map.get(code);
+          if(v) pts.push({d: r.d, buy: v.buy, sell: v.sell, ratio: v.ratio});
+        }
       }catch(e){
         if(e && e.message === 'head') heads++;
         else if(e && e.message === 'date') dates++;
+        else if(e && /pdf\.js/.test(e.message)) lib = e.message;
         else fails++;
       }
       if(Ext.codeKey() !== code){ renderMarginStatus({error: '取得中に別の銘柄へ切り替わったため中止しました。'}); return false; }
     }
     if(!got){
-      throw new Error(heads ? `JPXの信用残のExcel(${heads}件)は取れましたが、見出しを読み取れませんでした(様式変更の可能性)。`
-        : dates ? 'JPXの信用残のExcelから、いつの残高かを読み取れませんでした。'
-        : `JPXの信用残のExcel(${want.length}件)を中継サーバー経由で取得できませんでした。時間をおいてもう一度押してください。`);
+      throw new Error(lib ? lib
+        : heads ? `JPXの信用残のファイル(${heads}件)は取れましたが、見出しを読み取れませんでした(様式変更の可能性)。`
+        : dates ? 'JPXの信用残のファイルから、いつの残高か(「◯年◯月◯日 申込み現在」)を読み取れませんでした。'
+        : `JPXの信用残のファイル(${want.length}件)を中継サーバー経由で取得できませんでした。時間をおいてもう一度押してください。`);
     }
-    if(!pts.length) throw new Error(`この銘柄はJPXの表(${got}日分)に載っていませんでした。`);
+    if(!pts.length) throw new Error(sums
+      ? 'JPXの表でこの銘柄は見つかりましたが、読み取った数字の合計が合わなかったので取り込みませんでした(表の作りが変わった可能性)。'
+      : `この銘柄はJPXの表(${got}日分)に載っていませんでした。`);
     const res = Ext.mergeMargin(pts, JPX_MARGIN_SRC, code, 'credit');
     afterExtUpdate();
     renderMarginStatus(res && res.empty ? {zero: true, name: JPX_MARGIN_SRC}
@@ -20111,6 +20307,42 @@ async function runSelfTestsInner(){
     } finally { kessanCache = keep; }
   });
 
+  test('信用残: JPXのページにあったファイルの種類を数える(PDFだけのページを見分ける)', () => {
+    const k = jpxFileKinds(`<a href="att/m20261030.pdf">10/30</a><a href='att/m20261029.pdf'>10/29</a>`
+      + `<a href="/x/list.xlsx">x</a><a href="/x/readme.html">r</a>`);
+    return eq(k.pdf, 2, 'PDF') && eq(k.xls, 1, 'Excel') && eq(k.sample[0], 'm20261030.pdf', '名前の例');
+  });
+
+  /* ---- v61: JPX の信用残(PDF) ---- */
+  /* 実物(20261030_mtall.pdf の1ページ目、pdf.js で取り出した文字と位置)の一部です */
+  const MTALL_P1 = [["2026/10/30 申込み現在",96,92],["東京証券取引所株式部",602,92],["（単位：一株、一円）",723,92],["2026/11/2",788,92],["B",42,128],["極洋",49,128],["普通株式",62,128],["プライム",120,128],["貸",157,128],["13010",183,128],["JP3257200000 株数 Shs.",201,128],["1,100",281,128],["0",331,128],["0.0%",355,128],["145,300",390,128],["▲ 14,600",427,128],["1.2%",468,128],["400",512,128],["300",553,128],["700",594,128],["▲ 300",629,128],["38,900",670,128],["▲ 600",712,128],["106,400",751,128],["▲ 14,000",788,128],["KYOKUYO CO.,LTD.",49,134],["Prime",120,134],["Loan",157,134],["13010",183,134],["JP3257200000 金額 Val.",201,134],["4,980,000",272,134],["20,500",320,134],["-",361,134],["657,374,500",381,134],["▲ 59,387,000",418,134],["-",475,134],["1,810,000",499,134],["1,359,000",540,134],["3,170,000",581,134],["▲ 1,338,500",616,134],["175,733,500",660,134],["▲ 1,668,000",699,134],["481,641,000",742,134],["▲ 57,719,000",779,134],["B",42,188],["Ｖｅｒｉｔａｓ",49,188],["Ｉｎ",84,188],["Ｓｉｌｉｃｏ",96,188],["普通株式",127,188],["グロース",120,188],["制",157,188],["130A0",183,188],["JP3155340007 株数 Shs.",201,188],["0",289,188],["0",331,188],["0.0%",355,188],["260,700",390,188],["▲ 1,600",429,188],["4.0%",468,188],["0",516,188],["0",557,188],["0",599,188],["0",640,188],["162,600",668,188],["0",722,188],["98,100",753,188],["▲ 1,600",790,188],["Veritas In Silico Inc.",49,194],["Growth",120,194],["Margin",157,194],["130A0",183,194],["JP3155340007 金額 Val.",201,194],["0",289,194],["0",331,194],["-",361,194],["180,208,400",381,194],["▲ 508,200",425,194],["-",475,194],["0",516,194],["0",557,194],["0",599,194],["0",640,194],["143,701,100",660,194],["22,600",712,194],["36,507,300",744,194],["▲ 530,800",786,194]].map(([s, x, y]) => ({s, x, y}));
+  test('信用残(PDF): 株数の行から合計の売残高・買残高を読み、内訳の合計で確かめる', () => {
+    const a = mtallRow(MTALL_P1, '13010') || {}, b = mtallRow(MTALL_P1, '130A0') || {};
+    return eq(a.sell, 1100, '極洋 売残') && eq(a.buy, 145300, '極洋 買残')
+        && eq(b.sell, 0, '130A 売残') && eq(b.buy, 260700, '130A 買残');
+  });
+  test('信用残(PDF): 内訳の合計が合わなければ取り込まない', () => {
+    const broken = MTALL_P1.map(i => i.y === 128 && i.s === '145,300' ? Object.assign({}, i, {s: '145,301'}) : i);
+    const r = mtallRow(broken, '13010') || {};
+    return eq(r.bad, true);
+  });
+  test('信用残(PDF): 日付は「◯/◯/◯ 申込み現在」から、コードは5桁(末尾0)で引く', () =>
+    eq(mtallDate(MTALL_P1), '20261030', '日付') && eq(mtallCode('8267'), '82670', '4桁')
+    && eq(mtallCode('130A'), '130A0', '英字') && eq(mtallPageCodes(MTALL_P1).join(','), '13010,130A0', 'ページのコード'));
+  test('信用残(PDF): PDFだけのページでは、日付の入った全銘柄の表(mtall)を新しい順に拾う', () => {
+    const B = 'https://www.jpx.co.jp/markets/statistics-equities/margin/01.html';
+    const got = jpxMarginLinks(`<a href="att/20261029_mtall.pdf">29</a><a href="/x/notes.pdf">注記</a>`
+      + `<a href='att/20261030_mtall.pdf'>30</a><a href="att/20261030_daily.pdf">日々公表</a>`, B).map(u => u.replace(/^.*\//, ''));
+    return eq(got.join(','), '20261030_mtall.pdf,20261029_mtall.pdf');
+  });
+  test('信用残(PDF): JPXの実際のリンクの形(tvdivq0000001rnl-att/20261030_mtall.pdf)から、そのURLを作る', () => {
+    const B = 'https://www.jpx.co.jp/markets/statistics-equities/margin/01.html';
+    const got = jpxMarginLinks('<a href="/markets/statistics-equities/margin/tvdivq0000001rnl-att/20261030_mtall.pdf">2026年10月30日申込分</a>', B);
+    return eq(got[0], 'https://www.jpx.co.jp/markets/statistics-equities/margin/tvdivq0000001rnl-att/20261030_mtall.pdf');
+  });
+  test('pdf.js に改ざん検知(SRI)が付いている', () =>
+    eq(/^sha384-.{40,}$/.test(PDFJS_SRI.lib) && /^sha384-.{40,}$/.test(PDFJS_SRI.worker), true));
+
   /* ---- v57: 操作 ---- */
   test('横向きのホイール(トラックパッドの横スワイプ)で拡大しない', () => {
     const k0 = state.i0, k1 = state.i1;
@@ -23384,7 +23616,7 @@ $('#short260').addEventListener('click', () => {
 });
 $('#earnBtn').addEventListener('click', () => loadEarnings());
 $('#jpxMarginBtn').addEventListener('click', () => loadJpxMargin(1));
-$('#jpxMarginMore').addEventListener('click', () => loadJpxMargin(20));
+$('#jpxMarginMore').addEventListener('click', () => loadJpxMargin(10));   /* PDF は1日 1.7MB ほど */
 $('#shinaBtn').addEventListener('click', () => loadShina());
 $('#autoExt').addEventListener('change', e => {
   Store.set('autoExt', e.target.checked ? 1 : 0);
