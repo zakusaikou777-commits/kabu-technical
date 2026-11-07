@@ -6,6 +6,12 @@
    v2 には、CDNのエラー応答やWi-Fiのログインページを保存してしまった端末が
    あり得ます(そのままだとSheetJSが永久に壊れたままになるため)。 */
 const CACHE = 'ta-tool-v16';
+
+/* 本体(index.html)の APP_VER と<b>必ず同じ</b>にします(CI が確かめます)。
+   この行が変わると、ブラウザは新しい sw.js を入れ直し、開いているページに
+   「新しい版があります」を出させます。本体だけ上げてここを忘れると、
+   開きっぱなしの端末には知らせが届きません。 */
+const APP_VER = 'v62';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 /* SheetJS など、内容が固定でSRI検証もかかるもの */
@@ -31,6 +37,14 @@ self.addEventListener('activate', event => {
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+/* ページが「あなたは何版?」と聞いてきたら答えます。こちらのほうが新しければ、
+   ページが再読み込みを勧めます。 */
+self.addEventListener('message', event => {
+  const d = event.data;
+  if(!d || d.type !== 'ver?' || !event.source) return;
+  try { event.source.postMessage({type: 'ver', ver: APP_VER}); } catch (e) {}
 });
 
 /* アラートの通知をタップしたとき。

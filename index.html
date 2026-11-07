@@ -559,6 +559,16 @@ td:first-child,th:first-child{text-align:left}
 .notice.hide{display:none}
 .alertbar{border-color:var(--warn,#c98a12);background:color-mix(in srgb,var(--warn,#c98a12) 12%,var(--surface-1))}
 .alertbar b{color:var(--ink-1)}
+.updbar{border-color:var(--cmp1);background:color-mix(in srgb,var(--cmp1) 10%,var(--surface-1))}
+#diagBody{margin-top:6px}
+.dhead{font-size:12px;font-weight:650;color:var(--ink-3);margin:10px 0 2px}
+.drow{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--hairline);font-size:12.5px;line-height:1.5}
+.drow .dic{flex:none;width:1.2em;text-align:center;font-weight:700;color:var(--ink-3)}
+.drow.ok .dic{color:var(--good)}
+.drow.ng .dic{color:var(--critical)}
+.drow .dtx{min-width:0;overflow-wrap:anywhere}
+.drow .dmsg{color:var(--ink-2)}
+.drow .dvia{color:var(--ink-3);font-size:11.5px}
 .favbox{border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);
   padding:9px 12px;margin:0 0 14px}
 .favbox>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:9px;
@@ -720,6 +730,15 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <button class="chip" id="favClearAll" style="border-style:dashed">すべて外す</button>
     </div>
   </details>
+
+  <!-- 新しい版が届いたときだけ出ます。開きっぱなしのアプリは、置き換えても
+       自分からは新しくならないので(再読み込みするまで前の版のまま)。 -->
+  <div class="notice updbar hide" id="updBar" role="status">
+    <span aria-hidden="true">⟳</span>
+    <div id="updBarTxt" style="flex:1"></div>
+    <button class="chip" id="updBarGo" style="padding:2px 9px;align-self:flex-start">再読み込み</button>
+    <button class="chip" id="updBarX" style="padding:2px 9px;align-self:flex-start;border-style:dashed">あとで</button>
+  </div>
 
   <div class="notice" id="notice">
     <span aria-hidden="true">ℹ</span>
@@ -1436,6 +1455,21 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </details>
   </div>
 
+  <div class="card" id="diagCard">
+    <h2>取得の診断</h2>
+    <p class="qsrc" style="margin:0 0 10px">「取得できない」ときに、<b>どこで止まっているか</b>を調べます。
+      中継サーバーを1つずつ、取得先(JPX・日証金・Yahoo など)を1段ずつ試します。
+      チャートや保存してあるデータは変わりません。</p>
+    <div class="filters" style="margin-bottom:8px">
+      <button class="chip" id="diagRun">調べる</button>
+      <button class="chip" id="diagDeep" title="PDFやExcelを実際に読んでみます">ファイルの中身まで調べる</button>
+      <button class="chip hide" id="diagCopy" style="border-style:dashed">結果をコピー</button>
+    </div>
+    <p class="qsrc" style="margin:0 0 6px">「中身まで」は合わせて10MBほど通信します(Wi-Fiでどうぞ)。</p>
+    <p class="qsrc" id="diagSum" style="margin:0" role="status"></p>
+    <div id="diagBody"></div>
+  </div>
+
   <div class="card" id="exportCard">
     <h2>1枚にまとめて書き出す</h2>
     <p class="qsrc" style="margin:0 0 10px">いま表示しているチャートとシグナル判定、指標の数値を1ページにまとめます。
@@ -1520,8 +1554,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v61';
-const APP_DATE = '2026-11-02';
+const APP_VER = 'v62';
+const APP_DATE = '2026-11-07';
 
 /* ============================================================
    1. Small helpers
@@ -2834,12 +2868,13 @@ TA.volumeProfile = function(bars, i0, i1, buckets, share){
    only used if it fails, so in the normal case two parties see the request
    instead of six. Anonymous *.workers.dev style hosts were dropped: a lapsed
    free subdomain can be re-registered by anyone and would then be trusted. */
+/* n は診断(どこで止まったか)に出す名前です */
 const RELAY_WAVES = [
-  [ {u: x => x} ],                                                   /* direct, no third party at all */
-  [ {u: x => 'https://corsproxy.io/?url=' + encodeURIComponent(x)},
-    {u: x => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(x)} ],
-  [ {u: x => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(x)},
-    {u: x => 'https://api.allorigins.win/get?url=' + encodeURIComponent(x),
+  [ {n: '直接', u: x => x} ],                                        /* direct, no third party at all */
+  [ {n: 'corsproxy.io', u: x => 'https://corsproxy.io/?url=' + encodeURIComponent(x)},
+    {n: 'allorigins', u: x => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(x)} ],
+  [ {n: 'codetabs', u: x => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(x)},
+    {n: 'allorigins(JSON)', u: x => 'https://api.allorigins.win/get?url=' + encodeURIComponent(x),
      un: b => JSON.parse(b).contents} ]
 ];
 const RELAYS = RELAY_WAVES.flat();
@@ -2857,7 +2892,7 @@ function ownRelay(){
 function relayWaves(){
   const own = ownRelay();
   if(!own) return RELAY_WAVES;
-  return [[{u: x => own + '/?url=' + encodeURIComponent(x)}]].concat(RELAY_WAVES);
+  return [[{n: '自分の中継', u: x => own + '/?url=' + encodeURIComponent(x)}]].concat(RELAY_WAVES);
 }
 
 /* Values that will be rendered are narrowed at the boundary as well as
@@ -2920,19 +2955,29 @@ function stooqSymbol(sym){
 /* Remote text never becomes part of an Error message: those messages end up
    on screen, and a hostile relay could otherwise ship markup through them.
    The detail goes to the console instead. */
+function relayMsg(m){
+  m = String(m == null ? '' : m);
+  const h = /^HTTP (\d{3})$/.exec(m);
+  if(h) return 'HTTP ' + h[1];
+  if(/aborted|abort/i.test(m)) return 'タイムアウト';
+  if(/Failed to fetch|NetworkError|network|Load failed/i.test(m)) return '接続できません';
+  if(/JSON|Unexpected token/i.test(m)) return '想定外の応答';
+  if(m === '空の応答' || m === 'サイズ超過') return m;
+  return 'エラー';
+}
 function relayError(agg, label){
   const msgs = (agg && agg.errors ? agg.errors : [agg]).map(e => e && e.message).filter(Boolean);
   if(msgs.length) try { console.warn('[' + label + ']', msgs); } catch(e){}
-  const clean = msgs.map(m => {
-    const h = /^HTTP (\d{3})$/.exec(m);
-    if(h) return 'HTTP ' + h[1];
-    if(/aborted|abort/i.test(m)) return 'タイムアウト';
-    if(/Failed to fetch|NetworkError|network/i.test(m)) return '接続できません';
-    if(/JSON/i.test(m)) return '想定外の応答';
-    if(m === '空の応答' || m === 'サイズ超過') return m;
-    return 'エラー';
-  });
+  const clean = msgs.map(relayMsg);
   return new Error([...new Set(clean)].slice(0,3).join(' / ') || '取得できませんでした');
+}
+/* 診断用の記録。trace = {via: '', fails: []} を渡すと、どの中継で取れたか、
+   取れなかった中継がそれぞれ何で失敗したかが入ります(ふだんは渡しません) */
+function traceFails(trace, list, agg){
+  if(!trace) return;
+  const errs = agg && agg.errors ? agg.errors : [];
+  (trace.fails = trace.fails || []).push(...list.map((r, i) =>
+    (r.n || '?') + ': ' + relayMsg(errs[i] && errs[i].message)));
 }
 
 async function readCapped(res, binary){
@@ -2944,7 +2989,7 @@ async function readCapped(res, binary){
   return data;
 }
 
-async function relayFetch(url, {text = false, timeout = 8000} = {}){
+async function relayFetch(url, {text = false, timeout = 8000, trace = null} = {}){
   let lastAgg = null;
   for(const wave of relayWaves()){
     const ctls = [];
@@ -2958,16 +3003,17 @@ async function relayFetch(url, {text = false, timeout = 8000} = {}){
         let body = await readCapped(res, false);
         if(relay.un) body = relay.un(body);
         if(!body || body.length < 24) throw new Error('空の応答');
-        if(text) return body;
-        return JSON.parse(body);           /* throws on an HTML error page */
+        return {r: relay, v: text ? body : JSON.parse(body)};   /* JSON.parse throws on an HTML error page */
       } finally { clearTimeout(t); }
     };
     try{
       const win = await Promise.any(wave.map(attempt));
       ctls.forEach(c => { try{ c.abort(); }catch(e){} });
-      return win;
+      if(trace) trace.via = win.r.n || '?';
+      return win.v;
     }catch(agg){
       ctls.forEach(c => { try{ c.abort(); }catch(e){} });
+      traceFails(trace, wave, agg);
       lastAgg = agg;
     }
   }
@@ -2975,7 +3021,7 @@ async function relayFetch(url, {text = false, timeout = 8000} = {}){
 }
 
 /* --- Yahoo Finance chart endpoint ----------------------------------- */
-async function fetchYahoo(sym, range, interval){
+async function fetchYahoo(sym, range, interval, trace){
   /* events=div,split costs nothing extra and explains the two things that
      make a chart look broken: a price that halves overnight (split) and a
      step down on the ex-date (dividend). */
@@ -2988,7 +3034,7 @@ async function fetchYahoo(sym, range, interval){
              + `&_=${Date.now()}`;
   let j = null, firstErr = null;
   for(const host of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']){
-    try { j = await relayFetch(host + path); break; }
+    try { j = await relayFetch(host + path, {trace}); break; }
     catch(e){ firstErr = firstErr || e; }
   }
   if(!j) throw firstErr || new Error('取得できませんでした');
@@ -3178,10 +3224,10 @@ function parseEvents(ev, tz){
 }
 
 /* --- Stooq CSV fallback --------------------------------------------- */
-async function fetchStooq(sym){
+async function fetchStooq(sym, trace){
   const s = stooqSymbol(sym);
   if(!s) throw new Error('この銘柄は代替ソース非対応');
-  const body = await relayFetch(`https://stooq.com/q/d/l/?s=${encodeURIComponent(s)}&i=d`, {text:true});
+  const body = await relayFetch(`https://stooq.com/q/d/l/?s=${encodeURIComponent(s)}&i=d`, {text:true, trace});
   if(/^\s*<|no data/i.test(body)) throw new Error('代替ソースにデータがありません');
   const parsed = parseCSV(body);
   if(!parsed.bars.length) throw new Error('代替ソースの解析に失敗');
@@ -7386,7 +7432,7 @@ function renderNews(items){
 }
 
 /* ---- binary fetch through the same relays --------------------------- */
-async function relayFetchBinary(url, timeout = 12000){
+async function relayFetchBinary(url, timeout = 12000, trace = null){
   for(const wave of relayWaves()){
     const usable = wave.filter(r => !r.un);
     if(!usable.length) continue;
@@ -7400,15 +7446,17 @@ async function relayFetchBinary(url, timeout = 12000){
         if(!res.ok) throw new Error('HTTP ' + res.status);
         const buf = await readCapped(res, true);
         if(buf.byteLength < 512) throw new Error('空の応答');
-        return buf;
+        return {r: relay, v: buf};
       } finally { clearTimeout(t); }
     };
     try{
       const win = await Promise.any(usable.map(attempt));
       ctls.forEach(c => { try{ c.abort(); }catch(e){} });    /* stop the losers mid-download */
-      return win;
+      if(trace) trace.via = win.r.n || '?';
+      return win.v;
     }catch(e){
       ctls.forEach(c => { try{ c.abort(); }catch(e2){} });
+      traceFails(trace, usable, e);
     }
   }
   throw new Error('ファイルを取得できませんでした');
@@ -8696,7 +8744,7 @@ function pctlOf(arr, qs){
 const SECTIONS = [
   {k:'read',  label:'判定',    cards:['sigCard', 'histCard']},
   {k:'fetch', label:'吸い出し', cards:['fundCard', 'sectorCard', 'rateCard', 'shortCard',
-                                      'marginCard', 'gyakuCard', 'earnCard', 'kenriCard']},
+                                      'marginCard', 'gyakuCard', 'earnCard', 'kenriCard', 'diagCard']},
   {k:'cmp',   label:'比べる',   cards:['cmpPickCard', 'cmpCard', 'newsCard', 'linkCard']},
   {k:'view',  label:'表示',    cards:['viewCard']},
   {k:'set',   label:'設定',    cards:['favCard', 'alertCard', 'syncCard',
@@ -10662,14 +10710,16 @@ let jsfCache = null;
 async function fetchJSFTable(){
   /* 毎営業日更新なので、開きっぱなしで日をまたいだら取り直します */
   if(jsfCache && Date.now() - jsfCache.at < 3600e3) return jsfCache;
-  const buf = await relayFetchBinary(JSF_CSV, 20000);
+  jsfCache = parseJsfCsv(jsfDecode(await relayFetchBinary(JSF_CSV, 20000)));
+  return jsfCache;
+}
+function jsfDecode(buf){
   let text;
   try { text = new TextDecoder('shift_jis', {fatal: false}).decode(buf); }
   catch(e){ text = new TextDecoder('utf-8', {fatal: false}).decode(buf); }
   if((text.match(/�/g) || []).length > 40)
     text = new TextDecoder('utf-8', {fatal: false}).decode(buf);
-  jsfCache = parseJsfCsv(text);
-  return jsfCache;
+  return text;
 }
 /* 取ってくる部分と読む部分を分けてあります(読む部分は表のままテストできます) */
 function parseJsfCsv(text){
@@ -11077,11 +11127,11 @@ function mtallRow(items, code5){
 }
 /* 開いた PDF は、開いているあいだ覚えておきます(銘柄を替えても取り直さない)。6つまで */
 const jpxMarginPdfs = new Map();
-async function jpxMarginPdf(url){
-  if(jpxMarginPdfs.has(url)) return jpxMarginPdfs.get(url);
+async function jpxMarginPdf(url, trace){
+  if(jpxMarginPdfs.has(url)){ if(trace) trace.via = 'この画面で取得済み'; return jpxMarginPdfs.get(url); }
   const p = (async () => {
     const pdfjs = await loadPdfJs();
-    const buf = await relayFetchBinary(url, 30000);
+    const buf = await relayFetchBinary(url, 30000, trace);
     const doc = await pdfjs.getDocument({data: new Uint8Array(buf), isEvalSupported: false,
                                          disableFontFace: true, useSystemFonts: false}).promise;
     const entry = {pdfjs, doc, items: {}, codes: {}};
@@ -11125,9 +11175,9 @@ async function mtallFind(entry, code5){
   return null;
 }
 
-async function jpxMarginFile(XLSX, url){
-  if(jpxMarginFiles.has(url)) return jpxMarginFiles.get(url);
-  const buf = await relayFetchBinary(url, 25000);
+async function jpxMarginFile(XLSX, url, trace){
+  if(jpxMarginFiles.has(url)){ if(trace) trace.via = 'この画面で取得済み'; return jpxMarginFiles.get(url); }
+  const buf = await relayFetchBinary(url, 25000, trace);
   const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
   const sheets = wb.SheetNames.slice(0, 8).map(n =>
     XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: ''}));
@@ -16677,6 +16727,272 @@ async function testRelay(url){
   return true;
 }
 
+/* ---- 取得の診断 ------------------------------------------------------
+   「取得できない」の原因は、たいてい次のどれかです。
+     (1) 中継サーバーがどれも応えない(混雑・停止・この端末の回線)
+     (2) 相手のサイトが中継を断っている
+     (3) ページは開けたが、ファイルへのリンクが無い(ページの作りが変わった)
+     (4) ファイルは取れたが、中身を読めない(様式が変わった)
+   ふだんの取得は、止まった理由を1行でしか言えません。ここでは中継サーバーを
+   1つずつ、取得先を1段ずつ試して、どこまで行けたかを並べます。
+   チャートも、保存してあるデータも変えません(読むだけです)。
+   --------------------------------------------------------------------- */
+const DIAG_PROBE = 'https://query1.finance.yahoo.com/v8/finance/chart/7203.T?range=5d&interval=1d';
+const diagDay = k => /^\d{8}$/.test(String(k || '')) ? `${k.slice(0,4)}/${k.slice(4,6)}/${k.slice(6,8)}` : '—';
+const diagFile = u => String(u || '').replace(/[?#].*$/, '').replace(/^.*\//, '').slice(0, 40);
+const Diag = {busy: false, rows: [], code: '', deep: false, at: 0};
+
+/* 中継サーバーを1つだけ使って、小さな株価(5日分)を取ります */
+async function diagProbeRelay(relay, timeout){
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeout || 10000);
+  try{
+    const res = await fetch(relay.u(DIAG_PROBE + '&_=' + Date.now()), {signal: ctl.signal, referrerPolicy: 'no-referrer'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    let body = await readCapped(res, false);
+    if(relay.un) body = relay.un(body);
+    const j = JSON.parse(body);
+    if(!(j && j.chart && j.chart.result && j.chart.result[0])) throw new Error('株価が入っていない応答でした');
+    return '株価が返ってきました';
+  } finally { clearTimeout(t); }
+}
+
+/* ファイルを取る段。取れなかったのか、取れたが読めなかったのかを分けて言うため */
+async function diagGet(head, url, timeout, trace){
+  try { return await relayFetchBinary(url, timeout, trace); }
+  catch(e){ throw new Error(`${head}。ページは開けましたが、ファイル(${diagFile(url)})を取得できません`); }
+}
+
+/* 失敗の理由を、画面に出せる短い言葉にします。相手の返した文字はここを通りません */
+function diagMsg(e){
+  const m = String((e && e.message) || e || '');
+  if(/^HTTP \d{3}$|abort|Failed to fetch|NetworkError|network|Load failed|JSON|Unexpected token/i.test(m)) return relayMsg(m);
+  return cleanText(m, 160) || 'エラー';
+}
+
+/* 調べる項目。run は成功なら説明の文字列を返し、失敗なら投げます。
+   t(名前) で中継の記録を1つ作ります(ページとファイルで別々に記録するため)。
+   deep … ファイルの中身まで読むときだけ走らせる(数MBの通信になるもの) */
+function diagChecks(){
+  const list = [];
+  const add = (name, run, opt) => list.push(Object.assign({name, run, group: 'src'}, opt || {}));
+
+  add('株価(Yahoo)', async c => {
+    const y = await fetchYahoo(c.code + '.T', '5d', '1d', c.t('取得'));
+    return `${y.bars.length}本、最後の足 ${diagDay(barKey(y.bars[y.bars.length - 1]))}`;
+  });
+  add('株価の予備(Stooq)', async c => {
+    const y = await fetchStooq(c.code + '.T', c.t('取得'));
+    return `${y.bars.length}本、最後の足 ${diagDay(barKey(y.bars[y.bars.length - 1]))}`;
+  });
+  add('ニュース(Google)', async c => {
+    const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(c.code) + '&hl=ja&gl=JP&ceid=JP:ja';
+    const xml = await relayFetch(url, {text: true, timeout: 15000, trace: c.t('取得')});
+    return `見出し ${parseNewsXml(xml).length}件`;
+  });
+  add('空売り残高(JPX)', async c => {
+    const out = [], seen = new Set();
+    scrapeShortLinks(await relayFetch(JPX_SHORT_INDEX, {text: true, timeout: 12000, trace: c.t('ページ')}), out, seen);
+    /* 月の初めは今月のページにまだ1件も無いので、先月のページも見ます */
+    if(!out.length) scrapeShortLinks(await relayFetch('https://www.jpx.co.jp/markets/public/short-selling/00-archives-01.html',
+      {text: true, timeout: 12000, trace: c.t('先月のページ')}), out, seen);
+    if(!out.length) throw new Error('ページは開けましたが、日々のファイルへのリンクが見つかりません(ページの作りが変わった可能性)');
+    out.sort((a, b) => b.d.localeCompare(a.d));
+    const head = `ファイル ${out.length}件、最新 ${diagDay(out[0].d)}`;
+    if(!c.deep) return head;
+    const XLSX = await loadXLSX();
+    const buf = await diagGet(head, out[0].url, 15000, c.t('ファイル'));
+    let rows;
+    try { rows = parseShortWorkbook(XLSX, buf, c.code); }
+    catch(e){ throw new Error(`${head}。ファイルは取れましたが、読めません: ${diagMsg(e)}`); }
+    return `${head}。中身も読めました(この銘柄の報告 ${rows.length}件)`;
+  });
+  add('信用残(JPX 日次)', async c => {
+    const page = JPX_MARGIN_PAGES[0];
+    const html = await relayFetch(page, {text: true, timeout: 12000, trace: c.t('ページ')});
+    const links = jpxMarginLinks(html, page);
+    if(!links.length){
+      const k = jpxFileKinds(html);
+      throw new Error(`ページは開けましたが、残高のファイルが見つかりません(PDF ${k.pdf}件・Excel ${k.xls}件、ページ ${String(html).length}文字)`);
+    }
+    const head = `ファイル ${links.length}件、最新 ${diagFile(links[0])}`;
+    if(!c.deep) return head;
+    if(/\.pdf$/i.test(links[0])){
+      const e = await jpxMarginPdf(links[0], c.t('ファイル'));
+      const v = await mtallFind(e, mtallCode(c.code));
+      if(v && v.bad) throw new Error(`${head}。この銘柄の行はありましたが、数字の合計が合いません(表の作りが変わった可能性)`);
+      return `${head}。${diagDay(e.d)} の表(${e.doc.numPages}ページ)を読めました`
+        + (v ? `(${c.code}: 売残 ${v.sell.toLocaleString()}・買残 ${v.buy.toLocaleString()})` : `(${c.code} は載っていません)`);
+    }
+    const XLSX = await loadXLSX(); freezeProto();
+    const r = await jpxMarginFile(XLSX, links[0], c.t('ファイル'));
+    return `${head}。${diagDay(r.d)} の表を読めました(${r.map.size}銘柄)`;
+  });
+  add('貸借残(日証金)', async c => {
+    const t = parseJsfCsv(jsfDecode(await relayFetchBinary(JSF_CSV, 20000, c.t('ファイル'))));
+    return `${t.rows.size}銘柄、${c.code} は${t.rows.has(c.code) ? '載っています' : '載っていません(貸借銘柄でなければふつうです)'}`;
+  }, {deep: true, why: '3MBのファイル1つだけなので「中身まで」で調べます'});
+  add('決算発表予定(JPX)', async c => {
+    const links = kessanLinks(await relayFetch(JPX_KESSAN_INDEX, {text: true, timeout: 12000, trace: c.t('ページ')}));
+    if(!links.length) throw new Error('ページは開けましたが、予定表のExcelへのリンクが見つかりません(ページの作りが変わった可能性)');
+    const head = `予定表 ${links.length}件`;
+    if(!c.deep) return head;
+    const XLSX = await loadXLSX(); freezeProto();
+    const buf = await diagGet(head, links[0], 20000, c.t('ファイル'));
+    let m;
+    try { m = parseKessanSheet(XLSX, buf); }
+    catch(e){ throw new Error(`${head}。1件目(${diagFile(links[0])})は取れましたが、読めません: ${diagMsg(e)}`); }
+    return `${head}。1件目を読めました(${m.size}社、${c.code} は${m.has(c.code) ? '載っています' : 'この表には載っていません'})`;
+  });
+  add('業種の平均(東証の銘柄一覧)', async c => {
+    const url = sectorListLink(await relayFetch(SEC_LIST_PAGE, {text: true, timeout: 12000, trace: c.t('ページ')}));
+    if(!url) throw new Error('ページは開けましたが、銘柄一覧(data_j.xls)へのリンクが見つかりません');
+    if(!c.deep) return `一覧 ${diagFile(url)}`;
+    const XLSX = await loadXLSX(); freezeProto();
+    const buf = await diagGet(`一覧 ${diagFile(url)}`, url, 25000, c.t('ファイル'));
+    let map = null;
+    try{
+      const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
+      map = parseSectorList(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1, raw: true, defval: ''}));
+    }catch(e){}
+    if(!map) throw new Error('一覧は取れましたが、見出しを読み取れません(様式変更の可能性)');
+    const me = map.by[c.code];
+    return `${Object.keys(map.by).length}銘柄を読めました` + (me ? `(${c.code}: ${me.i})` : '');
+  });
+  add('長期金利(財務省)', async c => {
+    const pts = parseJgbCsv(await relayFetch(JGB_NOW, {text: true, timeout: 9000, trace: c.t('取得')}));
+    if(!pts.length) throw new Error('ファイルは取れましたが、金利の行がありません(月初めの数日はふつうです)');
+    const l = pts[pts.length - 1];
+    return `今月 ${pts.length}日分、最新 ${diagDay(l.d)} ${l.v}%`;
+  });
+  /* 部品は中身まで調べるときにしか使わないので、かんたんな診断では行ごと出しません */
+  add('Excelを読む部品(SheetJS)', async () => { await loadXLSX(); return '読み込めました'; }, {deep: true, quiet: true});
+  add('PDFを読む部品(pdf.js)', async () => { await loadPdfJs(); return '読み込めました'; }, {deep: true, quiet: true});
+  return list;
+}
+
+function diagRelayRows(){
+  return relayWaves().flat().map(r => ({
+    name: r.n === '直接' ? '直接(中継なし)' : r.n, group: 'relay', relay: r,
+    /* Yahoo は直接の取得を許していないので、ここは✗がふつうです */
+    soft: r.n === '直接'
+  }));
+}
+
+const DIAG_ICON = {wait: '・', run: '…', ok: '✓', ng: '✗', skip: '－', soft: '－'};
+function renderDiag(){
+  const body = $('#diagBody'), sum = $('#diagSum');
+  if(!body) return;
+  const row = r => `<div class="drow ${r.st}"><span class="dic" aria-hidden="true">${DIAG_ICON[r.st] || ''}</span>`
+    + `<div class="dtx"><b>${esc(r.name, 40)}</b>`
+    + (r.ms != null ? ` <span class="dvia">${(r.ms / 1000).toFixed(1)}秒${r.via ? '・' + esc(r.via, 80) : ''}</span>` : '')
+    + (r.msg ? `<div class="dmsg">${esc(r.msg, 220)}</div>` : '')
+    + (r.fails && r.fails.length && r.st === 'ng' ? `<div class="dvia">${esc(r.fails.join(' / '), 300)}</div>` : '')
+    + '</div></div>';
+  const part = (g, title) => {
+    const rs = Diag.rows.filter(r => r.group === g);
+    return rs.length ? `<div class="dhead">${title}</div>` + rs.map(row).join('') : '';
+  };
+  body.innerHTML = part('relay', '経路(中継サーバー)') + part('src', `取得先(${esc(Diag.code, 6)} で試します)`);
+  if(sum) sum.innerHTML = diagSummary(Diag.rows, Diag.busy);
+  const cp = $('#diagCopy');
+  if(cp) cp.classList.toggle('hide', !Diag.rows.length || Diag.busy);
+}
+
+/* 結果のまとめと、次にどうするか */
+function diagSummary(rows, busy){
+  if(!rows.length) return '';
+  if(busy){
+    const done = rows.filter(r => r.st !== 'wait' && r.st !== 'run').length;
+    return `調べています… ${done}/${rows.length}`;
+  }
+  const relays = rows.filter(r => r.group === 'relay' && !r.soft);
+  const relayOk = relays.filter(r => r.st === 'ok').length;
+  const srcs = rows.filter(r => r.group === 'src');
+  const srcOk = srcs.filter(r => r.st === 'ok').length, srcNg = srcs.filter(r => r.st === 'ng').length;
+  const head = (relays.length ? `中継サーバー ${relayOk}/${relays.length} 使えます ・ ` : '')
+    + `取得先 <b>✓ ${srcOk}件</b>` + (srcNg ? ` ・ <b style="color:var(--critical)">✗ ${srcNg}件</b>` : '') + '。';
+  let tip;
+  if(relays.length && !relayOk){
+    tip = navigator.onLine === false
+      ? 'この端末がオフラインです。回線をつないでからもう一度試してください。'
+      : '中継サーバーが<b>1つも</b>応えていません。回線の不調か、中継サーバー側の混雑・停止です。'
+        + '時間をおいて試すか、「設定」の「通信(中継サーバー)」で自分の中継サーバーを置くと安定します。';
+  } else if(srcNg){
+    tip = (relays.length ? '中継サーバーは使えています(1つ使えれば足ります)。' : '')
+      + '✗ の取得先は<b>そこだけ</b>の問題です(相手のサイトが中継を断っている、混んでいる、'
+      + 'ページやファイルの作りが変わった、のどれか)。「結果をコピー」して知らせてもらえれば、どこを直すか分かります。';
+  } else {
+    tip = 'どの取得先も取得できました。'
+      + (relays.length && relayOk < relays.length ? '使えない中継サーバーがあっても、1つ使えれば足ります。' : '');
+  }
+  return head + tip;
+}
+
+function diagText(){
+  const st = {ok: '✓', ng: '✗', skip: '－', soft: '－', wait: '・', run: '…'};
+  const d = new Date(Diag.at || Date.now());
+  const L = [`取得の診断 ${APP_VER} (${APP_DATE}) ${d.toLocaleString('ja-JP')}`,
+    `中身まで: ${Diag.deep ? 'はい' : 'いいえ'} / 自分の中継: ${ownRelay() ? 'あり' : 'なし'} / オンライン: ${navigator.onLine === false ? 'いいえ' : 'はい'}`,
+    `ブラウザ: ${cleanText(navigator.userAgent, 160)}`, ''];
+  for(const r of Diag.rows){
+    L.push(`${st[r.st] || ''} ${r.name}: ${r.msg || ''}`
+      + (r.ms != null ? ` [${(r.ms / 1000).toFixed(1)}秒${r.via ? ' ' + r.via : ''}]` : ''));
+    if(r.st === 'ng' && r.fails && r.fails.length) L.push('    ' + r.fails.join(' / '));
+  }
+  return L.join('\n');
+}
+
+/* checks を渡すとそれを使います(自己テスト用)。返り値: 行の一覧 */
+async function runDiag(deep, checks){
+  if(Diag.busy) return null;
+  Diag.busy = true;
+  Diag.deep = !!deep;
+  Diag.at = Date.now();
+  const c0 = String(Ext.codeKey() || '').toUpperCase();
+  Diag.code = isJpCode(c0) ? c0 : '7203';
+  const btns = ['#diagRun', '#diagDeep'].map(s => $(s)).filter(Boolean);
+  btns.forEach(b => b.disabled = true);
+  const relayRows = checks ? [] : diagRelayRows();
+  const srcRows = (checks || diagChecks()).filter(k => Diag.deep || !k.quiet)
+    .map(k => Object.assign({group: 'src'}, k));
+  Diag.rows = relayRows.concat(srcRows).map(r => Object.assign(r, {st: 'wait', msg: '', ms: null, via: '', fails: []}));
+  renderDiag();
+  const one = async (r, fn) => {
+    r.st = 'run'; renderDiag();
+    const t0 = performance.now();
+    const traces = [];
+    try{
+      r.msg = await fn({code: Diag.code, deep: Diag.deep,
+        t: label => { const tr = {label, via: '', fails: []}; traces.push(tr); return tr; }});
+      r.st = 'ok';
+    }catch(e){
+      r.st = r.soft ? 'soft' : 'ng';
+      r.msg = diagMsg(e) + (r.soft ? '(ここは使えなくてもふつうです)' : '');
+    }
+    r.ms = Math.round(performance.now() - t0);
+    const used = traces.filter(x => x.via);
+    r.via = used.length === 1 && traces.length === 1 ? used[0].via + '経由'
+          : used.map(x => `${x.label}=${x.via}`).join('・');
+    r.fails = traces.reduce((a, x) => a.concat(x.via ? [] : x.fails), []);
+    renderDiag();
+  };
+  try{
+    /* 中継サーバーは相手がそれぞれ違うので、一度に試します */
+    await Promise.all(relayRows.map(r => one(r, () => diagProbeRelay(r.relay))));
+    /* 取得先は3つずつ(一覧の一括取得と同じ控えめさで) */
+    await mapLimited(srcRows, 3, async r => {
+      if(r.deep && !Diag.deep){ r.st = 'skip'; r.msg = r.why || ''; renderDiag(); return; }
+      await one(r, r.run);
+    });
+  } finally {
+    Diag.busy = false;
+    btns.forEach(b => b.disabled = false);
+    renderDiag();
+  }
+  return Diag.rows;
+}
+
 /* ---- fetching many symbols at once -----------------------------------
    Three at a time. Enough to fill a watchlist quickly, few enough that it
    does not look like an attack to whoever is serving the data.
@@ -19378,6 +19694,134 @@ async function runSelfTestsInner(){
     if(!line || line.textContent.indexOf(APP_VER) < 0) return '注意書きに出ていません';
     return /ツールの版/.test(reportText()) ? true : '書き出したテキストに入っていません';
   });
+  tgroup('新しい版のお知らせ・取得の診断');
+  test('新しい版のお知らせ: 新しいときだけ出て、閉じたら同じ版では出ない', () => {
+    const bar = $('#updBar'), keep = {ver: Upd.ver, off: Upd.off, hid: bar.classList.contains('hide')};
+    const hidden = () => bar.classList.contains('hide');
+    try{
+      Upd.off = ''; bar.classList.add('hide');
+      eq(verNum('v62'), 62, '番号'); eq(verNum('62'), 0, 'vなし'); eq(verNum('v6x'), 0, '数字以外');
+      eq(Upd.seen(APP_VER), false, '同じ版'); eq(hidden(), true, '同じ版で出た');
+      eq(Upd.seen('v' + (verNum(APP_VER) - 1)), false, '古い版');
+      eq(Upd.seen('v10' + XSS), false, '形の違う番号');
+      eq(Upd.seen(null), false, '空');
+      eq(hidden(), true, '新しくないのに出た');
+      const nv = 'v' + (verNum(APP_VER) + 1);
+      eq(Upd.seen(nv), true, '新しい版'); eq(hidden(), false, '新しいのに出ない');
+      eq($('#updBarTxt').textContent.indexOf(nv) >= 0, true, '番号が書いていない');
+      Upd.dismiss();
+      eq(hidden(), true, '閉じない');
+      eq(Upd.seen(nv), false, '閉じた版がまた出た');
+      eq(Upd.seen('v' + (verNum(APP_VER) + 2)), true, 'さらに新しい版は出す');
+      return noInjection('#updBar', 'お知らせ');
+    } finally {
+      Upd.ver = keep.ver; Upd.off = keep.off;
+      bar.classList.toggle('hide', keep.hid);
+    }
+  });
+  /* ---- 取得の診断 ---- */
+  /* 中継の記録(どれで取れたか・それぞれ何で落ちたか)。本物の通信はせず、
+     fetch を印の付いた URL のときだけ差し替えます */
+  let diagTrace = '走りませんでした', diagRun = '走りませんでした';
+  {
+    const realFetch = window.fetch, prevRelay = Store.get('relay', '');
+    const T_URL = 'https://example.invalid/__diagtest__.json';
+    let mode = 'ok';
+    const okBody = '{"ok":1,"pad":"' + 'x'.repeat(40) + '"}';
+    window.fetch = function(u, o){
+      const str = String(u);
+      if(str.indexOf('__diagtest__') < 0) return realFetch.call(window, u, o);
+      if(str.startsWith('https://example.invalid/')) return Promise.reject(new TypeError('Failed to fetch'));
+      if(str.startsWith('https://corsproxy.io/')) return Promise.resolve(new Response('no', {status: 403}));
+      if(str.startsWith('https://api.allorigins.win/raw') && mode !== 'fail')
+        return Promise.resolve(new Response(mode === 'bin' ? new Uint8Array(600) : okBody, {status: 200}));
+      if(str.startsWith('https://api.allorigins.win/raw')) return Promise.resolve(new Response('no', {status: 403}));
+      return Promise.reject(new TypeError('Load failed'));
+    };
+    try{
+      Store.set('relay', '');
+      const errs = [];
+      const t1 = {via: '', fails: []};
+      const j = await relayFetch(T_URL, {trace: t1});
+      if(!(j && j.ok === 1)) errs.push('中身が違います');
+      if(t1.via !== 'allorigins') errs.push('経由 ' + t1.via);
+      if(t1.fails.join('|') !== '直接: 接続できません') errs.push('先の失敗 ' + t1.fails.join('|'));
+      mode = 'fail';
+      const t2 = {via: '', fails: []};
+      let threw = false;
+      try { await relayFetch(T_URL, {trace: t2}); } catch(e){ threw = true; }
+      if(!threw) errs.push('全部落ちても投げない');
+      const want = '直接: 接続できません|corsproxy.io: HTTP 403|allorigins: HTTP 403|codetabs: 接続できません|allorigins(JSON): 接続できません';
+      if(t2.via || t2.fails.join('|') !== want) errs.push('全部落ちたときの記録 ' + t2.via + ' ' + t2.fails.join('|'));
+      mode = 'bin';
+      const t3 = {via: '', fails: []};
+      const buf = await relayFetchBinary(T_URL, 3000, t3);
+      if(!(buf && buf.byteLength === 600)) errs.push('ファイルの中身');
+      if(t3.via !== 'allorigins' || t3.fails.join('|') !== '直接: 接続できません') errs.push('ファイルの記録 ' + t3.via + ' ' + t3.fails.join('|'));
+      /* 記録を渡さないふだんの呼び方は、今までどおり */
+      mode = 'ok';
+      const j2 = await relayFetch(T_URL);
+      if(!(j2 && j2.ok === 1)) errs.push('記録なしで取れない');
+      diagTrace = errs.length ? errs.join(' / ') : true;
+    }catch(e){ diagTrace = (e && e.message) || String(e); }
+    finally { window.fetch = realFetch; Store.set('relay', prevRelay); }
+  }
+  {
+    const keep = {rows: Diag.rows, code: Diag.code, deep: Diag.deep, at: Diag.at};
+    try{
+      const checks = [
+        {name: 'A', run: async c => { c.t('ページ').via = 'corsproxy.io'; return 'A-ok ' + c.code; }},
+        {name: 'B', run: async c => { c.t('ページ').fails.push('直接: 接続できません', 'corsproxy.io: HTTP 403'); throw new Error('HTTP 403'); }},
+        {name: 'C' + XSS, run: async () => { throw new Error(XSS); }},
+        {name: 'D', deep: true, why: '深いときだけ', run: async () => 'D-ran'},
+        {name: 'E', deep: true, quiet: true, run: async () => 'E-ran'},
+        {name: 'F', run: async c => { c.t('ページ').via = 'x1'; c.t('ファイル').via = 'x2'; return 'F'; }}
+      ];
+      const errs = [];
+      const p = runDiag(false, checks);
+      if(await runDiag(false, checks) !== null) errs.push('実行中にもう一度走った');
+      const rows = await p;
+      const by = n => rows.find(r => r.name === n) || {};
+      if(rows.map(r => r.name.slice(0, 1)).join('') !== 'ABCDF') errs.push('行 ' + rows.map(r => r.name.slice(0, 1)).join(''));
+      if(by('A').st !== 'ok' || !/^A-ok /.test(by('A').msg) || by('A').via !== 'corsproxy.io経由') errs.push('A ' + JSON.stringify(by('A')).slice(0, 120));
+      if(by('B').st !== 'ng' || by('B').msg !== 'HTTP 403' || by('B').fails.length !== 2) errs.push('B ' + JSON.stringify(by('B')).slice(0, 120));
+      if(rows[2].st !== 'ng') errs.push('C が失敗になっていない');
+      if(by('D').st !== 'skip' || by('D').msg !== '深いときだけ') errs.push('D ' + by('D').st);
+      if(by('F').via !== 'ページ=x1・ファイル=x2') errs.push('F ' + by('F').via);
+      if(Diag.busy || $('#diagRun').disabled) errs.push('終わっても実行中のまま');
+      if(!$('#diagBody').querySelector('.drow.ng')) errs.push('画面に✗が出ていない');
+      if(window.__xssFired || $('#diagBody').querySelector('img, script')) errs.push('名前や理由がタグとして解釈された');
+      const txt = diagText();
+      if(txt.indexOf('✗ B: HTTP 403') < 0 || txt.indexOf('    直接: 接続できません / corsproxy.io: HTTP 403') < 0) errs.push('コピー用の文 ' + txt.slice(-160));
+      if(!/✗ 2件/.test($('#diagSum').textContent)) errs.push('まとめ ' + $('#diagSum').textContent.slice(0, 60));
+      const deep = await runDiag(true, checks);
+      if(deep.find(r => r.name === 'D').msg !== 'D-ran' || !deep.some(r => r.name === 'E' && r.st === 'ok')) errs.push('中身までのときに走らない');
+      diagRun = errs.length ? errs.join(' / ') : true;
+    }catch(e){ diagRun = (e && e.message) || String(e); }
+    finally { Object.assign(Diag, keep); renderDiag(); }
+  }
+  test('取得の診断: どの中継で取れたか・それぞれ何で落ちたかを記録する', () => diagTrace);
+  test('取得の診断: 1段ずつの結果を並べ、失敗・省略・二重実行を正しく扱う', () => diagRun);
+  test('取得の診断: 中継が全滅か、取得先だけの問題かを言い分ける', () => {
+    const R = (group, st, soft) => ({group, st, soft: !!soft});
+    const all = diagSummary([R('relay', 'soft', true), R('relay', 'ng'), R('relay', 'ng'), R('src', 'ng')], false);
+    const one = diagSummary([R('relay', 'ng'), R('relay', 'ok'), R('src', 'ok'), R('src', 'ng')], false);
+    const ok = diagSummary([R('relay', 'ng'), R('relay', 'ok'), R('src', 'ok')], false);
+    return eq(/1つも|オフライン/.test(all), true, '全滅') && eq(/そこだけ/.test(one) && /1\/2/.test(one), true, '取得先だけ')
+      && eq(/どの取得先も/.test(ok) && /1つ使えれば/.test(ok), true, '全部取れた')
+      && eq(diagSummary([R('src', 'ok'), R('src', 'run')], true), '調べています… 1/2', '途中');
+  });
+  test('取得の診断: 調べる項目がそろっている', () => {
+    const list = diagChecks(), names = list.map(k => k.name);
+    eq(new Set(names).size, names.length, '名前の重複');
+    eq(list.every(k => typeof k.run === 'function'), true, 'run が無い');
+    for(const re of [/株価\(Yahoo\)/, /空売り/, /信用残/, /日証金/, /決算/, /業種/, /金利/])
+      eq(names.some(n => re.test(n)), true, re.source + ' がありません');
+    eq(list.filter(k => k.quiet).every(k => k.deep), true, '出さない行が浅い診断で走る');
+    eq(SECTIONS.some(sc => sc.cards.includes('diagCard')), true, 'カードがどの束にも入っていない');
+    return true;
+  });
+  tgroup('保存と復元');
   test('信用残: 札が合っていても桁の違う点は外す', () => {
     /* 信用残は週次・貸借残は日次で日付がぶつからないので、混ざっていても
        「同じ日に2つある」形では見つかりません。640万株の系列に68万株が
@@ -24251,6 +24695,17 @@ $('#rptTxt').addEventListener('click', () => {
   catch(e){ rptMsg('保存できませんでした: ' + esc(e.message, 90), true); }
 });
 
+$('#diagRun').addEventListener('click', () => { runDiag(false).catch(() => {}); });
+$('#diagDeep').addEventListener('click', () => { runDiag(true).catch(() => {}); });
+$('#diagCopy').addEventListener('click', async () => {
+  const t = diagText();
+  let ok = false;
+  try { await navigator.clipboard.writeText(t); ok = true; } catch(e){}
+  const sum = $('#diagSum');
+  if(sum) sum.innerHTML = diagSummary(Diag.rows, false) + (ok
+    ? ` <b>${t.length}文字をコピーしました。</b>`
+    : ' <b style="color:var(--critical)">コピーできませんでした(ブラウザに拒否されました)。</b>');
+});
 $('#jsfBtn').addEventListener('click', () => loadJSF());
 $('#marginFileBtn').addEventListener('click', () => $('#marginFile').click());
 $('#marginFile').addEventListener('change', e => {
@@ -24271,6 +24726,65 @@ addEventListener('visibilitychange', () => {
   if(Date.now() - last > 60000) scheduleSync(800);
 });
 addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(1500); });
+
+/* ---- 新しい版のお知らせ ----------------------------------------------
+   置き換えても、開いたままのアプリは前の版のまま動き続けます(スマホは
+   アプリを裏に置いたまま何日も持つので、「直したのに直っていない」に
+   見えます)。sw.js に同じ版番号を書いておき、新しい sw.js が入ったら
+   その番号を聞いて、こちらより新しければ知らせます。HTML を丸ごと
+   取り直して比べるより、ずっと軽く済みます(sw.js は数KB)。
+
+   sw.js の APP_VER は本体の APP_VER と必ず同じにします(CI が確かめます)。
+   --------------------------------------------------------------------- */
+const verNum = v => { const m = /^v(\d{1,5})$/.exec(String(v == null ? '' : v)); return m ? +m[1] : 0; };
+const UPD_EVERY = 30 * 60e3;            /* 画面に戻ったときの確認は30分に1回まで */
+const Upd = {
+  ver: '', off: '', at: 0,
+  /* 返り値: 知らせたか */
+  seen(v){
+    v = String(v == null ? '' : v);
+    if(!verNum(v) || verNum(v) <= verNum(APP_VER) || this.off === v) return false;
+    this.ver = v;
+    const bar = $('#updBar'), txt = $('#updBarTxt');
+    if(!bar || !txt) return false;
+    txt.innerHTML = `新しい版 <b>${esc(v, 8)}</b> が届いています(いま開いているのは ${esc(APP_VER, 8)})。`
+      + '再読み込みすると切り替わります。';
+    bar.classList.remove('hide');
+    return true;
+  },
+  dismiss(){ this.off = this.ver; $('#updBar').classList.add('hide'); },
+  ask(){
+    try{
+      const c = navigator.serviceWorker && navigator.serviceWorker.controller;
+      if(c) c.postMessage({type: 'ver?'});
+    }catch(e){}
+  },
+  async check(){
+    if(Date.now() - this.at < UPD_EVERY) return;
+    this.at = Date.now();
+    try{
+      const reg = await navigator.serviceWorker.getRegistration();
+      if(reg) await reg.update();      /* 新しければ入れ替わって controllerchange が来ます */
+    }catch(e){}                        /* オフラインなど。次に戻ったときにまた見ます */
+    this.ask();
+  },
+  init(){
+    if(!('serviceWorker' in navigator) || !window.isSecureContext || location.protocol === 'file:') return;
+    /* 開いた直後はブラウザ自身が sw.js を確かめるので、30分はこちらから聞きません */
+    this.at = Date.now();
+    navigator.serviceWorker.addEventListener('message', e => {
+      const d = e.data;
+      if(d && d.type === 'ver') this.seen(d.ver);
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => this.ask());
+    document.addEventListener('visibilitychange', () => {
+      if(document.visibilityState === 'visible') this.check();
+    });
+    this.ask();
+  }
+};
+$('#updBarGo').addEventListener('click', () => { try { location.reload(); } catch(e){} });
+$('#updBarX').addEventListener('click', () => Upd.dismiss());
 
 /* ---- init ----------------------------------------------------------- */
 (function init(){
@@ -24382,6 +24896,7 @@ addEventListener('online', () => { if(driveOn() && driveAuto()) scheduleSync(150
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
+  Upd.init();
 })();
 
 </script>

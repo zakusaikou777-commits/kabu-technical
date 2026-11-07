@@ -1,0 +1,33 @@
+# index.html に組み込まれた自己テスト(#selftest)を、PR と main への push のたびに
+# 画面なしの Chromium で実行します。パソコン幅とスマホ幅の2回。
+# 外部への通信は止めて走らせるので、株価サイトや JPX の都合では落ちません。
+name: 自己テスト
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Playwright と Chromium を入れる
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: 自己テストを実行
+        run: node tests/selftest.js
