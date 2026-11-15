@@ -18,7 +18,10 @@ concurrency:
 
 jobs:
   selftest:
-    runs-on: ubuntu-latest
+    # ubuntu-latest は 2026年11月に 26.04 へ切り替わり、Playwright 1.56.1 は
+    # その上にブラウザを入れられません(Playwright does not support chromium on
+    # ubuntu26.04-x64)。動作を確かめてある 24.04 に固定します。
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
