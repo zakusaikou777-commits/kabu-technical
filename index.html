@@ -582,8 +582,48 @@ td:first-child,th:first-child{text-align:left}
 .favn{font-size:12px;font-weight:600;color:var(--ink-2);background:var(--wash);
   border-radius:999px;padding:1px 9px;min-width:22px;text-align:center}
 .favgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+/* お気に入り(v64): 1銘柄1行。スマホは「名前 | 値段と前日比 | RSI」、
+   幅のある画面では 25日線からの乖離とクロスの列も出します */
+.favbox{container-type:inline-size}
+.favtools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
+.favtools .opt{font-size:12px;color:var(--ink-2)}
+.favlist{margin-top:4px}
+.favgh{font-size:11.5px;font-weight:700;color:var(--ink-3);margin:12px 0 0;padding:0 4px 3px;
+  border-bottom:1px solid var(--hairline)}
+.favgh .fn{font-weight:600;margin-left:5px;opacity:.75}
+.favitem{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:2px 12px;align-items:center;
+  width:100%;margin:0;padding:8px 4px;background:none;border:0;border-bottom:1px solid var(--hairline);
+  border-radius:0;color:var(--ink-1);font:inherit;text-align:left;cursor:pointer}
+.favitem:hover{background:var(--wash)}
+.favitem.cur{background:color-mix(in srgb,var(--cmp1) 8%,transparent)}
+.fi-nm{min-width:0;display:flex;align-items:baseline;gap:6px}
+.fi-nm b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13.5px}
+.fi-cd{flex:none;font-size:11px;color:var(--ink-3)}
+.fi-q{display:flex;flex-direction:column;align-items:flex-end;line-height:1.3}
+.fi-px{font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fi-ch{font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-2)}
+.fi-ch.wup,.fi-gap.wup{color:var(--up)} .fi-ch.wdn,.fi-gap.wdn{color:var(--down)}
+.fi-rsi{min-width:4.6em;text-align:center;font-size:11px;padding:2px 6px;border-radius:999px;
+  background:var(--wash);color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.fi-rsi.hot{background:color-mix(in srgb,var(--up) 15%,transparent);color:var(--up);font-weight:700}
+.fi-rsi.cold{background:color-mix(in srgb,var(--down) 15%,transparent);color:var(--down);font-weight:700}
+.fi-gap,.fi-x{display:none;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.fi-x .wup,.fi-x .wdn{font-weight:700}
+.fi-err{grid-column:2 / -1;font-size:11px;color:var(--ink-3);text-align:right}
+@container (min-width:600px){
+  .favitem{grid-template-columns:minmax(0,1fr) 172px 66px 118px 84px;gap:2px 14px}
+  .fi-q{flex-direction:row;align-items:baseline;justify-content:flex-end;gap:10px}
+  .fi-gap,.fi-x{display:block}
+}
 .favempty{font-size:12.5px;color:var(--ink-3);margin:10px 0 0;line-height:1.7}
 .navrow{display:flex;align-items:center;gap:8px;margin:9px 0 0;flex-wrap:wrap}
+/* 作図 */
+.drawrow{display:flex;align-items:center;gap:8px;margin:8px 0 0;flex-wrap:wrap}
+.drawtools{display:flex;gap:8px;flex-wrap:wrap}
+.drawtools .chip[aria-pressed="true"]{background:var(--ink-1);color:var(--surface-1);border-color:var(--ink-1)}
+.drawhint{flex:1 1 100%;margin:0;min-height:0}
+.drawhint:empty{display:none}
+#chartHost.drawing{touch-action:none}
 /* 下のパネルを1枚ずつ見るときのタブ。横に流して、指1本で切り替えられる大きさに */
 .subtabs{display:flex;gap:6px;margin:8px 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch;
   padding-bottom:2px;scrollbar-width:thin}
@@ -725,9 +765,20 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <summary><span class="favttl">★ お気に入り</span>
       <span class="favn" id="favCount">0</span></summary>
     <div id="favFolders" class="filters favfolders" role="group" aria-label="フォルダ"></div>
-    <div id="favList" class="favgrid"></div>
+    <div class="favtools" id="favTools">
+      <label class="opt" for="favSort">並べ順</label>
+      <select class="mini" id="favSort">
+        <option value="">登録順</option>
+        <option value="chg">前日比</option>
+        <option value="rsi">RSI</option>
+        <option value="gap25">25日線からの乖離</option>
+        <option value="name">名前</option>
+      </select>
+      <button class="chip" id="favRefresh">値を更新</button>
+      <span class="qsrc" id="favStamp" role="status"></span>
+    </div>
+    <div id="favList" class="favlist"></div>
     <div class="filters" style="margin:9px 0 0">
-      <button class="chip" id="favOpenList">現在値つきの一覧を見る</button>
       <button class="chip" id="favTidy" style="border-style:dashed" aria-pressed="false">整理する</button>
       <button class="chip hide" id="favNewFolder" style="border-style:dashed">フォルダを作る</button>
       <button class="chip" id="favClearAll" style="border-style:dashed">すべて外す</button>
@@ -842,6 +893,18 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <button class="chip" id="navEnd">最新へ</button>
       <button class="chip" id="navAll" style="border-style:dashed">全体</button>
       <button class="chip hide" id="navYReset" style="border-color:var(--warn)">縦の拡大を戻す</button>
+    </div>
+    <!-- 作図(v64)。線は銘柄ごとに保存し、同期で別の端末にも届きます -->
+    <div class="drawrow" id="drawBar" role="group" aria-label="作図">
+      <button class="chip" id="drawToggle" aria-pressed="false">✎ 作図</button>
+      <span class="drawtools hide" id="drawTools">
+        <button class="chip" data-draw="trend" aria-pressed="false">／ トレンドライン</button>
+        <button class="chip" data-draw="hline" aria-pressed="false">― 水平線</button>
+        <button class="chip" data-draw="fib" aria-pressed="false">≡ フィボナッチ</button>
+        <button class="chip" id="drawDel" disabled>選んだ線を消す</button>
+        <button class="chip" id="drawClear" style="border-style:dashed" disabled>この銘柄の線を全部消す</button>
+      </span>
+      <span class="qsrc drawhint" id="drawHint" role="status"></span>
     </div>
     <div class="legend" id="legend"></div>
     <!-- Dragging a hairline is a mouse gesture. On a phone this is the way
@@ -1369,23 +1432,11 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     </p>
   </div>
 
-  <div class="card" id="favCard">
-    <h2>お気に入り一覧</h2>
-    <p class="qsrc" style="margin:0 0 10px">★に登録した銘柄をまとめて取得して並べます。見出しを押すと並べ替わり、
-      行を押すとその銘柄を開きます。</p>
-    <div class="filters" style="margin-bottom:8px">
-      <button class="chip" id="watchBtn">一覧を取得</button>
-      <button class="chip" id="watchForce" style="border-style:dashed">最新に取り直す</button>
-    </div>
-    <p class="qsrc" id="watchMsg" style="margin:0 0 8px"></p>
-    <div id="watchBody"></div>
-  </div>
-
   <div class="card" id="alertCard">
     <h2>アラート</h2>
     <p class="qsrc" style="margin:0 0 10px"><b>このページを開いている間だけ動きます。</b>
       サーバーを持たない作りなので、閉じている間の値動きは見張れません。
-      「一覧を取得」を押したときと、自動更新のたびに判定します。</p>
+      お気に入りの「値を更新」を押したときと、自動更新のたびに判定します。</p>
     <div id="alertFired" class="hide"></div>
     <div id="alertList" style="margin-bottom:10px"></div>
     <div class="filters" style="margin-bottom:6px;align-items:flex-end">
@@ -1561,7 +1612,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v63';
+const APP_VER = 'v64';
 const APP_DATE = '2026-11-15';
 
 /* ============================================================
@@ -5552,6 +5603,412 @@ function drawGrips(g){
   g.restore();
 }
 
+/* ============================================================
+   作図(v64): トレンドライン・水平線・フィボナッチを自分で引く
+   線の端は<b>日時と価格</b>で覚えます(画面の位置ではなく)。だから拡大・
+   移動しても、日足⇔週足を切り替えても、同じ場所に出ます。銘柄ごとに保存し、
+   Googleドライブ同期で別の端末にも届きます。
+
+   操作(マウスも指も同じ):
+     ・ツールを選んで、トレンドライン/フィボは始点から終点までなぞる、
+       水平線は高さを1回押す。1本引くとツールは外れます(続けて引くなら
+       もう一度選ぶ)
+     ・線を押すと選ばれます。選んだ線は、端をつかむと形が、線をつかむと
+       位置が変わります。消すのはツールの「選んだ線を消す」か Delete キー
+   ふだんのスクロール・横移動・つまむ操作とぶつからないよう、指やマウスを
+   横取りするのは<b>ツールを選んでいるときと、選んだ線の上</b>だけです。
+   ============================================================ */
+const DRAW_KINDS = {trend: 'トレンドライン', hline: '水平線', fib: 'フィボナッチ'};
+const DRAW_PER_CODE = 40, DRAW_CODES = 80;
+const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+const DRAW_T_MIN = Date.UTC(1950, 0, 1), DRAW_T_MAX = Date.UTC(2200, 0, 1);
+
+function sanitizeAnchor(a){
+  if(!a || typeof a !== 'object') return null;
+  const t = +a.t, p = +a.p;
+  if(!isNum(t) || !isNum(p) || t < DRAW_T_MIN || t > DRAW_T_MAX || !(Math.abs(p) < 1e12)) return null;
+  return {t: Math.round(t), p};
+}
+/* 同期で来た線は、よその端末のファイルです。形を確かめてから入れます */
+function sanitizeDrawList(list){
+  const out = [], seen = new Set();
+  if(!Array.isArray(list)) return out;
+  for(const d of list.slice(0, DRAW_PER_CODE * 2)){
+    if(!d || typeof d !== 'object' || !owns(DRAW_KINDS, d.k)) continue;
+    const id = String(d.id == null ? '' : d.id).replace(/[^0-9a-z_-]/gi, '').slice(0, 24);
+    if(!id || seen.has(id)) continue;
+    const a = sanitizeAnchor(d.a);
+    const b = d.k === 'hline' ? null : sanitizeAnchor(d.b);
+    if(!a || (d.k !== 'hline' && !b)) continue;
+    const cur = /^[A-Z]{3}$/.test(String(d.cur || '')) ? String(d.cur) : '';
+    seen.add(id);
+    out.push(d.k === 'hline' ? {id, k: d.k, a, cur} : {id, k: d.k, a, b, cur});
+    if(out.length >= DRAW_PER_CODE) break;
+  }
+  return out;
+}
+function sanitizeDraws(obj){
+  const out = Object.create(null);
+  if(!obj || typeof obj !== 'object') return out;
+  const ent = [];
+  for(const raw of Object.keys(obj).slice(0, DRAW_CODES * 3)){
+    const code = cleanSymbol(raw), e = obj[raw];
+    if(!code || !e || typeof e !== 'object') continue;
+    ent.push([code, {at: isNum(+e.at) ? +e.at : 0, list: sanitizeDrawList(e.list || e.l)}]);
+  }
+  ent.sort((x, y) => y[1].at - x[1].at);
+  for(const [c, v] of ent.slice(0, DRAW_CODES)) out[c] = v;
+  return out;
+}
+
+const Draw = {
+  /* 保存領域(Store)はこの後ろで用意されるので、初めて使うときに読みます */
+  _all: null,
+  get all(){ if(!this._all) this._all = sanitizeDraws(Store.get('draws', {})); return this._all; },
+  set all(v){ this._all = v; },
+  open: false,        /* ツールの列を開いているか */
+  tool: '',           /* '' | 'trend' | 'hline' | 'fib' */
+  sel: '',            /* 選んでいる線の id */
+  act: null,          /* 引いている/動かしている最中 */
+  press: null,        /* 押した位置(動かさずに離したら「線を選ぶ」) */
+  hidden: 0,          /* 通貨が違うので出していない本数 */
+  lastAt: 0,
+  code(){ return state.raw && state.raw.code ? cleanSymbol(state.raw.code) : ''; },
+  list(){ const c = this.code(); return c && this.all[c] ? this.all[c].list : []; },
+  save(list){
+    const c = this.code();
+    if(!c) return;
+    this.all[c] = {at: Date.now(), list: sanitizeDrawList(list)};
+    const keys = Object.keys(this.all);
+    if(keys.length > DRAW_CODES)
+      keys.sort((x, y) => this.all[y].at - this.all[x].at).slice(DRAW_CODES).forEach(k => delete this.all[k]);
+    Store.set('draws', this.all);
+    if(typeof scheduleSync === 'function') scheduleSync();
+  },
+  newId(){ return 'd' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+};
+/* いま画面に出している通貨。円で引いた線を、ドル建ての表示に重ねると嘘になります */
+const drawCur = () => (typeof dispCur !== 'undefined' && dispCur) || (state.raw && state.raw.currency) || '';
+
+/* ---- 日時 ⇔ 足の番号(端数つき) ---------------------------------------
+   データの外(未来の雲の場所や、読み込んだ期間より前)は、ふだんの足の間隔で
+   延ばします。 */
+let drawTs = {bars: null, ts: [], step: 864e5};
+function drawTimes(){
+  const bars = state.raw ? state.raw.bars : [];
+  if(drawTs.bars !== bars){
+    const ts = bars.map(b => b && b.t instanceof Date ? b.t.getTime() : NaN);
+    const d = [];
+    for(let i = Math.max(1, ts.length - 40); i < ts.length; i++){
+      const x = ts[i] - ts[i - 1];
+      if(x > 0) d.push(x);
+    }
+    d.sort((x, y) => x - y);
+    drawTs = {bars, ts, step: d.length ? d[d.length >> 1] : 864e5};
+  }
+  return drawTs;
+}
+function idxOfTime(t){
+  const {ts, step} = drawTimes(), n = ts.length;
+  if(!n || !isNum(t)) return NaN;
+  if(t <= ts[0]) return (t - ts[0]) / step;
+  if(t >= ts[n - 1]) return n - 1 + (t - ts[n - 1]) / step;
+  let lo = 0, hi = n - 1;
+  while(hi - lo > 1){ const m = (lo + hi) >> 1; if(ts[m] <= t) lo = m; else hi = m; }
+  const span = ts[hi] - ts[lo];
+  return lo + (span > 0 ? (t - ts[lo]) / span : 0);
+}
+function timeOfIdx(i){
+  const {ts, step} = drawTimes(), n = ts.length;
+  if(!n || !isNum(i)) return NaN;
+  if(i <= 0) return ts[0] + i * step;
+  if(i >= n - 1) return ts[n - 1] + (i - (n - 1)) * step;
+  const lo = Math.floor(i);
+  return ts[lo] + (i - lo) * (ts[lo + 1] - ts[lo]);
+}
+/* 縦の位置 → 価格。価格のパネルの物差しは直線なので、2点から戻せます */
+function drawPriceAt(Y){
+  const f = state._mainY;
+  if(typeof f !== 'function') return NaN;
+  const y0 = f(0), y1 = f(1);
+  return y1 !== y0 ? (Y - y0) / (y1 - y0) : NaN;
+}
+function drawXY(a){
+  const p = panel('main');
+  return {x: xAt(p, idxOfTime(a.t)), y: state._mainY(a.p)};
+}
+/* 押した場所 → 線の端。横は足の真ん中に合わせ、縦は近くに始値・高値・安値・
+   終値があればそこへ吸い付けます(指では狙った値段にぴったり置けないので) */
+function drawSnap(x, y, touch, priceOnly){
+  const p = panel('main');
+  let i = (x - p.x) / barW(p) - 0.5 + state.i0;
+  if(!priceOnly) i = Math.round(i);
+  let pr = drawPriceAt(y);
+  const bi = Math.round(i), d = state.ind;
+  if(d && bi >= 0 && bi < state.raw.bars.length){
+    const lim = touch ? 14 : 7;
+    let best = lim + 1;
+    for(const v of [d.o[bi], d.h[bi], d.l[bi], d.c[bi]]){
+      if(!isNum(v)) continue;
+      const dist = Math.abs(state._mainY(v) - y);
+      if(dist < best){ best = dist; pr = v; }
+    }
+  }
+  return {t: timeOfIdx(i), p: pr};
+}
+function fibPrice(d, lv){ return d.b.p + (d.a.p - d.b.p) * lv; }
+function drawFmt(v){
+  if(!isNum(v)) return '—';
+  const a = Math.abs(v);
+  return v.toLocaleString('ja-JP', {maximumFractionDigits: a >= 1000 ? 1 : a >= 10 ? 2 : 4,
+                                    minimumFractionDigits: a >= 1000 ? 0 : a >= 10 ? 2 : 4});
+}
+/* トレンドラインの、ある足の位置での値(延長した値)。PDF の文字に使います */
+function trendAt(d, i){
+  const ia = idxOfTime(d.a.t), ib = idxOfTime(d.b.t);
+  if(!isNum(ia) || !isNum(ib) || Math.abs(ib - ia) < 1e-9) return NaN;
+  return d.a.p + (i - ia) * (d.b.p - d.a.p) / (ib - ia);
+}
+
+/* ---- 描く(renderBase から。PDF の図にもそのまま入ります) ---------- */
+function drawDrawings(g){
+  Draw.hidden = 0;
+  if(!state.raw || typeof state._mainY !== 'function' || !LAY) return;
+  const p = panel('main');
+  if(!p) return;
+  const list = Draw.list().slice();
+  if(Draw.act && Draw.act.mode === 'new') list.push(Draw.act.d);
+  if(Draw.sel && !list.some(d => d.id === Draw.sel)) Draw.sel = '';
+  const cur = drawCur();
+  const sz = LAY.narrow ? 10 : 11;
+  g.save();
+  clipPanel(g, p);
+  g.font = `${sz}px ${cssVar('--font') || 'system-ui'}`;
+  for(const d of list){
+    if(d.cur && cur && d.cur !== cur){ Draw.hidden++; continue; }
+    const on = d.id === Draw.sel || (Draw.act && Draw.act.d === d);
+    const A = drawXY(d.a), B = d.b ? drawXY(d.b) : null;
+    if(!isNum(A.x) || !isNum(A.y)) continue;
+    g.strokeStyle = C.ink1; g.fillStyle = C.ink1;
+    g.lineWidth = on ? 2.4 : 1.6;
+    g.setLineDash([]);
+    const label = (txt, x, y) => {
+      const w = g.measureText(txt).width + 8;
+      const lx = Math.min(Math.max(x, p.x + 2), p.x + p.w - w - 2);
+      g.save();
+      g.fillStyle = C.surface; g.globalAlpha = .85;
+      g.fillRect(lx, y - sz - 3, w, sz + 4);
+      g.globalAlpha = 1; g.fillStyle = C.ink1;
+      g.textAlign = 'left'; g.textBaseline = 'bottom';
+      g.fillText(txt, lx + 4, y);
+      g.restore();
+    };
+    if(d.k === 'hline'){
+      const Y = Math.round(A.y) + .5;
+      g.beginPath(); g.moveTo(p.x, Y); g.lineTo(p.x + p.w, Y); g.stroke();
+      label(drawFmt(d.a.p), p.x + p.w, Y - 2);
+    } else if(d.k === 'trend'){
+      g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke();
+    } else if(d.k === 'fib'){
+      const x0 = Math.min(A.x, B.x);
+      g.save();
+      g.setLineDash([4, 4]); g.strokeStyle = C.ink3; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke();
+      g.restore();
+      for(const lv of FIB_LEVELS){
+        const pr = fibPrice(d, lv), Y = Math.round(state._mainY(pr)) + .5;
+        if(!isNum(Y)) continue;
+        g.save();
+        g.strokeStyle = (lv === 0 || lv === 1) ? C.ink1 : C.ink2;
+        g.globalAlpha = (lv === 0 || lv === 1) ? 1 : .85;
+        g.lineWidth = on ? 1.8 : 1.1;
+        g.beginPath(); g.moveTo(x0, Y); g.lineTo(p.x + p.w, Y); g.stroke();
+        g.restore();
+        label(`${(lv * 100).toFixed(lv === 0.5 || lv === 0 || lv === 1 ? 0 : 1)}%  ${drawFmt(pr)}`, p.x + p.w, Y - 2);
+      }
+    }
+    if(on && d.k !== 'hline'){
+      for(const P2 of [A, B]){
+        g.beginPath(); g.arc(P2.x, P2.y, 5, 0, Math.PI * 2);
+        g.fillStyle = C.surface; g.fill();
+        g.lineWidth = 2; g.strokeStyle = C.ink1; g.stroke();
+      }
+    }
+  }
+  g.restore();
+}
+
+/* ---- どの線のどこを押したか ------------------------------------------ */
+function segDist(x, y, A, B){
+  const dx = B.x - A.x, dy = B.y - A.y, L = dx * dx + dy * dy;
+  const t = L ? clamp(((x - A.x) * dx + (y - A.y) * dy) / L, 0, 1) : 0;
+  return Math.hypot(x - (A.x + t * dx), y - (A.y + t * dy));
+}
+function drawHit(x, y, touch, onlyId){
+  if(!state.raw || typeof state._mainY !== 'function') return null;
+  const p = panel('main');
+  if(!p || x < p.x - 4 || x > p.x + p.w + 4 || y < p.y - 4 || y > p.y + p.h + 4) return null;
+  const tol = touch ? 14 : 6, hr = touch ? 20 : 9, cur = drawCur();
+  let best = null;
+  const take = (d, part, dist) => { if(!best || dist < best.dist) best = {id: d.id, d, part, dist}; };
+  for(const d of Draw.list()){
+    if(onlyId && d.id !== onlyId) continue;
+    if(d.cur && cur && d.cur !== cur) continue;
+    const A = drawXY(d.a), B = d.b ? drawXY(d.b) : null;
+    if(d.k === 'hline'){
+      const dist = Math.abs(y - A.y);
+      if(dist <= tol) take(d, 'body', dist);
+      continue;
+    }
+    /* 端はつかみやすく(線より広く)、そして線より先に見ます */
+    const da = Math.hypot(x - A.x, y - A.y), db = Math.hypot(x - B.x, y - B.y);
+    if(da <= hr || db <= hr){ take(d, da <= db ? 'a' : 'b', Math.min(da, db) - hr); continue; }
+    let dist = segDist(x, y, A, B);
+    if(d.k === 'fib' && x >= Math.min(A.x, B.x) - tol){
+      for(const lv of FIB_LEVELS) dist = Math.min(dist, Math.abs(y - state._mainY(fibPrice(d, lv))));
+    }
+    if(dist <= tol) take(d, 'body', dist);
+  }
+  return best;
+}
+
+/* ---- ツールの列 ----------------------------------------------------- */
+function renderDrawBar(){
+  const tg = $('#drawToggle');
+  if(!tg) return;
+  const list = Draw.list();
+  tg.setAttribute('aria-pressed', String(Draw.open));
+  tg.textContent = Draw.open ? '✎ 作図を閉じる' : `✎ 作図${list.length ? `(${list.length}本)` : ''}`;
+  $('#drawTools').classList.toggle('hide', !Draw.open);
+  for(const b of $$('#drawTools [data-draw]')) b.setAttribute('aria-pressed', String(Draw.tool === b.dataset.draw));
+  $('#drawDel').disabled = !Draw.sel;
+  $('#drawClear').disabled = !list.length;
+  const hint = $('#drawHint');
+  let h = '';
+  if(Draw.tool === 'hline') h = '線を引きたい高さを押してください。';
+  else if(Draw.tool) h = 'チャートの上で、始点から終点までなぞってください。';
+  else if(Draw.sel) h = '選んだ線: 端をつかむと形、線をつかむと位置が変わります。何もない所を押すと選択をやめます。';
+  else if(Draw.open) h = list.length ? '線を押すと選べます(動かす・消す)。' : 'ツールを選んで線を引いてください。';
+  if(Draw.hidden) h += ` 別の通貨の表示で引いた${Draw.hidden}本は出していません。`;
+  if(hint) hint.textContent = h.trim();
+  /* ツールを選んでいるとき・線を選んでいるときだけ、指の動きをページのスクロールに渡しません */
+  const host = $('#chartHost');
+  if(host) host.classList.toggle('drawing', !!(Draw.tool || Draw.sel));
+}
+function drawRefresh(){ renderBase(); paint(); renderDrawBar(); }
+function drawDeleteSel(){
+  if(!Draw.sel) return false;
+  const list = Draw.list().filter(d => d.id !== Draw.sel);
+  Draw.sel = '';
+  Draw.save(list);
+  drawRefresh();
+  return true;
+}
+
+/* ---- 指・マウス -------------------------------------------------------
+   チャートの入れ物(#chartHost)で、キャンバスより<b>先に</b>受け取ります。
+   横取りするときは、キャンバスのスクロール・横移動・つまむ操作には渡しません。 */
+function drawDown(e){
+  if(e.target !== cv || !state.raw) return;
+  if(typeof sizing !== 'undefined' && sizing) return;
+  if(Draw.act && e.pointerId !== Draw.act.id){ drawCancel(); return; }   /* 2本目の指 = つまむ操作 */
+  if(e.pointerType === 'mouse' && e.button !== 0) return;
+  const x = localX(e), y = localY(e), p = panel('main');
+  if(!p || panelAtEdge(y, x)) return;               /* 高さのつまみ */
+  const touch = e.pointerType !== 'mouse';
+  const inPlot = x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h;
+  let take = false;
+  if(Draw.tool && inPlot){
+    const a = drawSnap(x, y, touch, Draw.tool === 'hline');
+    if(Draw.tool === 'hline'){
+      const d = {id: Draw.newId(), k: 'hline', a, cur: drawCur()};
+      Draw.save(Draw.list().concat([d]));
+      Draw.sel = d.id; Draw.tool = ''; Draw.lastAt = Date.now();
+      drawRefresh();
+    } else {
+      Draw.act = {id: e.pointerId, mode: 'new', touch, x0: x, y0: y,
+                  d: {id: Draw.newId(), k: Draw.tool, a, b: Object.assign({}, a), cur: drawCur()}};
+    }
+    take = true;
+  } else if(Draw.sel){
+    const h = drawHit(x, y, touch, Draw.sel);
+    if(h){
+      Draw.act = {id: e.pointerId, mode: h.part, touch, x0: x, y0: y, d: h.d,
+                  a0: Object.assign({}, h.d.a), b0: h.d.b ? Object.assign({}, h.d.b) : null,
+                  i0a: idxOfTime(h.d.a.t), i0b: h.d.b ? idxOfTime(h.d.b.t) : NaN};
+      take = true;
+    }
+  }
+  if(take){
+    Draw.press = null;
+    state.hover = -1;
+    grabPointer(e.pointerId);
+    e.preventDefault();
+    e.stopPropagation();
+    paint();
+    return;
+  }
+  Draw.press = {id: e.pointerId, x, y, touch};
+}
+function drawMove(e){
+  const A = Draw.act;
+  if(!A || e.pointerId !== A.id) return;
+  const x = localX(e), y = localY(e);
+  if(A.mode === 'new'){
+    A.d.b = drawSnap(x, y, A.touch, false);
+  } else if(A.mode === 'a' || A.mode === 'b'){
+    A.d[A.mode] = drawSnap(x, y, A.touch, false);
+  } else {
+    /* 全体を動かす: 足の数と価格の差だけずらします(形は変えません) */
+    const p = panel('main');
+    const di = Math.round((x - A.x0) / barW(p));
+    const dp = drawPriceAt(y) - drawPriceAt(A.y0);
+    A.d.a = {t: A.d.k === 'hline' ? A.a0.t : timeOfIdx(A.i0a + di), p: A.a0.p + dp};
+    if(A.b0) A.d.b = {t: timeOfIdx(A.i0b + di), p: A.b0.p + dp};
+  }
+  renderBase(); paint();
+  if(e.cancelable) e.preventDefault();
+}
+function drawUp(e){
+  const A = Draw.act;
+  if(A && e.pointerId === A.id){
+    Draw.act = null;
+    Draw.lastAt = Date.now();
+    if(typeof touchTapKind !== 'undefined') touchTapKind = 'move';   /* ダブルタップの戻しに数えない */
+    if(A.mode === 'new'){
+      const P1 = drawXY(A.d.a), P2 = drawXY(A.d.b);
+      if(Math.hypot(P2.x - P1.x, P2.y - P1.y) < 8){
+        /* 動かさずに離した: 線にならないので、引き方を言います */
+        const hint = $('#drawHint');
+        drawRefresh();
+        if(hint) hint.textContent = '押したまま、終点までなぞってください(マウスはドラッグ)。';
+        return;
+      }
+      Draw.save(Draw.list().concat([A.d]));
+      Draw.sel = A.d.id;
+      Draw.tool = '';
+    } else {
+      Draw.save(Draw.list());
+    }
+    drawRefresh();
+    return;
+  }
+  const pr = Draw.press;
+  Draw.press = null;
+  if(!pr || pr.id !== e.pointerId || e.target !== cv) return;
+  if(Math.hypot(localX(e) - pr.x, localY(e) - pr.y) > 7) return;    /* パンだった */
+  const h = drawHit(pr.x, pr.y, pr.touch);
+  if(h){ Draw.sel = h.id; Draw.open = true; drawRefresh(); }
+  else if(Draw.sel){ Draw.sel = ''; drawRefresh(); }
+}
+function drawCancel(){
+  const A = Draw.act;
+  if(!A) return;
+  Draw.act = null;
+  if(A.mode !== 'new'){ A.d.a = A.a0; if(A.b0) A.d.b = A.b0; }
+  drawRefresh();
+}
+
 function renderBase(){
   readColors();
   bctx.clearRect(0, 0, LAY.w, LAY.h);
@@ -5560,6 +6017,7 @@ function renderBase(){
   drawXAxis(bctx);
   drawMain(bctx);
   drawEvents(bctx);
+  drawDrawings(bctx);
   drawVol(bctx); drawRSI(bctx); drawMACD(bctx); drawStoch(bctx); drawADX(bctx); drawLorentz(bctx);
   drawShortPanel(bctx); drawMarginPanel(bctx); drawValuation(bctx);
   drawRates(bctx); drawCot(bctx);
@@ -6779,20 +7237,85 @@ function renderFavFolders(){
   box.classList.toggle('hide', !gs.length && !favTidy && !favFilter);
 }
 
+/* ---- お気に入りの1行(v64) ------------------------------------------
+   名前とコード、現在値と前日比、RSI。幅があれば 25日線からの乖離とクロスも。
+   値は「値を更新」でまとめて取ったもの(watchRows)を使います。開くたびに
+   全部取りに行くと、銘柄の数だけ通信が走るので、押したときだけにしています。 */
+/* 「値を更新」で取った値(お気に入りとアラートの銘柄)。ここで宣言します:
+   renderBook は起動の途中からも呼ばれるので、後ろで宣言すると届きません */
+let watchRows = [];
+let favSort = (() => {
+  const v = String(Store.get('favSort', '') || '');
+  return ['', 'chg', 'rsi', 'gap25', 'name'].includes(v) ? v : '';
+})();
+function favRowOf(code){ return watchRows.find(r => r.code === code) || null; }
+/* 並べ順。値の無い銘柄(まだ取っていない・取れなかった)は下へ */
+function favSorted(list){
+  if(!favSort) return list.slice();
+  const key = favSort;
+  const val = f => {
+    if(key === 'name') return String(f.name || f.code);
+    const r = favRowOf(f.code);
+    return r && !r.error && isNum(r[key]) ? r[key] : null;
+  };
+  return list.slice().sort((a, b) => {
+    const x = val(a), y = val(b);
+    if(key === 'name') return x.localeCompare(y, 'ja');
+    if(x === null && y === null) return 0;
+    if(x === null) return 1;
+    if(y === null) return -1;
+    return y - x;                      /* 大きい順(上がった銘柄・RSIの高い銘柄が上) */
+  });
+}
+function favItem(f){
+  const r = favRowOf(f.code);
+  const cur = state.raw && state.raw.code === f.code ? ' cur' : '';
+  const nm = `<span class="fi-nm"><b>${esc(f.name || f.code, 40)}</b>`
+    + (f.name && f.name !== f.code ? `<span class="fi-cd">${esc(f.code, 16)}</span>` : '') + '</span>';
+  if(!r || r.error){
+    return `<button class="favitem${cur}" data-code="${esc(f.code, 24)}">${nm}`
+      + `<span class="fi-q"><span class="fi-px">—</span></span><span class="fi-rsi">RSI —</span>`
+      + (r && r.error ? `<span class="fi-err">${esc(r.error, 40)}</span>` : '') + '</button>';
+  }
+  const cls = v => !isNum(v) ? '' : v > 0 ? 'wup' : v < 0 ? 'wdn' : '';
+  const sg = v => (v >= 0 ? '+' : '') ;
+  const tone = !isNum(r.rsi) ? '' : r.rsi >= 70 ? ' hot' : r.rsi <= 30 ? ' cold' : '';
+  return `<button class="favitem${cur}" data-code="${esc(f.code, 24)}">${nm}`
+    + `<span class="fi-q"><span class="fi-px">${esc(fmtNum(r.price, r.currency, r.code), 16)}</span>`
+    + `<span class="fi-ch ${cls(r.chg)}">${isNum(r.chg) ? sg(r.chg) + r.chg.toFixed(2) + '%' : '—'}</span></span>`
+    + `<span class="fi-rsi${tone}">RSI ${isNum(r.rsi) ? r.rsi.toFixed(0) : '—'}</span>`
+    + `<span class="fi-gap ${cls(r.gap25)}">25日線 ${isNum(r.gap25) ? sg(r.gap25) + r.gap25.toFixed(1) + '%' : '—'}</span>`
+    + `<span class="fi-x">${r.cross ? `<span class="${r.cross.dir > 0 ? 'wup' : 'wdn'}">${r.cross.dir > 0 ? 'GC' : 'DC'}</span>`
+        + (r.cross.ago ? ` ${r.cross.ago}本前` : ' 今日') : ''}</span>`
+    + '</button>';
+}
+/* 何時の値か。古い値を今の値と思わないように */
+function renderFavStamp(msg){
+  const el = $('#favStamp');
+  if(!el) return;
+  if(msg){ el.textContent = msg; return; }
+  const got = watchRows.filter(r => !r.error && isNum(r.at));
+  if(!got.length){ el.textContent = Book.favs.length ? '値はまだ取っていません' : ''; return; }
+  const at = Math.max(...got.map(r => r.at));
+  const bad = watchRows.filter(r => r.error && !r.alertOnly).length;
+  el.textContent = `${new Date(at).toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'})} の値`
+    + (bad ? ` ・ ${bad}件は取れませんでした` : '');
+}
+
 function renderBook(){
   const fav = $('#favList'), his = $('#histSel');
   /* the company name, not just the ticker: a row of 「★ 8267.T」 is a list
      of codes, and nobody keeps a list of codes in their head */
   renderFavFolders();
   document.body.classList.toggle('tidy', favTidy);
-  const shown = Book.favs.filter(f => Book.inGroup(f));
+  const shown = favSorted(Book.favs.filter(f => Book.inGroup(f)));
   const gs = Book.allGroups();
   /* 整理中は1件ずつ行にして、フォルダを選ぶ箱を横に出します */
   const one = f => {
+    if(!favTidy) return favItem(f);
     const chip = `<button class="chip fav" data-code="${esc(f.code, 24)}" title="${esc(f.name, 60)}">`
       + `★ ${esc(f.name || f.code, 22)}`
       + `<span class="qsrc" style="margin-left:6px">${esc(f.code, 12)}</span></button>`;
-    if(!favTidy) return chip;
     const opts = ['<option value="">未分類</option>']
       .concat(gs.map(g => `<option value="${esc(g, 24)}"${f.g === g ? ' selected' : ''}>`
                         + `${esc(g, 24)}</option>`))
@@ -6805,13 +7328,33 @@ function renderBook(){
   /* 「よそのフォルダへ入れた」ときの一言。入れた銘柄が目の前から消えても、
      消したのではないと分かるように。画面のほうは動かしません。 */
   const moved = favMsg ? `<p class="favempty" style="opacity:.85">${esc(favMsg, 60)}</p>` : '';
+  /* 「すべて」でフォルダがあるときは、フォルダごとに見出しを付けます
+     (並べ順はフォルダの中で効きます) */
+  const grouped = !favTidy && !favFilter && gs.length > 0;
+  const body = () => {
+    if(!grouped) return shown.map(one).join('');
+    const parts = [];
+    for(const g of gs.concat([UNFILED])){
+      const in_ = shown.filter(f => g === UNFILED ? !f.g : f.g === g);
+      if(!in_.length) continue;
+      parts.push(`<div class="favgh">${esc(g === UNFILED ? '未分類' : g, 24)}<span class="fn">${in_.length}</span></div>`
+        + in_.map(one).join(''));
+    }
+    return parts.join('');
+  };
+  fav.className = favTidy ? 'favgrid' : 'favlist';
   fav.innerHTML = !Book.favs.length
     ? '<p class="favempty">まだありません。銘柄を開いて、入力欄の右の ☆ を押すとここに貯まります。'
       + '別の端末とはGoogleドライブ同期で共用できます。</p>'
     : (shown.length
-        ? shown.map(one).join('')
+        ? body()
         : `<p class="favempty">このフォルダは空です。`
           + `「整理する」を押して、銘柄の横の箱からここへ入れてください。</p>`) + moved;
+  renderFavStamp();
+  const tools = $('#favTools');
+  if(tools) tools.classList.toggle('hide', !Book.favs.length || favTidy);
+  const so = $('#favSort');
+  if(so && so.value !== favSort) so.value = favSort;
   const cnt = $('#favCount');
   if(cnt) cnt.textContent = String(Book.favs.length);
   const tb = $('#favTidy');
@@ -8788,7 +9331,7 @@ const SECTIONS = [
                                       'marginCard', 'gyakuCard', 'earnCard', 'kenriCard', 'diagCard']},
   {k:'cmp',   label:'比べる',   cards:['cmpPickCard', 'cmpCard', 'newsCard', 'linkCard']},
   {k:'view',  label:'表示',    cards:['viewCard']},
-  {k:'set',   label:'設定',    cards:['favCard', 'alertCard', 'syncCard',
+  {k:'set',   label:'設定',    cards:['alertCard', 'syncCard',
                                       'relayCard', 'exportCard', 'selfWrap']}
 ];
 /* いま<b>画面に出ている</b>束。覚えている束(Store)とは別物です
@@ -15359,10 +15902,14 @@ function syncDoc(){
     if(!alerts[id] || alerts[id].at < at) alerts[id] = {at, d: 1};
   }
 
+  /* --- 作図: 銘柄ごとに、新しく書き換えたほうが勝ちます(全部消したのも1回の書き換え) */
+  const draws = Object.create(null);
+  for(const c of Object.keys(Draw.all)) draws[c] = {at: Draw.all[c].at || 0, l: Draw.all[c].list};
+
   return {
     kind: 'ta-tool-sync', v: SYNC_V, at: now, dev: deviceLabel(),
     favs, hist, histCleared: Book.histCleared || 0,
-    alerts,
+    alerts, draws,
     /* Settings that belong to the person, not to the device they are holding.
        Each carries its own timestamp so the newer edit wins per setting
        rather than the whole block being replaced. */
@@ -15528,6 +16075,26 @@ async function mergeSync(remote){
     Store.set('alerts', Alerts.list);
     renderAlerts();
     if(typeof fillAlertForm === 'function') fillAlertForm();
+  }
+
+  /* --- 作図: 銘柄ごとに新しいほうが勝ち(全部消したのも新しい書き換え) --- */
+  if(remote.draws && typeof remote.draws === 'object'){
+    const inc = sanitizeDraws(remote.draws);
+    let touched = false;
+    for(const c of Object.keys(inc)){
+      const r = inc[c];
+      if(r.at > now + SKEW) continue;
+      const mineD = Draw.all[c];
+      if(mineD && (mineD.at || 0) >= r.at) continue;
+      Draw.all[c] = r;
+      rep.draws = (rep.draws || 0) + 1;
+      if(c === Draw.code()) touched = true;
+    }
+    if(rep.draws){
+      Draw.all = sanitizeDraws(Draw.all);
+      Store.set('draws', Draw.all);
+      if(touched){ Draw.sel = ''; try { renderBase(); paint(); renderDrawBar(); } catch(e){} }
+    }
   }
 
   /* --- settings that belong to the account, not the device ------------ */
@@ -16661,6 +17228,22 @@ function csvNum(v){
   return String(Number(v.toFixed(dgt)));
 }
 
+/* 自分で引いた線を文字で。AIは図の線の位置を読み違えるので、値で渡します */
+function drawReportLines(){
+  if(!state.raw) return [];
+  const cur = drawCur(), n = state.raw.bars.length - 1, out = [];
+  const day = t => fmtStamp({t: new Date(t)}, true);
+  for(const d of Draw.list()){
+    if(d.cur && cur && d.cur !== cur) continue;
+    if(d.k === 'hline') out.push(`水平線: ${drawFmt(d.a.p)}`);
+    else if(d.k === 'trend') out.push(`トレンドライン: ${day(d.a.t)} ${drawFmt(d.a.p)} → ${day(d.b.t)} ${drawFmt(d.b.p)}`
+      + `(最新の足の位置まで延ばすと ${drawFmt(trendAt(d, n))})`);
+    else out.push(`フィボナッチ: ${day(d.a.t)} ${drawFmt(d.a.p)} → ${day(d.b.t)} ${drawFmt(d.b.p)} / `
+      + FIB_LEVELS.map(lv => `${String(+(lv * 100).toFixed(1))}%=${drawFmt(fibPrice(d, lv))}`).join('、'));
+  }
+  return out;
+}
+
 /* 1ページ目の図の見方。色は言葉で書きます(AIは画像の色と線の名前を結びつけられないので) */
 const CMP_WORD = ['青', '橙', '緑', '黄土色', '桃色'];
 function reportLegend(panels){
@@ -16685,6 +17268,12 @@ function reportLegend(panels){
   if(T.events) main.push('縦線: 株式分割=濃い灰の実線、配当落ち=灰色の点線、決算発表=黄色の破線');
   if(T.cbank) main.push('縦線: FOMC=橙、日銀の金融政策決定会合=紫');
   if(T.session && isIntradayIv(state.interval)) main.push('背景の帯: 東京=橙、ロンドン=紫、ニューヨーク=桃');
+  const dl = drawReportLines();
+  if(dl.length){
+    const cnt = k => dl.filter(l => l.startsWith(DRAW_KINDS[k])).length;
+    main.push('自分で引いた線: 黒の線(' + Object.keys(DRAW_KINDS).filter(k => cnt(k)).map(k => `${DRAW_KINDS[k]}${cnt(k)}本`).join('・')
+      + ')。値は2ページ目以降の「自分で引いた線」');
+  }
   const subs = (panels || []).filter(p => p.key !== 'main').map((p, i) => `${i + 1}. ${p.title}`);
   return {main, subs};
 }
@@ -16694,12 +17283,13 @@ function reportLegend(panels){
    スマホで撮ると、幅390pxの図を紙の幅まで引き伸ばすことになり、文字がつぶれていました */
 const RPT_CHART = {w: 960, h: 1240};
 function reportChart(){
-  const keep = {hold: subOneHold, hover: state.hover};
+  const keep = {hold: subOneHold, hover: state.hover, sel: Draw.sel};
   let img = '', panels = [];
   try{
     printLay = {w: RPT_CHART.w, h: RPT_CHART.h};
     subOneHold = true;
     state.hover = -1;
+    Draw.sel = '';                      /* 選んでいる線の丸い取っ手は、紙には要りません */
     cssVarOverride = lightVar;          /* 紙に刷るので、ダークテーマでも白地 */
     readColors();
     sizeCanvas();
@@ -16715,6 +17305,7 @@ function reportChart(){
     printLay = null;
     subOneHold = keep.hold;
     state.hover = keep.hover;
+    Draw.sel = keep.sel;
     cssVarOverride = null;
     readColors();
     try { redraw(); } catch(e){}
@@ -16748,6 +17339,8 @@ function reportSections(o){
     lines: sig.items.map(s => `[${RPT_TONE[s.tone] || '—'}] ${s.tag}: ${s.ttl} — ${s.txt}`)});
   const pos = reportPosition();
   if(pos.length) S.push({k: 'pos', h: '価格の位置', lines: pos});
+  const dl = drawReportLines();
+  if(dl.length) S.push({k: 'draw', h: '自分で引いた線', lines: dl});
   S.push({k: 'ind', h: '指標の数値(最新の足)', lines: G.ind});
   if(G.supply.length) S.push({k: 'supply', h: '需給(信用残・空売り)', lines: G.supply});
   if(G.fund.length) S.push({k: 'fund', h: '決算・予定', lines: G.fund});
@@ -17221,9 +17814,7 @@ async function mapLimited(items, limit, fn, onStep){
 
 /* ---- the watchlist ---------------------------------------------------- */
 const WATCH_TTL = 5 * 60 * 1000;      /* re-using a 5 minute old quote is fine */
-let watchRows = [];
 let watchBusy = false;
-let watchSort = {key: 'chg', dir: -1};
 
 async function quoteFor(code, fallbackName){
   const s = normalizeSymbol(code);
@@ -17266,8 +17857,7 @@ async function refreshWatch(force){
   /* 「今すぐ全部取り直す」 was a dead button while a refresh was running:
      it returned in silence and looked broken. Say what is happening. */
   if(watchBusy){
-    const m = $('#watchMsg');
-    if(m && force) m.textContent = '取得中です。終わってからもう一度押してください。';
+    if(force) renderFavStamp('取得中です。終わってからもう一度押してください。');
     return;
   }
   /* Alerts can name a stock that is not starred — the form deliberately
@@ -17281,91 +17871,33 @@ async function refreshWatch(force){
       list.push({code: a.code, name: a.code, alertOnly: true});
     }
   }
-  if(!list.length){
-    $('#watchBody').innerHTML = '<p class="qsrc">★で登録した銘柄がここに並びます。</p>';
-    return;
-  }
+  if(!list.length){ renderBook(); return; }
   watchBusy = true;
-  /* both buttons, or the one that is still lit reads as "this one works" */
-  $('#watchBtn').disabled = true;
-  if($('#watchForce')) $('#watchForce').disabled = true;
+  const btn = $('#favRefresh');
+  if(btn) btn.disabled = true;
   const keep = new Map(watchRows.map(r => [r.code, r]));
   const todo = list.filter(f => {
     const had = keep.get(f.code);
     return force || !had || had.error || Date.now() - had.at > WATCH_TTL;
   });
-  $('#watchMsg').textContent = todo.length
-    ? `${todo.length}銘柄を取得しています… 0/${todo.length}` : '';
+  if(todo.length) renderFavStamp(`${todo.length}銘柄を取得しています… 0/${todo.length}`);
   try{
     const got = await mapLimited(todo, 3, f => quoteFor(f.code, f.name),
-      (d, t) => { $('#watchMsg').textContent = `${t}銘柄を取得しています… ${d}/${t}`; });
+      (d, t) => renderFavStamp(`${t}銘柄を取得しています… ${d}/${t}`));
     got.forEach((r, i) => keep.set(todo[i].code, r && !r.error
       ? r : {code: todo[i].code, name: todo[i].name, error: (r && r.error) || '取得できません', at: Date.now()}));
     watchRows = list.map(f => Object.assign({alertOnly: !!f.alertOnly},
       keep.get(f.code) || {code: f.code, name: f.name, error: '未取得'}));
-    renderWatch();
-    const bad = watchRows.filter(r => r.error).length;
-    $('#watchMsg').textContent = `${new Date().toLocaleTimeString('ja-JP')} 時点`
-      + (bad ? ` ・ ${bad}件は取得できませんでした` : '');
+    renderBook();
     checkAlerts(watchRows);
   }finally{
     watchBusy = false;
-    $('#watchBtn').disabled = false;
-    if($('#watchForce')) $('#watchForce').disabled = false;
+    if(btn) btn.disabled = false;
   }
 }
 
-const WATCH_COLS = [
-  {k: 'name',  t: '銘柄',    align: 'left'},
-  {k: 'price', t: '現在値'},
-  {k: 'chg',   t: '前日比%'},
-  {k: 'rsi',   t: 'RSI'},
-  {k: 'gap25', t: '25線乖離%'},
-  {k: 'cross', t: 'クロス'}
-];
-
-function renderWatch(){
-  const box = $('#watchBody');
-  if(!box) return;
-  if(!watchRows.length){
-    box.innerHTML = '<p class="qsrc">★で登録した銘柄がここに並びます。</p>';
-    return;
-  }
-  const dir = watchSort.dir, key = watchSort.key;
-  const val = r => key === 'name' ? (r.name || r.code)
-             : key === 'cross' ? (r.cross ? r.cross.dir : 0)
-             : (isNum(r[key]) ? r[key] : -Infinity);
-  /* the extras fetched only to service an alert are not part of the list */
-  const rows = watchRows.filter(r => !r.alertOnly).sort((a, b) => {
-    if(a.error && !b.error) return 1;
-    if(b.error && !a.error) return -1;
-    const x = val(a), y = val(b);
-    return (typeof x === 'string' ? String(x).localeCompare(String(y)) : x - y) * dir;
-  });
-
-  const cell = (r) => {
-    if(r.error) return `<td colspan="5" class="werr">${esc(r.error, 40)}</td>`;
-    const cls = v => !isNum(v) ? '' : v > 0 ? 'wup' : v < 0 ? 'wdn' : '';
-    const rsiTone = !isNum(r.rsi) ? '' : r.rsi >= 70 ? 'whot' : r.rsi <= 30 ? 'wcold' : '';
-    return `<td class="wnum">${esc(fmtNum(r.price, r.currency, r.code), 16)}</td>`
-      + `<td class="wnum ${cls(r.chg)}">${isNum(r.chg) ? (r.chg >= 0 ? '+' : '') + r.chg.toFixed(2) : '—'}</td>`
-      + `<td class="wnum ${rsiTone}">${isNum(r.rsi) ? r.rsi.toFixed(0) : '—'}</td>`
-      + `<td class="wnum ${cls(r.gap25)}">${isNum(r.gap25) ? (r.gap25 >= 0 ? '+' : '') + r.gap25.toFixed(1) : '—'}</td>`
-      + `<td class="wnum">${r.cross
-          ? `<span class="${r.cross.dir > 0 ? 'wup' : 'wdn'}">${r.cross.dir > 0 ? 'GC' : 'DC'}`
-            + `${r.cross.ago ? ' ' + r.cross.ago + '本前' : ''}</span>` : '—'}</td>`;
-  };
-
-  box.innerHTML = '<div class="tscroll"><table class="wtab"><thead><tr>'
-    + WATCH_COLS.map(c => `<th data-sk="${c.k}" class="${c.align === 'left' ? 'wl' : ''}${key === c.k ? ' won' : ''}">`
-        + `${esc(c.t)}${key === c.k ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')
-    + '</tr></thead><tbody>'
-    + rows.map(r => `<tr data-code="${esc(r.code, 24)}">`
-        + `<td class="wl"><b>${esc(r.name || r.code, 24)}</b>`
-        + `${(r.name && r.name !== r.code) ? `<span class="wcode">${esc(r.code, 16)}</span>` : ''}</td>`
-        + cell(r) + '</tr>').join('')
-    + '</tbody></table></div>';
-}
+/* 前の版の「お気に入り一覧」の表は、上のお気に入りの行(favItem)にまとめました(v64) */
+function renderWatch(){ renderBook(); }
 
 /* ---- alerts -----------------------------------------------------------
    There is no server, so these can only be checked while the page is
@@ -20135,6 +20667,178 @@ async function runSelfTestsInner(){
     return true;
   });
 
+  tgroup('作図・お気に入りの一覧');
+  /* 作図の試験は、試験用の線を引いて、最後に元の線へ戻します */
+  const drawKeep = {all: JSON.parse(JSON.stringify(Draw.all)), sel: Draw.sel, tool: Draw.tool, open: Draw.open};
+  const drawBack = () => {
+    Draw.all = sanitizeDraws(drawKeep.all); Draw.sel = drawKeep.sel; Draw.tool = drawKeep.tool;
+    Draw.open = drawKeep.open; Draw.act = null; Draw.press = null;
+    Store.set('draws', Draw.all);
+    try { redraw(); } catch(e){}
+  };
+  test('作図: 日時と足の番号を行き来できる(データの外は足の間隔で延ばす)', () => {
+    const b = state.raw.bars, n = b.length;
+    for(const i of [0, 7, Math.floor(n / 2), n - 1]) near(idxOfTime(b[i].t.getTime()), i, 1e-9, `${i}本目`);
+    near(idxOfTime(timeOfIdx(10.5)), 10.5, 1e-9, '足のあいだ');
+    near(idxOfTime(timeOfIdx(n + 12)), n + 12, 1e-9, '未来');
+    near(idxOfTime(timeOfIdx(-5)), -5, 1e-9, '過去');
+    return true;
+  });
+  test('作図: 同期で来た線は形を確かめてから入れる', () => {
+    const t = state.raw.bars[5].t.getTime();
+    const got = sanitizeDraws({
+      'DEMO': {at: 5, list: [
+        {id: 'ok1', k: 'trend', a: {t, p: 100}, b: {t: t + 864e5, p: 110}, cur: 'JPY'},
+        {id: 'x<img>', k: 'hline', a: {t, p: 50}},
+        {id: 'bad', k: 'circle', a: {t, p: 1}},
+        {id: 'nob', k: 'trend', a: {t, p: 1}},
+        {id: 'nan', k: 'hline', a: {t, p: NaN}},
+        {id: 'ok1', k: 'hline', a: {t, p: 1}},
+        {id: 'cur', k: 'hline', a: {t, p: 1}, cur: '<b>'}
+      ]},
+      '<script>': {at: 9, list: []}
+    });
+    eq(Object.keys(got).join(','), 'DEMO', '銘柄');
+    const L = got.DEMO.list;
+    eq(L.map(d => d.id).join(','), 'ok1,ximg,cur', '通った線');
+    eq(L[2].cur, '', '通貨');
+    const many = sanitizeDrawList(Array.from({length: 100}, (_, i) => ({id: 'h' + i, k: 'hline', a: {t, p: i}})));
+    return eq(many.length, DRAW_PER_CODE, '1銘柄の上限');
+  });
+  /* マウスで引いて、選んで、Delete で消す(本物の pointer イベントを流します) */
+  let drawUi = '走りませんでした';
+  try{
+    redraw();
+    const r = cv.getBoundingClientRect(), p = panel('main');
+    const at = (fx, fy) => ({x: r.left + p.x + p.w * fx, y: r.top + p.y + p.h * fy});
+    const fire = (type, q, id) => cv.dispatchEvent(new PointerEvent(type, {clientX: q.x, clientY: q.y,
+      pointerId: id, pointerType: 'mouse', isPrimary: true, bubbles: true, cancelable: true, button: 0, buttons: type === 'pointerup' ? 0 : 1}));
+    const errs = [];
+    const n0 = Draw.list().length;
+    Draw.open = true; Draw.tool = 'trend'; Draw.sel = ''; renderDrawBar();
+    if(getComputedStyle($('#chartHost')).touchAction !== 'none') errs.push('ツール中に指のスクロールが止まらない');
+    const i0 = state.i0;
+    fire('pointerdown', at(.2, .3), 901);
+    for(let k = 1; k <= 6; k++) fire('pointermove', at(.2 + .4 * k / 6, .3 + .3 * k / 6), 901);
+    fire('pointerup', at(.6, .6), 901);
+    const L = Draw.list();
+    if(L.length !== n0 + 1) errs.push(`線の本数 ${L.length}(期待 ${n0 + 1})`);
+    const d = L[L.length - 1] || {};
+    if(d.k !== 'trend' || Draw.sel !== d.id || Draw.tool !== '') errs.push('引いたあとの状態 ' + JSON.stringify({k: d.k, sel: !!Draw.sel, tool: Draw.tool}));
+    if(state.i0 !== i0) errs.push('線を引いたのに横に動いた');
+    /* 何もない所を押すと選択をやめ、線を押すと選ぶ */
+    fire('pointerdown', at(.97, .03), 902); fire('pointerup', at(.97, .03), 902);
+    if(Draw.sel) errs.push('何もない所で選択がやめにならない');
+    if(getComputedStyle($('#chartHost')).touchAction === 'none') errs.push('選んでいないのに指のスクロールが止まっている');
+    const A = drawXY(d.a), B = drawXY(d.b);
+    const m = {x: r.left + (A.x + B.x) / 2, y: r.top + (A.y + B.y) / 2};
+    fire('pointerdown', m, 903); fire('pointerup', m, 903);
+    if(Draw.sel !== d.id) errs.push('線を押しても選べない');
+    /* 端をつかんで動かすと、その端だけ変わる */
+    const b0 = Object.assign({}, d.b);
+    fire('pointerdown', {x: r.left + B.x, y: r.top + B.y}, 904);
+    for(let k = 1; k <= 4; k++) fire('pointermove', {x: r.left + B.x - 10 * k, y: r.top + B.y + 8 * k}, 904);
+    fire('pointerup', {x: r.left + B.x - 40, y: r.top + B.y + 32}, 904);
+    const d2 = Draw.list().find(x => x.id === d.id);
+    if(!d2 || (d2.b.t === b0.t && d2.b.p === b0.p) || d2.a.t !== d.a.t) errs.push('端だけを動かせない');
+    document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Delete', bubbles: true}));
+    if(Draw.list().length !== n0 || Draw.sel) errs.push('Delete で消えない');
+    /* ツールなしで横になぞるのは、ふだんどおりの横移動 */
+    fire('pointerdown', at(.5, .5), 905);
+    for(let k = 1; k <= 6; k++) fire('pointermove', at(.5 + .05 * k, .5), 905);
+    fire('pointerup', at(.8, .5), 905);
+    if(Draw.list().length !== n0) errs.push('ツールなしで線ができた');
+    drawUi = errs.length ? errs.join(' / ') : true;
+  }catch(e){ drawUi = (e && e.message) || String(e); }
+  finally{ drawBack(); }
+  test('作図: マウスで引く・選ぶ・端を動かす・Delete で消す(ツールなしならふだんの操作)', () => drawUi);
+  test('作図: 線は日時に付いていて、横に動かすと一緒に動く。別の通貨の表示では出さない', () => {
+    const view = {i0: state.i0, i1: state.i1, yz: state.yZoom};
+    try{
+      const b = state.raw.bars, n = b.length;
+      /* ほかの試験が表示の範囲を変えているので、最新の100本に合わせます */
+      state.i1 = n - 1; state.i0 = Math.max(0, n - 100); state.yZoom = 1;
+      redraw();
+      const d = {id: 'tst1', k: 'trend', a: {t: b[n - 30].t.getTime(), p: b[n - 30].c}, b: {t: b[n - 5].t.getTime(), p: b[n - 5].c}, cur: drawCur()};
+      const h = {id: 'tst2', k: 'hline', a: {t: b[n - 3].t.getTime(), p: b[n - 3].c}, cur: drawCur() === 'USD' ? 'JPY' : 'USD'};
+      Draw.save([d, h]);
+      redraw();
+      const p = panel('main'), x1 = drawXY(d.a).x;
+      state.i0 -= 3; state.i1 -= 3; renderBase();
+      near(drawXY(d.a).x - x1, 3 * barW(p), 1e-6, '横に動かしたぶん');
+      state.i0 += 3; state.i1 += 3; renderBase();
+      eq(Draw.hidden, 1, '別の通貨の線');
+      const A = drawXY(d.a), B = drawXY(d.b);
+      eq((drawHit(A.x, A.y, false) || {}).part, 'a', '始点');
+      eq((drawHit((A.x + B.x) / 2, (A.y + B.y) / 2, false) || {}).part, 'body', '線の中ほど');
+      eq(drawHit(p.x + 2, p.y + 2, false), null, '何もない所');
+      const hh = drawHit(A.x, state._mainY(h.a.p), false);
+      eq(!!(hh && hh.id === 'tst2'), false, '出していない線を押せた');
+      near(trendAt(d, n - 30), d.a.p, 1e-9, '延長した値');
+      return true;
+    } finally { state.i0 = view.i0; state.i1 = view.i1; state.yZoom = view.yz; drawBack(); }
+  });
+  let drawSync = '走りませんでした';
+  {
+    const keepF = Book.favs.slice(), keepH = Book.hist.slice(), keepT = Object.assign(Object.create(null), Book.tomb);
+    try{
+      const code = Draw.code(), t = state.raw.bars[3].t.getTime(), now = Date.now();
+      Draw.save([{id: 'mine', k: 'hline', a: {t, p: 10}}]);
+      const errs = [];
+      const doc = syncDoc();
+      if(!doc.draws || !doc.draws[code] || doc.draws[code].l.length !== 1) errs.push('同期の中身に線がない');
+      const base = {kind: 'ta-tool-sync', v: SYNC_V, at: now};
+      await mergeSync(Object.assign({}, base, {draws: {[code]: {at: Draw.all[code].at - 1000, l: [{id: 'old', k: 'hline', a: {t, p: 1}}]}}}));
+      if(Draw.list().map(d => d.id).join() !== 'mine') errs.push('古い線で上書きされた');
+      await mergeSync(Object.assign({}, base, {draws: {[code]: {at: now + 3600e3, l: [{id: 'fut', k: 'hline', a: {t, p: 1}}]}}}));
+      if(Draw.list().map(d => d.id).join() !== 'mine') errs.push('時計の進んだ端末の線で上書きされた');
+      await mergeSync(Object.assign({}, base, {draws: {[code]: {at: now + 1000, l: [{id: 'new<x>', k: 'fib', a: {t, p: 1}, b: {t: t + 1, p: 2}}]}}}));
+      if(Draw.list().map(d => d.id).join() !== 'newx') errs.push('新しい線が入らない: ' + Draw.list().map(d => d.id).join());
+      await mergeSync(Object.assign({}, base, {draws: {[code]: {at: now + 2000, l: []}}}));
+      if(Draw.list().length) errs.push('全部消したのが届かない');
+      drawSync = errs.length ? errs.join(' / ') : true;
+    }catch(e){ drawSync = (e && e.message) || String(e); }
+    finally{ Book.favs = keepF; Book.hist = keepH; Book.tomb = keepT; drawBack(); }
+  }
+  test('作図: 線は同期で別の端末に届く(新しい書き換えが勝ち、時計の進んだ端末は信じない)', () => drawSync);
+  test('作図: PDF と文字のコピーに、自分で引いた線の値が入る', () => {
+    try{
+      const b = state.raw.bars, n = b.length;
+      Draw.save([{id: 'r1', k: 'hline', a: {t: b[n - 1].t.getTime(), p: 1234.5}, cur: drawCur()},
+                 {id: 'r2', k: 'fib', a: {t: b[n - 40].t.getTime(), p: 100}, b: {t: b[n - 10].t.getTime(), p: 200}, cur: drawCur()}]);
+      const r = buildReport({withChart: false});
+      const sec = r.sections.find(x => x.k === 'draw');
+      eq(!!sec, true, '節がない');
+      eq(sec && sec.lines.length, 2, '本数');
+      eq(sec && /水平線: 1,234\.5/.test(sec.lines[0]), true, '水平線の値');
+      eq(sec && /61\.8%=138\.2/.test(sec.lines[1]), true, 'フィボの値(終点200から始点100へ61.8%戻した値)');
+      eq(r.legend.main.some(l => /自分で引いた線/.test(l)), true, '図の見方');
+      return true;
+    } finally { drawBack(); }
+  });
+  test('お気に入り: 1銘柄1行で、値の高い順・フォルダごとに並び、名前は文字のまま', () => {
+    const keep = {favs: Book.favs.slice(), rows: watchRows, sort: favSort, filter: favFilter, tidy: favTidy};
+    try{
+      Book.favs = [{code: '1111', name: 'A社', g: 'X'}, {code: '2222', name: XSS, g: 'X'}, {code: '3333', name: 'C社'}, {code: '4444', name: 'D社'}];
+      watchRows = [{code: '1111', name: 'A', price: 100, currency: 'JPY', chg: -1, rsi: 75, gap25: 2, at: Date.now()},
+                   {code: '2222', name: 'B', price: 200, currency: 'JPY', chg: 3, rsi: 25, gap25: -1, at: Date.now()},
+                   {code: '3333', name: 'C', error: '取得できません', at: Date.now()}];
+      favSort = 'chg'; favFilter = ''; favTidy = false;
+      renderBook();
+      const box = $('#favList');
+      eq(box.querySelectorAll('.favitem').length, 4, '行の数');
+      eq(Array.from(box.querySelectorAll('.favgh')).map(x => x.firstChild.textContent).join(','), 'X,未分類', 'フォルダの見出し');
+      eq(Array.from(box.querySelectorAll('.favitem')).map(x => x.dataset.code).join(','), '2222,1111,3333,4444', '前日比の高い順(値の無いものは下)');
+      eq(!!box.querySelector('.fi-rsi.hot') && !!box.querySelector('.fi-rsi.cold'), true, 'RSIの札');
+      eq(!!box.querySelector('.fi-err'), true, '取れなかった銘柄');
+      eq(/の値/.test($('#favStamp').textContent), true, '何時の値か');
+      return noInjection('#favList', 'お気に入りの行');
+    } finally {
+      Book.favs = keep.favs; watchRows = keep.rows; favSort = keep.sort; favFilter = keep.filter; favTidy = keep.tidy;
+      renderBook();
+    }
+  });
+
   tgroup('保存と復元');
   test('信用残: 札が合っていても桁の違う点は外す', () => {
     /* 信用残は週次・貸借残は日次で日付がぶつからないので、混ざっていても
@@ -22545,6 +23249,7 @@ function redraw(){
   paint();
   renderLegend();
   renderNavPos();
+  renderDrawBar();
   /* the panel list changes whenever an indicator is switched on or off */
   if($('#phWrap') && $('#phWrap').open) renderPanelHeights();
   /* LAY を組み直したあとに。トグルのハンドラから先に呼んでいたので、
@@ -22852,6 +23557,45 @@ cv.addEventListener('dblclick', e => {
   const p = panelAtEdge(localY(e), localX(e));
   if(p){ setPanelScale(p.key, 1); e.stopPropagation(); }
 }, true);
+
+/* ---- 作図の指・マウス(入れ物で、キャンバスより先に受け取ります) ---- */
+$('#chartHost').addEventListener('pointerdown', drawDown, true);
+addEventListener('pointermove', drawMove, {passive: false});
+addEventListener('pointerup', drawUp);
+addEventListener('pointercancel', e => { if(Draw.act && e.pointerId === Draw.act.id) drawCancel(); Draw.press = null; });
+/* 線を引いた直後のダブルクリックは、表示を戻す操作に数えません */
+$('#chartHost').addEventListener('dblclick', e => {
+  if(Draw.tool || Date.now() - Draw.lastAt < 600) e.stopPropagation();
+}, true);
+document.addEventListener('keydown', e => {
+  const t = e.target, tag = (t && t.tagName) || '';
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || (t && t.isContentEditable)) return;
+  if((e.key === 'Delete' || e.key === 'Backspace') && Draw.sel){ e.preventDefault(); drawDeleteSel(); }
+  else if(e.key === 'Escape' && (Draw.tool || Draw.sel || Draw.act)){
+    drawCancel(); Draw.tool = ''; Draw.sel = ''; drawRefresh();
+  }
+});
+$('#drawToggle').addEventListener('click', () => {
+  Draw.open = !Draw.open;
+  if(!Draw.open){ Draw.tool = ''; Draw.sel = ''; }
+  drawRefresh();
+});
+$('#drawTools').addEventListener('click', e => {
+  const b = e.target.closest('[data-draw]');
+  if(!b || !owns(DRAW_KINDS, b.dataset.draw)) return;
+  Draw.tool = Draw.tool === b.dataset.draw ? '' : b.dataset.draw;
+  Draw.sel = '';
+  drawRefresh();
+});
+$('#drawDel').addEventListener('click', () => drawDeleteSel());
+$('#drawClear').addEventListener('click', () => {
+  const n = Draw.list().length;
+  if(!n) return;
+  if(!confirm(`この銘柄に引いた線${n}本をすべて消します。よろしいですか。`)) return;
+  Draw.sel = '';
+  Draw.save([]);
+  drawRefresh();
+});
 
 function localX(e){
   const r = cv.getBoundingClientRect();
@@ -24555,8 +25299,18 @@ $('#drvClientSave').addEventListener('click', () => {
 });
 
 /* ---- watchlist -------------------------------------------------------- */
-$('#watchBtn').addEventListener('click', () => refreshWatch(false));
-$('#watchForce').addEventListener('click', () => refreshWatch(true));
+/* 5分以内に取った値はそのまま使います。2回続けて押したら、全部取り直します */
+let favRefreshAt = 0;
+$('#favRefresh').addEventListener('click', () => {
+  const again = Date.now() - favRefreshAt < 8000;
+  favRefreshAt = Date.now();
+  refreshWatch(again);
+});
+$('#favSort').addEventListener('change', e => {
+  favSort = ['chg', 'rsi', 'gap25', 'name'].includes(e.target.value) ? e.target.value : '';
+  Store.set('favSort', favSort);
+  renderBook();
+});
 $('#alertBarX').addEventListener('click', () => $('#alertBar').classList.add('hide'));
 
 /* The判定 itself is one line per item; the paragraph explaining each rule is
@@ -24691,15 +25445,6 @@ setSigOpen(Store.get('sigOpen', false) === true);
 
 /* ---- the favourites drawer -------------------------------------------- */
 $('#favBox').addEventListener('toggle', () => { $('#favBox').dataset.touched = '1'; });
-$('#favOpenList').addEventListener('click', () => {
-  /* 一覧は「設定」の束の中にあります。束を開かずに scrollIntoView を
-     呼んでも、隠れている要素には箱が無いので何も起きません。
-     押したのに画面が動かないまま、40銘柄ぶんの取得だけが走っていました。 */
-  const card = $('#watchBody').closest('.card');
-  if(card && card.id) revealCard(card.id);
-  if(card) card.scrollIntoView({behavior: 'smooth', block: 'start'});
-  refreshWatch(false);
-});
 $('#favClearAll').addEventListener('click', () => {
   if(!Book.favs.length) return;
   if(!confirm(`お気に入り${Book.favs.length}件をすべて外します。よろしいですか。`)) return;
@@ -24864,18 +25609,6 @@ $('#fundPanelBtn').addEventListener('click', () => {
   renderFundCard();
   redraw(); renderSignals();
 });
-$('#watchBody').addEventListener('click', e => {
-  const th = e.target.closest('th[data-sk]');
-  if(th){
-    const k = th.dataset.sk;
-    watchSort = {key: k, dir: watchSort.key === k ? -watchSort.dir : (k === 'name' ? 1 : -1)};
-    renderWatch();
-    return;
-  }
-  const tr = e.target.closest('tr[data-code]');
-  if(tr){ $('#sym').value = tr.dataset.code; pendingPick = null; run(); }
-});
-
 /* ---- alerts ----------------------------------------------------------- */
 function fillAlertForm(){
   const sym = $('#alSym');
