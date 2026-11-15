@@ -466,27 +466,30 @@ tr.hweak{opacity:.42}
 #report .rtitle{font-size:17px;font-weight:700}
 #report .rcode{font-size:12px;font-weight:600;color:#555;margin-left:6px}
 #report .rsub{font-size:9.5px;color:#555;margin:2px 0 7px;border-bottom:1px solid #ccc;padding-bottom:5px}
-/* the canvas is tall when several indicator panels are open; capped so the
-   sheet stays one page, which is the whole promise of this feature */
+/* 1ページ目は図が主役です。高さは fitFirstPage() が、見出しと図の見方を引いた残りに合わせます */
+#rptP1{break-after:page;page-break-after:always}
 #rptChart{text-align:center}
-#rptChart img{max-width:100%;max-height:99mm;width:auto;height:auto;display:inline-block;
+#rptChart img{max-width:100%;width:auto;height:auto;display:inline-block;
   border:1px solid #ddd;border-radius:4px}
-#rptVerdict{margin:8px 0 5px;font-size:11px}
-#rptSignals{list-style:none;margin:0 0 8px;padding:0;
-  display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}
-#rptSignals li{font-size:8.6px;line-height:1.4;break-inside:avoid}
-#report .rtone{display:inline-block;min-width:2.6em;margin-right:4px;padding:0 3px;border-radius:3px;
-  font-size:7.6px;font-weight:700;color:#fff;text-align:center;background:#777}
-#report .rt-bull{background:#b3332f} #report .rt-bear{background:#1d5fa8}
-#report .rt-warn{background:#8a6100} #report .rt-flat{background:#666}
-#report .rcols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-#report .rh{font-size:9px;font-weight:700;margin:0 0 3px;border-bottom:1px solid #ccc}
-#report pre{margin:0;font:7.8px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;
+#rptLegend{margin-top:6px}
+#rptLegend .rl{font-size:9px;line-height:1.5;margin:0 0 2px}
+#report .rh{font-size:9.5px;font-weight:700;margin:0 0 3px;border-bottom:1px solid #ccc}
+/* 2ページ目以降。1段組み、1行に1つの事柄 */
+#rptP2{break-before:page;page-break-before:always}
+#report .rtitle2{font-size:14px;font-weight:700}
+#rptBody h3{font-size:11.5px;font-weight:700;margin:11px 0 4px;padding-bottom:2px;border-bottom:1px solid #bbb;
+  break-after:avoid;page-break-after:avoid}
+#rptBody .rl{font-size:9.8px;line-height:1.6;margin:0;break-inside:avoid}
+#report .rt{font-weight:700} #report .rt-bull{color:#b3332f} #report .rt-bear{color:#1d5fa8}
+#report .rt-warn{color:#8a6100} #report .rt-flat{color:#555}
+#report pre{margin:0;font:8.6px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;
   word-break:break-all}
 #rptFoot{margin-top:8px;padding-top:5px;border-top:1px solid #ccc;font-size:8px;color:#555}
 
 @media print{
   @page{size:A4 portrait;margin:10mm}
+  /* ダークテーマの端末では、余白(紙の縁)まで暗い色で刷られていました */
+  :root{color-scheme:light!important}
   html,body{background:#fff!important}
   body.printing>*{display:none!important}
   body.printing>#report{display:block!important}
@@ -1471,9 +1474,10 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
   </div>
 
   <div class="card" id="exportCard">
-    <h2>1枚にまとめて書き出す</h2>
-    <p class="qsrc" style="margin:0 0 10px">いま表示しているチャートとシグナル判定、指標の数値を1ページにまとめます。
-      <b>数値は画像ではなく文字として入る</b>ので、PDFをAIに読ませたときに値をそのまま読み取れます。</p>
+    <h2>PDFに書き出す</h2>
+    <p class="qsrc" style="margin:0 0 10px"><b>1ページ目</b>にチャート(価格と、下のテクニカル指標のパネルを全部)と図の見方、
+      <b>2ページ目以降</b>に分析結果(総合判定・シグナル・価格の位置・指標の数値・直近30本の値動き)を入れます。
+      数値は画像ではなく文字で、1段組みに並べてあるので、<b>PDFをAIに渡すと値をそのまま読み取れます</b>。</p>
     <div class="filters" style="margin-bottom:6px">
       <button class="chip" id="rptPrint">PDFにする(印刷 → PDFに保存)</button>
       <button class="chip" id="rptCopy" style="border-style:dashed">文字だけコピー</button>
@@ -1535,15 +1539,18 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
 
 <!-- the printed sheet: hidden on screen, and the only thing on paper -->
 <div id="report" aria-hidden="true">
-  <div id="rptHead"></div>
-  <div id="rptChart"></div>
-  <div id="rptVerdict"></div>
-  <ul id="rptSignals"></ul>
-  <div class="rcols">
-    <div><div class="rh">指標の数値</div><pre id="rptFacts"></pre></div>
-    <div><div class="rh">直近20本</div><pre id="rptTail"></pre></div>
-  </div>
-  <div id="rptFoot"></div>
+  <!-- 1ページ目: チャートと図の見方 -->
+  <section id="rptP1">
+    <div id="rptHead"></div>
+    <div id="rptChart"></div>
+    <div id="rptLegend"></div>
+  </section>
+  <!-- 2ページ目以降: 分析結果(1段組みの文字。AI が PDF から読むと、2段組みは順番が混ざります) -->
+  <section id="rptP2">
+    <div id="rptHead2"></div>
+    <div id="rptBody"></div>
+    <div id="rptFoot"></div>
+  </section>
 </div>
 
 <script>
@@ -1554,8 +1561,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v62';
-const APP_DATE = '2026-11-07';
+const APP_VER = 'v63';
+const APP_DATE = '2026-11-15';
 
 /* ============================================================
    1. Small helpers
@@ -1592,7 +1599,33 @@ function safeUrl(u){
   }catch(e){ return null; }
 }
 
-function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+/* cssVarOverride … PDF の図をダークテーマの端末でも白地で描くため、そのあいだだけ
+   ライトの色を返す関数を入れます(テーマ自体は切り替えないので、画面はちらつきません) */
+let cssVarOverride = null;
+function cssVar(n){
+  if(cssVarOverride){ const v = cssVarOverride(n); if(v) return v; }
+  return getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+}
+/* ライトの色(いちばん上の :root の定義)。メディアクエリの中の :root は見ません */
+let lightVars = null;
+function lightVar(n){
+  if(!lightVars){
+    lightVars = Object.create(null);
+    try{
+      for(const sh of document.styleSheets){
+        let rules; try { rules = sh.cssRules; } catch(e){ continue; }
+        for(const r of rules){
+          if(r.type !== 1 || r.selectorText !== ':root') continue;
+          for(let i = 0; i < r.style.length; i++){
+            const k = r.style[i];
+            if(k.startsWith('--') && !(k in lightVars)) lightVars[k] = r.style.getPropertyValue(k).trim();
+          }
+        }
+      }
+    }catch(e){}
+  }
+  return lightVars[n] || '';
+}
 
 /* How many decimals a value should print with.
 
@@ -3748,19 +3781,22 @@ function persistLayoutPrefs(){
   Store.set('panelOrder', panelOrder);
 }
 
+/* PDF の1ページ目用。{w, h} を入れているあいだだけ、画面の幅・高さの代わりに
+   この大きさでチャートを組みます(スマホでも、パソコン幅の見やすい図にするため) */
+let printLay = null;
 function layout(){
   const host = $('#chartHost');
-  const w = Math.max(200, host.clientWidth || 320);
+  const w = printLay ? printLay.w : Math.max(200, host.clientWidth || 320);
   const narrow = w < 620, tiny = w < 380;
   const padR = tiny ? 44 : narrow ? 52 : 62;
   /* the left gutter only needs room when the comparison has its own axis
      there — otherwise it is wasted width, which a phone cannot spare */
   const leftAxis = typeof cmpLeftAxis === 'function' && !!cmpLeftAxis();
   const padL = leftAxis ? (tiny ? 42 : narrow ? 48 : 58) : (tiny ? 4 : narrow ? 6 : 10);
-  const full = document.body.classList.contains('chart-full');
+  const full = !printLay && document.body.classList.contains('chart-full');
   /* landscape phones are wide but very short: a fixed sub-panel height eats
      the price panel entirely, so the panels shrink with the viewport */
-  const vh = window.innerHeight || 800;
+  const vh = printLay ? printLay.h : (window.innerHeight || 800);
   const shortScreen = vh < 560;
   /* 下のパネルは「見出しの帯 + 線を描く場所」の2段です(v57)。
 
@@ -3863,7 +3899,12 @@ function layout(){
   const hOf = k => Math.max(headH + 24, Math.round(subH * scaleOf(k) * (twoUp(k) ? 1.6 : 1) * boost));
   const subsH = subs.reduce((t, sp) => t + hOf(sp.key) + gap, 0);
   let mainH;
-  if(full){
+  if(printLay){
+    /* 印刷: 下のパネルを全部入れて、残りを価格のパネルに。パネルが多くて
+       足りなければ価格のパネルは360pxを保ち、図が縦に長くなります
+       (ページに収めるのは画像の縮小で行います) */
+    mainH = clamp(printLay.h - subsH - axisH * (subs.length ? 2 : 1) - 8, 360, 820);
+  } else if(full){
     /* fill what the viewport has left, never less than a usable price panel.
        上に残る行(値段・足種・指標のボタン)の高さは<b>測ります</b>。46px と
        決め打ちにしていたので、実際は180〜310pxあり、チャートの下が画面から
@@ -3916,7 +3957,7 @@ function layout(){
 
 function sizeCanvas(){
   LAY = layout();
-  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  DPR = printLay ? 2 : Math.min(window.devicePixelRatio || 1, 2.5);
   for(const [c, x] of [[cv, ctx], [base, bctx]]){
     c.width = Math.round(LAY.w * DPR);
     c.height = Math.round(LAY.h * DPR);
@@ -16426,7 +16467,7 @@ function takeSuggest(i){
 /* set when the user chose from a list, so run() does not search again */
 let pendingPick = null;
 /* ============================================================
-   16. One-page report (print / save as PDF)
+   16. Report (print / save as PDF): page 1 = chart, page 2+ = analysis
    Built for a reader that is not a human: the chart goes in as a
    picture, but every number that produced it also goes in as TEXT,
    so a model reading the PDF gets values rather than pixels it has
@@ -16438,16 +16479,27 @@ let pendingPick = null;
 const RPT_TONE = {bull: '強気', bear: '弱気', warn: '注意', flat: '中立'};
 
 function rptNum(v, digits){
-  return isNum(v) ? v.toFixed(digits === undefined ? 2 : digits) : '—';
+  /* 桁の指定がなければ2桁。ただし10未満の値(ユーロドルなど)は2桁では足りないので4桁 */
+  return isNum(v) ? v.toFixed(digits === undefined ? (Math.abs(v) < 10 ? 4 : 2) : digits) : '—';
 }
 
 /* The machine-readable half. Deliberately flat "key: value" lines rather
    than a table — it survives copy-paste and PDF text extraction, which
-   reorder table cells. */
+   reorder table cells.
+
+   v63: 中身ごとの束(基本情報・指標・需給・決算)に分けて返します。2ページ目以降は
+   束ごとに見出しを付けて並べるので、AIが「どれが何の数字か」を取り違えません。
+   返り値は今までどおり全部をつないだ配列で、.groups に束が入っています。 */
 function reportFacts(){
   const d = state.ind, b = state.raw.bars, n = b.length - 1, cur = shownCurrency();
-  const L = [];
-  const put = (k, v) => L.push(k + ': ' + v);
+  const G = {basic: [], ind: [], supply: [], fund: []};
+  let at = G.basic;
+  const put = (k, v) => at.push(k + ': ' + String(v).replace(/ +$/, ''));
+  /* 5本前の値。向き(上がってきたのか下がってきたのか)は、いまの値だけでは分かりません */
+  const was = (arr, digits, what) => {
+    const k = n - 5;
+    return arr && k >= 0 && isNum(arr[k]) ? ` (5本前${what ? 'の' + what : ''} ${rptNum(arr[k], digits)})` : '';
+  };
   put('銘柄', `${state.raw.name}(${state.raw.code})`);
   put('通貨', cur || '—');
   put('データ元', state.raw.source);
@@ -16455,24 +16507,31 @@ function reportFacts(){
   put('足種', IV_LABEL[state.interval] || state.interval);
   put('期間', (RANGE_LABEL[state.range] || state.range) + ' / ' + b.length + '本');
   put('最終足', fmtStamp(b[n]));
+  const r = state.raw;
+  const lag = (isNum(r.fetchedAt) && isNum(r.quoteAt)) ? r.fetchedAt - r.quoteAt : null;
+  if(r.market && r.market.open && lag !== null && lag > 60000)
+    put('配信の遅れ', `約${Math.round(lag / 60000)}分(取引所の規定による無料データの遅れ)`);
+
+  at = G.ind;
   put('始値/高値/安値/終値', [b[n].o, b[n].h, b[n].l, b[n].c].map(x => rptNum(x)).join(' / '));
   put('前足比', n > 0 && b[n-1].c
       ? `${(d.c[n] - d.c[n-1]).toFixed(2)} (${((d.c[n]/d.c[n-1] - 1) * 100).toFixed(2)}%)` : '—');
   put('出来高', isNum(b[n].v) ? String(Math.round(b[n].v)) : '—');
 
-  P.ma.forEach((p, i) => put(`MA${p}(${p}${P.unit})`, rptNum(d.ma[i][n])));
+  P.ma.forEach((p, i) => put(`MA${p}(${p}${P.unit})`, rptNum(d.ma[i][n]) + was(d.ma[i])));
   if(d.bb) put(`ボリンジャー(${P.bb[0]},${P.bb[1]}σ) 上/中/下`,
     [d.bb.upper[n], d.bb.mid[n], d.bb.lower[n]].map(x => rptNum(x)).join(' / '));
   if(d.don) put(`ドンチャン(${P.donchian}) 上/下`,
     [d.don.upper[n], d.don.lower[n]].map(x => rptNum(x)).join(' / '));
-  if(d.bb && isNum(d.bb.pctb[n])) put('%B', rptNum(d.bb.pctb[n], 3));
-  put(`RSI(${P.rsi})`, rptNum(d.rsi[n], 1));
+  if(d.bb && isNum(d.bb.pctb[n])) put('%B', rptNum(d.bb.pctb[n], 3) + was(d.bb.pctb, 3));
+  put(`RSI(${P.rsi})`, rptNum(d.rsi[n], 1) + was(d.rsi, 1));
   if(d.macd) put(`MACD(${P.macd.join(',')}) 線/シグナル/ヒスト`,
-    [d.macd.line[n], d.macd.signal[n], d.macd.hist[n]].map(x => rptNum(x, 3)).join(' / '));
+    [d.macd.line[n], d.macd.signal[n], d.macd.hist[n]].map(x => rptNum(x, 3)).join(' / ')
+    + (n >= 5 ? ` (5本前 ${[d.macd.line[n-5], d.macd.signal[n-5], d.macd.hist[n-5]].map(x => rptNum(x, 3)).join(' / ')})` : ''));
   if(d.stoch) put(`ストキャス(${P.stoch.join(',')}) %K/%D`,
-    [d.stoch.k[n], d.stoch.d[n]].map(x => rptNum(x, 1)).join(' / '));
+    [d.stoch.k[n], d.stoch.d[n]].map(x => rptNum(x, 1)).join(' / ') + was(d.stoch.k, 1, '%K'));
   if(d.dmi) put(`DMI/ADX(${P.adx}) +DI/-DI/ADX`,
-    [d.dmi.pdi[n], d.dmi.ndi[n], d.dmi.adx[n]].map(x => rptNum(x, 1)).join(' / '));
+    [d.dmi.pdi[n], d.dmi.ndi[n], d.dmi.adx[n]].map(x => rptNum(x, 1)).join(' / ') + was(d.dmi.adx, 1, 'ADX'));
   if(d.atr) put(`ATR(${P.atr})`, rptNum(d.atr[n]));
   if(d.ich){
     const ic = d.ich;
@@ -16486,28 +16545,19 @@ function reportFacts(){
   if(d.st) put('スーパートレンド', isNum(d.st.line[n])
     ? rptNum(d.st.line[n]) + (d.st.dir[n] > 0 ? '(上昇)' : '(下降)') : '—');
   if(d.vwap) put('VWAP', rptNum(d.vwap[n]));
-  if(d.cmf) put(`CMF(${P.cmf})`, rptNum(d.cmf[n], 3));
-  if(d.mfi) put(`MFI(${P.mfi})`, rptNum(d.mfi[n], 1));
+  if(d.cmf) put(`CMF(${P.cmf})`, rptNum(d.cmf[n], 3) + was(d.cmf, 3));
+  if(d.mfi) put(`MFI(${P.mfi})`, rptNum(d.mfi[n], 1) + was(d.mfi, 1));
   if(d.osgfc) put('OSGFC 線/上限/下限/方向', isNum(d.osgfc.filter[n])
     ? [d.osgfc.filter[n], d.osgfc.upper[n], d.osgfc.lower[n]].map(x => rptNum(x)).join(' / ')
       + ' / ' + (d.osgfc.dir[n] > 0 ? '上' : d.osgfc.dir[n] < 0 ? '下' : '—') : '—');
   if(d.lorentz && isNum(d.lorentz.sig[n]))
     put('Lorentzian 判定', d.lorentz.sig[n] > 0 ? '買い寄り' : d.lorentz.sig[n] < 0 ? '売り寄り' : '中立');
-  /* the printed sheet is what gets read away from the screen, so the one item
-     that dates the whole thing belongs on it */
-  if(earnings && earnings.code === Ext.codeKey() && earnings.next){
-    const dd = daysUntil(earnings.next.d);
-    /* `next` is fixed when the schedule is fetched, so a tab left open over
-       the announcement date still holds yesterday. Do not print a date that
-       has passed under the heading 「次の」. */
-    if(!isNum(dd) || dd >= 0)
-      put('次の決算発表', `${earnings.next.d.slice(0,4)}/${earnings.next.d.slice(4,6)}/${earnings.next.d.slice(6,8)}`
-        + (isNum(dd) ? (dd === 0 ? '(本日)' : `(あと${dd}日)`) : ''));
-  }
   if(state.toggles.mtf && d.mtf && !d.mtf.thin){
     const up = d.mtf.trend[n];
     put(`上位足(${d.mtf.label})`, up > 0 ? '上昇' : up < 0 ? '下降' : '方向感なし');
   }
+
+  at = G.supply;
   if(d.extShort && isNum(d.extShort.ratio[n]))
     put(d.extShort.us ? '空売り比率(FINRA 報告出来高比%)' : '空売り残高(合計%)',
         rptNum(d.extShort.ratio[n], 2));
@@ -16521,6 +16571,19 @@ function reportFacts(){
     if(isNum(d.extLend.buy[n]))  put('融資残(日証金)', String(Math.round(d.extLend.buy[n])));
     if(isNum(d.extLend.sell[n])) put('貸株残(日証金)', String(Math.round(d.extLend.sell[n])));
     if(isNum(d.extLend.ratio[n])) put('貸借倍率', rptNum(d.extLend.ratio[n], 2));
+  }
+
+  at = G.fund;
+  /* the printed sheet is what gets read away from the screen, so the one item
+     that dates the whole thing belongs on it */
+  if(earnings && earnings.code === Ext.codeKey() && earnings.next){
+    const dd = daysUntil(earnings.next.d);
+    /* `next` is fixed when the schedule is fetched, so a tab left open over
+       the announcement date still holds yesterday. Do not print a date that
+       has passed under the heading 「次の」. */
+    if(!isNum(dd) || dd >= 0)
+      put('次の決算発表', `${earnings.next.d.slice(0,4)}/${earnings.next.d.slice(4,6)}/${earnings.next.d.slice(6,8)}`
+        + (isNum(dd) ? (dd === 0 ? '(本日)' : `(あと${dd}日)`) : ''));
   }
   /* 決算の数値。AIに読ませたときに「割安か」を自分で確かめられるよう、
      出所と、その数値がどの決算のものかも一緒に出します。 */
@@ -16536,92 +16599,242 @@ function reportFacts(){
       `${d.fund.last.d.slice(0,4)}/${d.fund.last.d.slice(4,6)}/${d.fund.last.d.slice(6,8)} 時点 / `
       + (d.fund.src || '手入力'));
   }
+  const L = G.basic.concat(G.ind, G.supply, G.fund);
+  L.groups = G;
   return L;
 }
 
-/* the last 20 bars as text, so a model can check the trend itself rather
-   than trusting our summary of it */
+/* 価格の位置。チャートを見れば分かることを、数字で言っておきます
+   (AIは画像から「高値圏か」を読み違えるので) */
+function reportPosition(){
+  const d = state.ind, b = state.raw.bars, n = b.length - 1, c = d.c[n];
+  const L = [];
+  const pct = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const range = (from, to, label) => {
+    let hi = -Infinity, lo = Infinity, hiI = -1, loI = -1;
+    for(let i = from; i <= to; i++){
+      if(isNum(b[i].h) && b[i].h > hi){ hi = b[i].h; hiI = i; }
+      if(isNum(b[i].l) && b[i].l < lo){ lo = b[i].l; loI = i; }
+    }
+    if(hiI < 0 || loI < 0) return;
+    const at = hi > lo ? (c - lo) / (hi - lo) * 100 : 50;
+    L.push(`${label}(${fmtStamp(b[from])}〜${fmtStamp(b[to])}・${to - from + 1}本)の高値: ${rptNum(hi)}(${fmtStamp(b[hiI])}) / 安値: ${rptNum(lo)}(${fmtStamp(b[loI])})`);
+    L.push(`${label}の中での終値の位置: ${at.toFixed(0)}%(0%=安値、100%=高値)`);
+  };
+  const v1 = Math.min(state.i1, n), v0 = clamp(state.i0, 0, v1);
+  range(v0, v1, 'チャートに映っている範囲');
+  if(v0 > 0 || v1 < n) range(0, n, '読み込んだ全期間');
+  P.ma.forEach((p, i) => {
+    const m = d.ma[i][n];
+    if(isNum(m) && m) L.push(`MA${p}との乖離: ${pct((c / m - 1) * 100)}(終値がMA${p}より${c >= m ? '上' : '下'})`);
+  });
+  for(const k of [5, 20, 60]){
+    if(n - k >= 0 && b[n - k].c) L.push(`${k}本前からの騰落率: ${pct((c / b[n - k].c - 1) * 100)}`);
+  }
+  if(d.atr && isNum(d.atr[n]) && c) L.push(`1本あたりの平均的な値幅(ATR${P.atr}): 終値の約${(d.atr[n] / c * 100).toFixed(2)}%`);
+  if(n >= 20){
+    let s = 0, k = 0;
+    for(let i = n - 20; i < n; i++) if(isNum(b[i].v)){ s += b[i].v; k++; }
+    if(k && s > 0 && isNum(b[n].v)) L.push(`出来高: 直近20本の平均の${(b[n].v / (s / k)).toFixed(2)}倍`);
+  }
+  return L;
+}
+
+/* the last bars as CSV, so a model can check the trend itself rather than
+   trusting our summary of it. 分足では日付だけだと同じ日が並ぶので時刻も入れます */
 function reportTail(count){
   const b = state.raw.bars, n = b.length;
   const from = Math.max(0, n - (count || 20));
   const rows = [];
   for(let i = from; i < n; i++){
-    rows.push([fmtDate(b[i], true), b[i].o, b[i].h, b[i].l, b[i].c, Math.round(b[i].v || 0)]
-      .map(String).join('\t'));
+    rows.push([fmtStamp(b[i], true), csvNum(b[i].o), csvNum(b[i].h), csvNum(b[i].l), csvNum(b[i].c),
+               Math.round(b[i].v || 0)].map(String).join(','));
   }
   return rows;
 }
-
-function buildReport(){
-  if(!state.raw) throw new Error('先に銘柄を読み込んでください');
-  const rep = $('#report');
-  if(rep) rep.style.fontSize = '';        /* every build starts from full size */
-  const sig = buildSignals();
-  const when = new Date();
-  const stamp = `${when.getFullYear()}/${String(when.getMonth()+1).padStart(2,'0')}/`
-              + `${String(when.getDate()).padStart(2,'0')} `
-              + `${String(when.getHours()).padStart(2,'0')}:${String(when.getMinutes()).padStart(2,'0')}`;
-
-  /* the chart exactly as it is on screen, at print resolution */
-  let img = '';
-  try { img = cv.toDataURL('image/png'); } catch(e){ img = ''; }
-
-  const verdict = sig.score >= 3 ? '強気寄り' : sig.score <= -3 ? '弱気寄り' : '中立';
-  const facts = reportFacts();
-
-  $('#rptHead').innerHTML =
-    `<div class="rtitle">${esc(state.raw.name, 60)} <span class="rcode">${esc(state.raw.code, 20)}</span></div>`
-    + `<div class="rsub">${esc(IV_LABEL[state.interval] || '', 8)} ・ `
-    + `${esc(RANGE_LABEL[state.range] || state.range, 8)} ・ ${state.raw.bars.length}本 ・ `
-    + `${esc(state.raw.source, 40)} ・ 出力 ${esc(stamp, 20)}</div>`;
-
-  $('#rptChart').innerHTML = img
-    ? `<img alt="チャート" src="${esc(img, 4000000)}">`
-    : '<p class="rnote">チャート画像を取り込めませんでした。</p>';
-
-  $('#rptVerdict').innerHTML =
-    `<b>総合: ${esc(verdict, 10)}</b>(スコア ${sig.score.toFixed(1)}) — `
-    + `下の${sig.items.length}項目を機械的に集計した結果です。売買推奨ではありません。`;
-
-  $('#rptSignals').innerHTML = sig.items.map(s =>
-    `<li><span class="rtone rt-${esc(s.tone, 6)}">${esc(RPT_TONE[s.tone] || '—', 4)}</span>`
-    + `<b>${esc(s.tag, 12)}: ${esc(s.ttl, 60)}</b> ${esc(s.txt, 160)}</li>`).join('');
-
-  $('#rptFacts').textContent = facts.join('\n');
-  $('#rptTail').textContent = '日付\t始値\t高値\t安値\t終値\t出来高\n' + reportTail(20).join('\n');
-  $('#rptFoot').textContent =
-    '投資判断の助言ではありません。シグナルは各指標の定義どおりの機械的な判定です。'
-    + ' 数値は上記データ元の値をそのまま用いています。';
-  fitOnePage();
-  return {verdict, score: sig.score, items: sig.items.length, facts};
+const RPT_TAIL = 30;
+/* CSV の値。配信の値は 2988.6196009143996 のような端数を持つので、大きさに合わせて丸めます
+   (ドル円の 3桁目、ユーロドルの 4〜5桁目は残します) */
+function csvNum(v){
+  if(!isNum(v)) return '';
+  const a = Math.abs(v), dgt = a >= 1000 ? 2 : a >= 10 ? 3 : a >= 1 ? 5 : 6;
+  return String(Number(v.toFixed(dgt)));
 }
 
-/* It is called a one-page report, so it has to be one page whatever is
-   switched on. How tall the sheet comes out depends on how many indicator
-   panels are open and how many signals fired, so rather than guess a
-   chart height that works for the common case, measure and shrink:
-   the chart first (it loses the least by being smaller), then rows off the
-   price table. */
-/* A4 less 10mm margins, then 8mm of slack: browsers round page boxes and
-   add their own header space, and being 2mm over costs a whole extra sheet */
+/* 1ページ目の図の見方。色は言葉で書きます(AIは画像の色と線の名前を結びつけられないので) */
+const CMP_WORD = ['青', '橙', '緑', '黄土色', '桃色'];
+function reportLegend(panels){
+  const T = state.toggles, d = state.ind || {}, main = [];
+  if(Compare.active.length && state._cmpAll)
+    main.push('比較: ' + state._cmpAll.map((s2, k) =>
+      `${k === 0 ? (state.raw.code || '本銘柄') + '(基準)' : s2.label}=${CMP_WORD[((s2.ci || k + 1) - 1) % 5]}`).join('、')
+      + (state._cmpReal ? '(左軸=比較先の実数 / 右軸=この銘柄)' : '(表示開始を100とした指数)'));
+  main.push('ローソク足: 赤=陽線(終値≧始値)、青=陰線');
+  if(T.ma) main.push('移動平均: ' + P.ma.map((p, k) => `MA${p}=${['明るい緑', '緑', '濃い緑'][k] || '緑'}`).join('、'));
+  if(T.bb) main.push(`ボリンジャーバンド(${P.bb[0]}・±${P.bb[1]}σ): 灰色の線と帯`);
+  if(T.ichimoku) main.push('一目均衡表: 転換線=紫、基準線=濃い紫、雲=先行スパンA・Bのあいだ(赤み=A>B、青み=A<B)');
+  if(T.don) main.push(`ドンチャン(${P.donchian}): 灰色の線`);
+  if(T.fib) main.push('フィボナッチ: 灰色の水平線');
+  if(T.mtf && d.mtf && !d.mtf.thin) main.push(`上位足(${d.mtf.label})のMA${d.mtf.slowN}: 琥珀色`);
+  if(T.vwap && hasVals(d.vwap)) main.push('VWAP: 桃色');
+  if(T.st) main.push(`スーパートレンド(${P.st.join(',')}): 上昇=赤、下降=青`);
+  if(T.osgfc) main.push('OSGFC: 上昇=赤、下降=青');
+  if(T.lorentz) main.push('カーネル回帰: 桃色、▲▼=エントリ');
+  if(T.vprofile) main.push('価格帯別出来高: 灰色の横棒(POC=最多価格帯)');
+  if(T.pivot) main.push('ピボット(P/R1/R2/S1/S2)=濃い灰の線、節目(キリのいい値)=灰色の線');
+  if(T.events) main.push('縦線: 株式分割=濃い灰の実線、配当落ち=灰色の点線、決算発表=黄色の破線');
+  if(T.cbank) main.push('縦線: FOMC=橙、日銀の金融政策決定会合=紫');
+  if(T.session && isIntradayIv(state.interval)) main.push('背景の帯: 東京=橙、ロンドン=紫、ニューヨーク=桃');
+  const subs = (panels || []).filter(p => p.key !== 'main').map((p, i) => `${i + 1}. ${p.title}`);
+  return {main, subs};
+}
+
+/* 印刷用のチャート。画面の幅や「1枚ずつ」の表示に左右されないよう、決まった大きさで
+   描き直して画像にし、すぐ画面用に描き戻します(同じ処理の中なので画面は変わりません)。
+   スマホで撮ると、幅390pxの図を紙の幅まで引き伸ばすことになり、文字がつぶれていました */
+const RPT_CHART = {w: 960, h: 1240};
+function reportChart(){
+  const keep = {hold: subOneHold, hover: state.hover};
+  let img = '', panels = [];
+  try{
+    printLay = {w: RPT_CHART.w, h: RPT_CHART.h};
+    subOneHold = true;
+    state.hover = -1;
+    cssVarOverride = lightVar;          /* 紙に刷るので、ダークテーマでも白地 */
+    readColors();
+    sizeCanvas();
+    clampView();
+    renderBase();
+    paint();
+    img = cv.toDataURL('image/png');
+    panels = LAY.panels.map(p => ({key: p.key, title: p.key === 'main' ? '価格' : p.title}));
+  }catch(e){
+    img = '';
+    try { console.warn('[report chart]', e); } catch(e2){}
+  }finally{
+    printLay = null;
+    subOneHold = keep.hold;
+    state.hover = keep.hover;
+    cssVarOverride = null;
+    readColors();
+    try { redraw(); } catch(e){}
+  }
+  return {img, panels};
+}
+
+/* 2ページ目以降の中身(と、文字だけのコピー)。どちらもここから作るので、
+   PDF とテキストで中身が食い違いません。
+   pdf:false の束はテキストだけ(PDF では1ページ目に書いてあるもの) */
+function reportSections(o){
+  const sig = o.sig, G = o.facts.groups;
+  const n = state.raw.bars.length - 1;
+  const cnt = {bull: 0, bear: 0, warn: 0, flat: 0};
+  for(const s of sig.items) if(owns(cnt, s.tone)) cnt[s.tone]++;
+  const name = `${state.raw.name}(${state.raw.code})`;
+  const S = [];
+  S.push({k: 'about', h: 'このPDFについて', lines: [
+    `「株価テクニカル分析ツール」で作った、${name} のテクニカル分析の資料です。`,
+    '1ページ目: いま表示しているチャートの画像です(いちばん上が価格、その下がテクニカル指標のパネル)。図の見方は画像の下に文字で書いてあります。',
+    '2ページ目以降: 同じ時点の分析結果を文字で載せています。数値は画像から読み取るより、ここに書いた値のほうが正確です。',
+    `数値は、特に書いていなければ最新の足(${fmtStamp(state.raw.bars[n])})の値です。「5本前」は5本前の足の値です。`,
+    'シグナルは各指標の定義どおりの機械的な判定で、売買の推奨ではありません。'
+  ]});
+  S.push({k: 'basic', h: '基本情報', lines: G.basic.concat([`出力日時: ${o.stamp}`])});
+  S.push({k: 'verdict', h: '総合判定', lines: [
+    `総合: ${o.verdict}(スコア ${sig.score.toFixed(1)}。3以上で強気寄り、-3以下で弱気寄り)`,
+    `内訳: 強気 ${cnt.bull}件・弱気 ${cnt.bear}件・注意 ${cnt.warn}件・中立 ${cnt.flat}件(下の${sig.items.length}項目を機械的に集計)`
+  ]});
+  S.push({k: 'signals', h: `シグナル一覧(${sig.items.length}項目)`, sig: true,
+    lines: sig.items.map(s => `[${RPT_TONE[s.tone] || '—'}] ${s.tag}: ${s.ttl} — ${s.txt}`)});
+  const pos = reportPosition();
+  if(pos.length) S.push({k: 'pos', h: '価格の位置', lines: pos});
+  S.push({k: 'ind', h: '指標の数値(最新の足)', lines: G.ind});
+  if(G.supply.length) S.push({k: 'supply', h: '需給(信用残・空売り)', lines: G.supply});
+  if(G.fund.length) S.push({k: 'fund', h: '決算・予定', lines: G.fund});
+  if(o.legend) S.push({k: 'chart', h: 'チャートに出している指標', pdf: false,
+    lines: o.legend.main.concat(o.legend.subs.length ? ['下のパネル(上から順に): ' + o.legend.subs.join(' / ')] : [])});
+  const tail = reportTail(RPT_TAIL);
+  S.push({k: 'tail', h: `直近${tail.length}本の値動き(CSV・古い順)`, csv: true,
+    lines: ['日付,始値,高値,安値,終値,出来高'].concat(tail)});
+  S.push({k: 'note', h: '注意', lines: [
+    '投資判断の助言ではありません。シグナルは各指標の定義どおりの機械的な判定です。',
+    '数値は基本情報のデータ元の値をそのまま使っています。無料のデータは遅れや欠けがあり得ます。'
+  ]});
+  return S;
+}
+
+function reportStamp(){
+  const when = new Date();
+  return `${when.getFullYear()}/${String(when.getMonth()+1).padStart(2,'0')}/`
+       + `${String(when.getDate()).padStart(2,'0')} `
+       + `${String(when.getHours()).padStart(2,'0')}:${String(when.getMinutes()).padStart(2,'0')}`;
+}
+
+/* いま出しているパネルの一覧(「1枚ずつ」表示でも全部) */
+function reportPanelList(){
+  if(!LAY) return [{key: 'main', title: '価格'}];
+  const titles = Object.fromEntries(LAY.panels.map(p => [p.key, p.title]));
+  const subs = (LAY.allSubs && LAY.allSubs.length ? LAY.allSubs : LAY.panels.filter(p => p.key !== 'main'))
+    .map(x => ({key: x.key, title: titles[x.key] || x.title || x.short}));
+  return [{key: 'main', title: '価格'}].concat(subs);
+}
+
+/* 1ページ目 = チャートと図の見方、2ページ目以降 = 分析結果(文字)。
+   withChart:false … 文字だけのコピーのとき(図を描き直さずに済ませます) */
+function buildReport(opts){
+  if(!state.raw) throw new Error('先に銘柄を読み込んでください');
+  const withChart = !(opts && opts.withChart === false);
+  const sig = buildSignals();
+  const stamp = reportStamp();
+  const verdict = sig.score >= 3 ? '強気寄り' : sig.score <= -3 ? '弱気寄り' : '中立';
+  const facts = reportFacts();
+  const chart = withChart ? reportChart() : {img: '', panels: reportPanelList()};
+  const legend = reportLegend(chart.panels);
+  const sections = reportSections({sig, facts, verdict, stamp, legend});
+  const name = `${state.raw.name}(${state.raw.code})`;
+  const b = state.raw.bars, v1 = Math.min(state.i1, b.length - 1), v0 = clamp(state.i0, 0, v1);
+
+  if(withChart){
+    $('#rptHead').innerHTML =
+      `<div class="rtitle">${esc(state.raw.name, 60)} <span class="rcode">${esc(state.raw.code, 20)}</span></div>`
+      + `<div class="rsub">${esc(IV_LABEL[state.interval] || '', 8)} ・ ${esc(RANGE_LABEL[state.range] || state.range, 8)} ・ `
+      + `${b.length}本 ・ ${esc(state.raw.source, 40)} ・ 出力 ${esc(stamp, 20)}</div>`;
+    $('#rptChart').innerHTML = chart.img
+      ? `<img alt="${esc(name, 80)} のチャート" src="${esc(chart.img, 12000000)}">`
+      : '<p class="rnote">チャート画像を取り込めませんでした。</p>';
+    const lg = ['<div class="rh">図の見方</div>',
+      `<div class="rl">図の範囲: ${esc(fmtStamp(b[v0]), 20)} 〜 ${esc(fmtStamp(b[v1]), 20)}(${v1 - v0 + 1}本・${esc(IV_LABEL[state.interval] || '', 8)})。右端が最新の足です。</div>`,
+      `<div class="rl">いちばん上(価格のパネル): ${esc(legend.main.join(' / '), 900)}</div>`];
+    if(legend.subs.length) lg.push(`<div class="rl">その下のパネル(上から順に): ${esc(legend.subs.join(' / '), 600)}。`
+      + '線の色の決まり: 主役=黒の実線、シグナル・平均=橙の破線、3本目=青緑の破線。'
+      + '各パネルの上の帯に、最新の値と状態(買われすぎ など)を書いてあります。</div>');
+    lg.push('<div class="rl">数値は2ページ目以降に文字で載せています。</div>');
+    $('#rptLegend').innerHTML = lg.join('');
+    $('#rptHead2').innerHTML = `<div class="rtitle2">${esc(name, 90)} 分析結果</div>`
+      + `<div class="rsub">最終足 ${esc(fmtStamp(b[b.length - 1]), 20)} ・ 出力 ${esc(stamp, 20)} ・ ${esc(APP_VER, 8)}</div>`;
+    const tone = t => `<b class="rt rt-${esc(t, 6)}">[${esc(RPT_TONE[t] || '—', 4)}]</b>`;
+    $('#rptBody').innerHTML = sections.filter(x => x.pdf !== false).map((x, i) =>
+      `<h3>${i + 1}. ${esc(x.h, 40)}</h3>`
+      + (x.csv ? `<pre>${esc(x.lines.join('\n'), 20000)}</pre>`
+        : x.sig ? sig.items.map(s2 => `<div class="rl">${tone(s2.tone)} <b>${esc(s2.tag, 12)}: ${esc(s2.ttl, 60)}</b> — ${esc(s2.txt, 200)}</div>`).join('')
+        : x.lines.map(l => `<div class="rl">${esc(l, 400)}</div>`).join(''))).join('');
+    $('#rptFoot').textContent = '';       /* 注意は最後の節に書いてあるので、同じ文を重ねません */
+    fitFirstPage();
+  }
+  return {verdict, score: sig.score, items: sig.items.length, facts, sections, chart, legend};
+}
+
+/* 1ページ目に、図・見出し・図の見方が収まるよう、図の高さだけを決めます。
+   A4 から余白(10mm)を引き、さらに8mm の余裕(ブラウザが端数を丸めたり、
+   見出しの余白を足したりするため。2mm はみ出すと白紙が1枚増えます) */
 const A4_CONTENT_PX = (277 - 8) / 25.4 * 96;
 
-function fitOnePage(){
-  const rep = $('#report'), img = $('#rptChart img');
-  if(!rep) return;
-  const tooTall = () => rep.getBoundingClientRect().height > A4_CONTENT_PX;
-  if(img){
-    for(const mm of [99, 88, 78, 68, 58, 48]){
-      img.style.maxHeight = mm + 'mm';
-      if(!tooTall()) return;
-    }
-  }
-  for(const rows of [14, 10, 6]){
-    $('#rptTail').textContent = '日付\t始値\t高値\t安値\t終値\t出来高\n' + reportTail(rows).join('\n');
-    if(!tooTall()) return;
-  }
-  /* still over: better a slightly small sheet than a stray second page */
-  rep.style.fontSize = '9px';
+function fitFirstPage(){
+  const p1 = $('#rptP1'), img = $('#rptChart img');
+  if(!p1 || !img) return;
+  img.style.maxHeight = '';
+  const other = p1.getBoundingClientRect().height - img.getBoundingClientRect().height;
+  img.style.maxHeight = Math.max(240, Math.floor(A4_CONTENT_PX - other - 4)) + 'px';
 }
 
 /* The height of the sheet is not known until the chart image has decoded —
@@ -16639,7 +16852,7 @@ async function reportReady(){
     });
   }
   if(im && im.decode) { try { await im.decode(); } catch(e){} }
-  fitOnePage();
+  fitFirstPage();
   return r;
 }
 
@@ -16652,25 +16865,18 @@ async function printReport(){
 }
 
 /* The same content as a plain text file. A PDF is what you hand a person;
-   this is what you paste into a chat window. */
+   this is what you paste into a chat window. 見出しは Markdown にしてあります */
 function reportText(){
-  const r = buildReport();
-  const sig = buildSignals();
-  return [
-    '# ' + state.raw.name + '(' + state.raw.code + ') テクニカル分析',
-    '',
-    '## 基本情報', ...r.facts,
-    '',
-    '## シグナル判定(機械的な集計・売買推奨ではありません)',
-    '総合: ' + r.verdict + '(スコア ' + sig.score.toFixed(1) + ')',
-    ...sig.items.map(s => `- [${RPT_TONE[s.tone] || '—'}] ${s.tag}: ${s.ttl} — ${s.txt}`),
-    '',
-    '## 直近20本',
-    '日付\t始値\t高値\t安値\t終値\t出来高',
-    ...reportTail(20),
-    '',
-    '※ 投資判断の助言ではありません。'
-  ].join('\n');
+  const r = buildReport({withChart: false});
+  const out = ['# ' + state.raw.name + '(' + state.raw.code + ') テクニカル分析', ''];
+  for(const x of r.sections){
+    if(x.k === 'about') continue;          /* PDF の読み方の説明なので、文字だけのときは要りません */
+    out.push('## ' + x.h);
+    if(x.csv) out.push('```csv', ...x.lines, '```');
+    else out.push(...x.lines.map(l => x.sig ? '- ' + l : l));
+    out.push('');
+  }
+  return out.join('\n').replace(/\n+$/, '\n');
 }
 
 function downloadReportText(){
@@ -19821,6 +20027,114 @@ async function runSelfTestsInner(){
     eq(SECTIONS.some(sc => sc.cards.includes('diagCard')), true, 'カードがどの束にも入っていない');
     return true;
   });
+  tgroup('PDF(1ページ目=チャート、2ページ目以降=分析結果)');
+  /* 図を描き直して画像にする部分は非同期(画像の読み込み)なので、先に済ませます。
+     ダークテーマ・「1枚ずつ」表示・下のパネル5枚、というスマホでいちばん崩れやすい形で作ります */
+  let rptFit = '走りませんでした', rptLight = '走りませんでした', rptAll = '走りませんでした', rptBack = '走りませんでした';
+  {
+    const el = document.documentElement, keepTheme = el.getAttribute('data-theme');
+    const keepT = Object.assign({}, state.toggles), keepHold = subOneHold, keepOn = subOneOn;
+    try{
+      Object.assign(state.toggles, {vol: true, rsi: true, macd: true, stoch: true, adx: true});
+      subOneHold = false; subOneOn = true;
+      el.setAttribute('data-theme', 'dark');
+      state.ind = recompute(); redraw();
+      const before = {w: LAY.w, h: LAY.h, keys: LAY.panels.map(p => p.key).join(','), surf: C.surface, one: LAY.oneMode};
+      const r = await reportReady();
+      const subs = r.chart.panels.filter(p => p.key !== 'main').map(p => p.key).join(',');
+      const want = LAY.allSubs.map(x => x.key).join(',');
+      rptAll = subs === want && want.split(',').length === 5 ? true : `図のパネル ${subs} / 出しているパネル ${want}`;
+      const after = {w: LAY.w, h: LAY.h, keys: LAY.panels.map(p => p.key).join(','), surf: C.surface, one: LAY.oneMode};
+      rptBack = JSON.stringify(after) === JSON.stringify(before) && subOneHold === false && cssVarOverride === null
+        && printLay === null ? true : `画面が戻っていません: 前 ${JSON.stringify(before)} / 後 ${JSON.stringify(after)}`;
+      const p1 = $('#rptP1').getBoundingClientRect().height;
+      rptFit = p1 > 300 && p1 <= A4_CONTENT_PX + 1 ? true : `1ページ目の高さ ${Math.round(p1)}px(上限 ${Math.round(A4_CONTENT_PX)}px)`;
+      const im = $('#rptChart img');
+      /* 画面の幅ではなく、印刷用の幅(960px を2倍の細かさ)で描いているか */
+      if(im.naturalWidth !== RPT_CHART.w * 2) rptFit = `図の幅 ${im.naturalWidth}px(印刷用は ${RPT_CHART.w * 2}px)`;
+      const c2 = document.createElement('canvas'); c2.width = c2.height = 2;
+      const g2 = c2.getContext('2d');
+      g2.drawImage(im, 0, 0, 6, 6, 0, 0, 2, 2);
+      const px = g2.getImageData(0, 0, 1, 1).data;
+      rptLight = px[0] > 200 && px[1] > 200 && px[2] > 200 && before.surf !== lightVar('--surface-1')
+        ? true : `図の地の色 rgb(${px[0]},${px[1]},${px[2]}) / 画面の地の色 ${before.surf}`;
+    }catch(e){ rptFit = rptLight = rptAll = rptBack = (e && e.message) || String(e); }
+    finally{
+      if(keepTheme === null) el.removeAttribute('data-theme'); else el.setAttribute('data-theme', keepTheme);
+      Object.assign(state.toggles, keepT);
+      subOneHold = keepHold; subOneOn = keepOn;
+      readColors(); state.ind = recompute(); redraw();
+    }
+  }
+  test('PDF: 1枚ずつ表示でも、図には出している下のパネルが全部入る', () => rptAll);
+  test('PDF: 図を作ったあと、画面のチャートは元の大きさ・パネル・色に戻る', () => rptBack);
+  test('PDF: ダークテーマの端末でも、図は白地(ライトの色)で描く', () => rptLight);
+  test('PDF: 1ページ目に、見出し・図・図の見方が収まる(図は印刷用の大きさで描く)', () => rptFit);
+  test('PDF: 1ページ目と2ページ目以降のあいだで改ページする', () => {
+    const r = buildReport();
+    eq(!!$('#rptP1 #rptChart img'), true, '1ページ目に図がない');
+    eq(/図の見方/.test($('#rptLegend').textContent), true, '図の見方がない');
+    eq(/その下のパネル\(上から順に\)/.test($('#rptLegend').textContent) === r.legend.subs.length > 0, true, '下のパネルの説明');
+    eq(getComputedStyle($('#rptP1')).breakAfter, 'page', '1ページ目のあと');
+    eq(getComputedStyle($('#rptP2')).breakBefore, 'page', '2ページ目の前');
+    eq(!!$('#rptP2 #rptChart'), false, '2ページ目に図が混ざっている');
+    return true;
+  });
+  test('PDF: 2ページ目以降は1段組みで、節が決まった順に並ぶ', () => {
+    const r = buildReport();
+    const keys = r.sections.map(x => x.k).filter(k => ['about', 'basic', 'verdict', 'signals', 'ind', 'tail', 'note'].includes(k));
+    eq(keys.join(','), 'about,basic,verdict,signals,ind,tail,note', '節の順番');
+    const h = Array.from($('#rptBody').querySelectorAll('h3')).map(x => x.textContent);
+    eq(h.length, r.sections.filter(x => x.pdf !== false).length, '見出しの数');
+    eq(h[0], '1. このPDFについて', '最初の見出し');
+    const grids = Array.from($('#report').querySelectorAll('*')).filter(x => {
+      const cs = getComputedStyle(x);
+      return cs.display.includes('grid') || (parseInt(cs.columnCount, 10) > 1);
+    });
+    eq(grids.length, 0, '2段組みの箱が残っている');
+    eq(/\[(強気|弱気|注意|中立|—)\] /.test($('#rptBody').textContent), true, 'シグナルの強弱が文字で入っていない');
+    return true;
+  });
+  test('PDF: 直近の値動きはCSV(分足は時刻つき、桁は大きさに合わせて丸める)', () => {
+    eq(csvNum(2988.6196009143996), '2988.62', '株価'); eq(csvNum(150.12345), '150.123', 'ドル円');
+    eq(csvNum(1.084213), '1.08421', 'ユーロドル'); eq(csvNum(NaN), '', '空');
+    const rows = reportTail(3);
+    eq(rows.length, 3, '本数');
+    eq(rows.every(x => x.split(',').length === 6), true, '列の数');
+    const keepIv = state.interval;
+    try { state.interval = '5m'; eq(/^\d{4}\/\d{2}\/\d{2} \d{1,2}:\d{2},/.test(reportTail(1)[0]), true, '分足の時刻'); }
+    finally { state.interval = keepIv; }
+    eq(rptNum(1.0842), '1.0842', '10未満は4桁'); eq(rptNum(2647.013), '2647.01', '10以上は2桁');
+    return true;
+  });
+  test('PDF: 銘柄名に記号があっても、どこにもタグとして入らない', () => {
+    const keepName = state.raw.name;
+    try{
+      state.raw.name = XSS; buildReport({withChart: false}); buildReport();
+      /* 図の <img> は1枚だけ正規に入ります。それ以外のタグが無いこと、名前が文字のまま出ていること */
+      const imgs = $('#report').querySelectorAll('img');
+      eq(imgs.length, 1, '画像の数'); eq(imgs[0] && imgs[0].parentElement.id, 'rptChart', '画像の場所');
+      eq(!!$('#report').querySelector('script, iframe, object, embed, svg'), false, 'タグが生成された');
+      eq($('#rptHead').textContent.indexOf('<img src=x') >= 0, true, '名前が文字のまま出ていない');
+      return eq($('#rptBody').textContent.indexOf('<script>') >= 0, true, '2ページ目に名前が文字のまま出ていない');
+    }
+    finally { state.raw.name = keepName; buildReport({withChart: false}); }
+  });
+  test('PDF: 文字だけのコピーは、同じ中身を Markdown の見出しで出す(図は描き直さない)', () => {
+    const keep = reportChart;
+    let drew = 0;
+    reportChart = () => { drew++; return keep(); };
+    let t;
+    try { t = reportText(); } finally { reportChart = keep; }
+    eq(drew, 0, '文字だけなのに図を描き直した');
+    eq(/^# .+ テクニカル分析/.test(t), true, '題名');
+    const hs = t.split('\n').filter(l => l.startsWith('## ')).map(l => l.slice(3));
+    eq(hs[0], '基本情報', '最初の節'); eq(hs.includes('このPDFについて'), false, 'PDFの読み方が入っている');
+    eq(hs.some(x => /^シグナル一覧/.test(x)), true, 'シグナル'); eq(hs.includes('チャートに出している指標'), true, '指標の一覧');
+    eq(/```csv\n日付,始値,高値,安値,終値,出来高\n/.test(t), true, 'CSV');
+    return true;
+  });
+
   tgroup('保存と復元');
   test('信用残: 札が合っていても桁の違う点は外す', () => {
     /* 信用残は週次・貸借残は日次で日付がぶつからないので、混ざっていても
@@ -24671,13 +24985,13 @@ $('#relayDl').addEventListener('click', () => {
   relayStatus('worker.js を保存しました。Cloudflare の Edit code に貼り付けてください。');
 });
 
-/* ---- one-page report ------------------------------------------------- */
+/* ---- PDF report (page 1 = chart, page 2+ = analysis) ------------------ */
 const rptMsg = (m, err) => {
   const el = $('#rptMsg');
   if(el){ el.innerHTML = m || ''; el.style.color = err ? 'var(--critical)' : 'var(--ink-2)'; }
 };
 $('#rptPrint').addEventListener('click', async () => {
-  rptMsg('1枚にまとめています…');
+  rptMsg('PDFを作っています…');
   try{
     await printReport();
     rptMsg('印刷ダイアログの「送信先」で <b>PDFに保存</b> を選んでください。');
