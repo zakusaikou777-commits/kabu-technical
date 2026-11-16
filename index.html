@@ -618,11 +618,14 @@ td:first-child,th:first-child{text-align:left}
 .favempty{font-size:12.5px;color:var(--ink-3);margin:10px 0 0;line-height:1.7}
 .navrow{display:flex;align-items:center;gap:8px;margin:9px 0 0;flex-wrap:wrap}
 /* 作図 */
-.drawrow{display:flex;align-items:center;gap:8px;margin:8px 0 0;flex-wrap:wrap}
+.drawbox{margin:0 0 12px;padding:10px 0 0;border-top:1px solid var(--hairline)}
 .drawtools{display:flex;gap:8px;flex-wrap:wrap}
 .drawtools .chip[aria-pressed="true"]{background:var(--ink-1);color:var(--surface-1);border-color:var(--ink-1)}
-.drawhint{flex:1 1 100%;margin:0;min-height:0}
-.drawhint:empty{display:none}
+.drawhint{margin:7px 0 0;line-height:1.5}
+/* 説明の行数が変わってチャートがずれないよう、スマホでは2行ぶんを取っておきます */
+@media (max-width:700px){.drawhint{min-height:3em}}
+#drawToggle[aria-pressed="true"]{background:var(--ink-1);color:var(--surface-1);border-color:var(--ink-1)}
+
 #chartHost.drawing{touch-action:none}
 /* 下のパネルを1枚ずつ見るときのタブ。横に流して、指1本で切り替えられる大きさに */
 .subtabs{display:flex;gap:6px;margin:8px 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch;
@@ -865,6 +868,19 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
     <button class="chip" data-t="events" aria-pressed="true"><i class="sw" style="background:var(--ink-2)"></i>分割・配当</button>
     <button id="csvBtn" class="chip" aria-pressed="false" style="border-style:dashed">CSVを読み込む</button>
     <input type="file" id="csvFile" accept=".csv,.txt,text/csv" class="sr" aria-hidden="true" tabindex="-1">
+    <!-- 作図(v64)。v65 でチャートの下から、ここ(チャートの上)へ移しました -->
+    <button class="chip" id="drawToggle" aria-pressed="false" aria-expanded="false" aria-controls="drawBox">✎ 作図</button>
+  </div>
+  <!-- 作図のツール。チャートのすぐ上に開きます。線は銘柄ごとに保存し、同期で別の端末にも届きます -->
+  <div class="drawbox hide" id="drawBox" role="group" aria-label="作図">
+    <div class="drawtools" id="drawTools">
+      <button class="chip" data-draw="trend" aria-pressed="false">／ トレンドライン</button>
+      <button class="chip" data-draw="hline" aria-pressed="false">― 水平線</button>
+      <button class="chip" data-draw="fib" aria-pressed="false">≡ フィボナッチ</button>
+      <button class="chip" id="drawDel" disabled>選んだ線を消す</button>
+      <button class="chip" id="drawClear" style="border-style:dashed" disabled>この銘柄の線を全部消す</button>
+    </div>
+    <p class="qsrc drawhint" id="drawHint" role="status"></p>
   </div>
 
   <div class="cols">
@@ -893,18 +909,6 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <button class="chip" id="navEnd">最新へ</button>
       <button class="chip" id="navAll" style="border-style:dashed">全体</button>
       <button class="chip hide" id="navYReset" style="border-color:var(--warn)">縦の拡大を戻す</button>
-    </div>
-    <!-- 作図(v64)。線は銘柄ごとに保存し、同期で別の端末にも届きます -->
-    <div class="drawrow" id="drawBar" role="group" aria-label="作図">
-      <button class="chip" id="drawToggle" aria-pressed="false">✎ 作図</button>
-      <span class="drawtools hide" id="drawTools">
-        <button class="chip" data-draw="trend" aria-pressed="false">／ トレンドライン</button>
-        <button class="chip" data-draw="hline" aria-pressed="false">― 水平線</button>
-        <button class="chip" data-draw="fib" aria-pressed="false">≡ フィボナッチ</button>
-        <button class="chip" id="drawDel" disabled>選んだ線を消す</button>
-        <button class="chip" id="drawClear" style="border-style:dashed" disabled>この銘柄の線を全部消す</button>
-      </span>
-      <span class="qsrc drawhint" id="drawHint" role="status"></span>
     </div>
     <div class="legend" id="legend"></div>
     <!-- Dragging a hairline is a mouse gesture. On a phone this is the way
@@ -1612,8 +1616,8 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v64';
-const APP_DATE = '2026-11-15';
+const APP_VER = 'v65';
+const APP_DATE = '2026-11-16';
 
 /* ============================================================
    1. Small helpers
@@ -5878,8 +5882,10 @@ function renderDrawBar(){
   if(!tg) return;
   const list = Draw.list();
   tg.setAttribute('aria-pressed', String(Draw.open));
-  tg.textContent = Draw.open ? '✎ 作図を閉じる' : `✎ 作図${list.length ? `(${list.length}本)` : ''}`;
-  $('#drawTools').classList.toggle('hide', !Draw.open);
+  tg.setAttribute('aria-expanded', String(Draw.open));
+  tg.textContent = Draw.open ? '✎ 作図を閉じる'
+    : Draw.sel ? '✎ 作図(線を選択中)' : `✎ 作図${list.length ? `(${list.length}本)` : ''}`;
+  $('#drawBox').classList.toggle('hide', !Draw.open);
   for(const b of $$('#drawTools [data-draw]')) b.setAttribute('aria-pressed', String(Draw.tool === b.dataset.draw));
   $('#drawDel').disabled = !Draw.sel;
   $('#drawClear').disabled = !list.length;
@@ -5887,7 +5893,7 @@ function renderDrawBar(){
   let h = '';
   if(Draw.tool === 'hline') h = '線を引きたい高さを押してください。';
   else if(Draw.tool) h = 'チャートの上で、始点から終点までなぞってください。';
-  else if(Draw.sel) h = '選んだ線: 端をつかむと形、線をつかむと位置が変わります。何もない所を押すと選択をやめます。';
+  else if(Draw.sel) h = '選んだ線: 端で形、線で位置を動かせます。何もない所を押すと選択をやめます。';
   else if(Draw.open) h = list.length ? '線を押すと選べます(動かす・消す)。' : 'ツールを選んで線を引いてください。';
   if(Draw.hidden) h += ` 別の通貨の表示で引いた${Draw.hidden}本は出していません。`;
   if(hint) hint.textContent = h.trim();
@@ -5998,7 +6004,8 @@ function drawUp(e){
   if(!pr || pr.id !== e.pointerId || e.target !== cv) return;
   if(Math.hypot(localX(e) - pr.x, localY(e) - pr.y) > 7) return;    /* パンだった */
   const h = drawHit(pr.x, pr.y, pr.touch);
-  if(h){ Draw.sel = h.id; Draw.open = true; drawRefresh(); }
+  /* ツールの欄はチャートの上にあるので、ここで開くとチャートがずれます。開かずに、ボタンの表示で知らせます */
+  if(h){ Draw.sel = h.id; drawRefresh(); }
   else if(Draw.sel){ Draw.sel = ''; drawRefresh(); }
 }
 function drawCancel(){
@@ -20708,6 +20715,8 @@ async function runSelfTestsInner(){
   /* マウスで引いて、選んで、Delete で消す(本物の pointer イベントを流します) */
   let drawUi = '走りませんでした';
   try{
+    /* ツールの欄はチャートの上に開くので、開いてからチャートの位置を測ります */
+    Draw.open = true; Draw.tool = ''; Draw.sel = ''; renderDrawBar();
     redraw();
     const r = cv.getBoundingClientRect(), p = panel('main');
     const at = (fx, fy) => ({x: r.left + p.x + p.w * fx, y: r.top + p.y + p.h * fy});
@@ -20752,6 +20761,27 @@ async function runSelfTestsInner(){
   }catch(e){ drawUi = (e && e.message) || String(e); }
   finally{ drawBack(); }
   test('作図: マウスで引く・選ぶ・端を動かす・Delete で消す(ツールなしならふだんの操作)', () => drawUi);
+  test('作図: ボタンはチャートの上(CSVを読み込むの横)。線を選んでもツールの欄は開かず、チャートはずれない', () => {
+    try{
+      eq($('#drawToggle').parentElement === $('#csvBtn').parentElement, true, 'CSVを読み込むと同じ行にない');
+      eq(!!($('#drawBox').compareDocumentPosition($('#chartHost')) & Node.DOCUMENT_POSITION_FOLLOWING), true, 'ツールの欄がチャートより上にない');
+      const b = state.raw.bars, n = b.length;
+      Draw.open = false; Draw.tool = ''; Draw.sel = '';
+      Draw.save([{id: 'pos1', k: 'hline', a: {t: b[n - 1].t.getTime(), p: b[n - 1].c}, cur: drawCur()}]);
+      redraw();
+      const r = cv.getBoundingClientRect(), p = panel('main'), top0 = r.top;
+      const q = {x: r.left + p.x + p.w * .5, y: r.top + state._mainY(b[n - 1].c)};
+      const fire = type => cv.dispatchEvent(new PointerEvent(type, {clientX: q.x, clientY: q.y, pointerId: 931,
+        pointerType: 'mouse', isPrimary: true, bubbles: true, cancelable: true, button: 0, buttons: type === 'pointerup' ? 0 : 1}));
+      fire('pointerdown'); fire('pointerup');
+      eq(Draw.sel, 'pos1', '線を押しても選べない');
+      eq(Draw.open, false, 'ツールの欄が開いた');
+      eq($('#drawBox').classList.contains('hide'), true, 'ツールの欄が見えている');
+      eq(cv.getBoundingClientRect().top, top0, 'チャートがずれた');
+      eq(/選択中/.test($('#drawToggle').textContent), true, 'ボタンに選択中と出ない');
+      return true;
+    } finally { drawBack(); }
+  });
   test('作図: 線は日時に付いていて、横に動かすと一緒に動く。別の通貨の表示では出さない', () => {
     const view = {i0: state.i0, i1: state.i1, yz: state.yZoom};
     try{
