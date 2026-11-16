@@ -625,6 +625,22 @@ td:first-child,th:first-child{text-align:left}
 /* 説明の行数が変わってチャートがずれないよう、スマホでは2行ぶんを取っておきます */
 @media (max-width:700px){.drawhint{min-height:3em}}
 #drawToggle[aria-pressed="true"]{background:var(--ink-1);color:var(--surface-1);border-color:var(--ink-1)}
+.drawcolors{display:flex;align-items:center;gap:9px;margin:9px 0 0;flex-wrap:wrap}
+.dcol{width:24px;height:24px;padding:0;border-radius:50%;border:2px solid var(--surface-1);
+  box-shadow:0 0 0 1px var(--hairline);cursor:pointer}
+.dcol[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink-1)}
+/* 一覧は1行(横にスクロール)。線が増えても欄の高さが変わらず、チャートがずれません */
+.drawlist{display:flex;align-items:center;gap:6px;margin:9px 0 0;height:44px;overflow-x:auto;overflow-y:hidden;
+  white-space:nowrap;scrollbar-width:thin}
+.dlhead{flex:none;margin-right:2px}
+.dlitem{flex:none;display:inline-flex;align-items:center;border:1px solid var(--hairline);border-radius:999px;
+  background:var(--surface-1)}
+.dlitem.on{border-color:var(--ink-1);box-shadow:0 0 0 1px var(--ink-1)}
+.dlsel{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:5px 3px 5px 10px;
+  font:inherit;font-size:12px;color:var(--ink-1);cursor:pointer}
+.dsw{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.dldel{background:none;border:0;padding:5px 10px 5px 5px;font-size:15px;line-height:1;color:var(--ink-3);cursor:pointer}
+.dldel:hover,.dldel:focus-visible{color:var(--critical)}
 
 #chartHost.drawing{touch-action:none}
 /* 下のパネルを1枚ずつ見るときのタブ。横に流して、指1本で切り替えられる大きさに */
@@ -880,6 +896,18 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
       <button class="chip" id="drawDel" disabled>選んだ線を消す</button>
       <button class="chip" id="drawClear" style="border-style:dashed" disabled>この銘柄の線を全部消す</button>
     </div>
+    <div class="drawcolors" id="drawColors" role="group" aria-label="線の色">
+      <span class="qsrc">色</span>
+      <button class="dcol" data-dcol="ink" aria-pressed="true" title="黒(ダークテーマでは白)" aria-label="黒(ダークテーマでは白)" style="background:var(--ink-1)"></button>
+      <button class="dcol" data-dcol="red" aria-pressed="false" title="赤" aria-label="赤" style="background:#e0393e"></button>
+      <button class="dcol" data-dcol="orange" aria-pressed="false" title="橙" aria-label="橙" style="background:#e8860c"></button>
+      <button class="dcol" data-dcol="green" aria-pressed="false" title="緑" aria-label="緑" style="background:#1f9d55"></button>
+      <button class="dcol" data-dcol="blue" aria-pressed="false" title="青" aria-label="青" style="background:#2f6fde"></button>
+      <button class="dcol" data-dcol="purple" aria-pressed="false" title="紫" aria-label="紫" style="background:#8a4fd8"></button>
+      <button class="dcol" data-dcol="pink" aria-pressed="false" title="桃" aria-label="桃" style="background:#d6409f"></button>
+    </div>
+    <!-- 引いた線の一覧。押すと選び、×で消します(チャートの上で線を狙わなくても消せるように) -->
+    <div class="drawlist" id="drawList" aria-label="引いた線"></div>
     <p class="qsrc drawhint" id="drawHint" role="status"></p>
   </div>
 
@@ -1616,7 +1644,7 @@ footer{font-size:12px;color:var(--ink-3);line-height:1.75;padding:6px 0 0;border
    ファイル名でしか分からない状態になっていました。番号と日付を
    画面に出しておけば、開いているファイルを見れば分かります。
    ============================================================ */
-const APP_VER = 'v65';
+const APP_VER = 'v66';
 const APP_DATE = '2026-11-16';
 
 /* ============================================================
@@ -5625,6 +5653,10 @@ function drawGrips(g){
 const DRAW_KINDS = {trend: 'トレンドライン', hline: '水平線', fib: 'フィボナッチ'};
 const DRAW_PER_CODE = 40, DRAW_CODES = 80;
 const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+/* 線の色(v66)。ink は基本の色(ライトでは黒、ダークでは白)。ほかは両方のテーマで読める濃さ */
+const DRAW_COLORS = {ink: '黒', red: '赤', orange: '橙', green: '緑', blue: '青', purple: '紫', pink: '桃'};
+const DRAW_HEX = {red: '#e0393e', orange: '#e8860c', green: '#1f9d55', blue: '#2f6fde', purple: '#8a4fd8', pink: '#d6409f'};
+function drawColor(c){ return DRAW_HEX[c] || C.ink1 || '#0b0b0b'; }
 const DRAW_T_MIN = Date.UTC(1950, 0, 1), DRAW_T_MAX = Date.UTC(2200, 0, 1);
 
 function sanitizeAnchor(a){
@@ -5646,7 +5678,9 @@ function sanitizeDrawList(list){
     if(!a || (d.k !== 'hline' && !b)) continue;
     const cur = /^[A-Z]{3}$/.test(String(d.cur || '')) ? String(d.cur) : '';
     seen.add(id);
-    out.push(d.k === 'hline' ? {id, k: d.k, a, cur} : {id, k: d.k, a, b, cur});
+    const o = d.k === 'hline' ? {id, k: d.k, a, cur} : {id, k: d.k, a, b, cur};
+    if(owns(DRAW_HEX, d.c)) o.c = d.c;
+    out.push(o);
     if(out.length >= DRAW_PER_CODE) break;
   }
   return out;
@@ -5689,7 +5723,11 @@ const Draw = {
     Store.set('draws', this.all);
     if(typeof scheduleSync === 'function') scheduleSync();
   },
-  newId(){ return 'd' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+  newId(){ return 'd' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); },
+  /* 次に引く線の色(端末ごとに覚えます) */
+  get color(){ const v = String(Store.get('drawColor', 'ink') || 'ink'); return owns(DRAW_COLORS, v) ? v : 'ink'; },
+  set color(v){ Store.set('drawColor', owns(DRAW_COLORS, v) ? v : 'ink'); },
+  newColor(){ const c = this.color; return owns(DRAW_HEX, c) ? {c} : {}; }
 };
 /* いま画面に出している通貨。円で引いた線を、ドル建ての表示に重ねると嘘になります */
 const drawCur = () => (typeof dispCur !== 'undefined' && dispCur) || (state.raw && state.raw.currency) || '';
@@ -5793,7 +5831,8 @@ function drawDrawings(g){
     const on = d.id === Draw.sel || (Draw.act && Draw.act.d === d);
     const A = drawXY(d.a), B = d.b ? drawXY(d.b) : null;
     if(!isNum(A.x) || !isNum(A.y)) continue;
-    g.strokeStyle = C.ink1; g.fillStyle = C.ink1;
+    const col = drawColor(d.c);
+    g.strokeStyle = col; g.fillStyle = col;
     g.lineWidth = on ? 2.4 : 1.6;
     g.setLineDash([]);
     const label = (txt, x, y) => {
@@ -5802,7 +5841,7 @@ function drawDrawings(g){
       g.save();
       g.fillStyle = C.surface; g.globalAlpha = .85;
       g.fillRect(lx, y - sz - 3, w, sz + 4);
-      g.globalAlpha = 1; g.fillStyle = C.ink1;
+      g.globalAlpha = 1; g.fillStyle = col;
       g.textAlign = 'left'; g.textBaseline = 'bottom';
       g.fillText(txt, lx + 4, y);
       g.restore();
@@ -5823,8 +5862,8 @@ function drawDrawings(g){
         const pr = fibPrice(d, lv), Y = Math.round(state._mainY(pr)) + .5;
         if(!isNum(Y)) continue;
         g.save();
-        g.strokeStyle = (lv === 0 || lv === 1) ? C.ink1 : C.ink2;
-        g.globalAlpha = (lv === 0 || lv === 1) ? 1 : .85;
+        g.strokeStyle = col;
+        g.globalAlpha = (lv === 0 || lv === 1) ? 1 : .7;
         g.lineWidth = on ? 1.8 : 1.1;
         g.beginPath(); g.moveTo(x0, Y); g.lineTo(p.x + p.w, Y); g.stroke();
         g.restore();
@@ -5835,7 +5874,7 @@ function drawDrawings(g){
       for(const P2 of [A, B]){
         g.beginPath(); g.arc(P2.x, P2.y, 5, 0, Math.PI * 2);
         g.fillStyle = C.surface; g.fill();
-        g.lineWidth = 2; g.strokeStyle = C.ink1; g.stroke();
+        g.lineWidth = 2; g.strokeStyle = col; g.stroke();
       }
     }
   }
@@ -5848,33 +5887,41 @@ function segDist(x, y, A, B){
   const t = L ? clamp(((x - A.x) * dx + (y - A.y) * dy) / L, 0, 1) : 0;
   return Math.hypot(x - (A.x + t * dx), y - (A.y + t * dy));
 }
-function drawHit(x, y, touch, onlyId){
-  if(!state.raw || typeof state._mainY !== 'function') return null;
+/* 押した場所に当たる線を、近い順に全部。重なっているときは、押すたびに次の線を選びます
+   (フィボナッチの上をトレンドラインが横切ると、近いほうしか選べず、下の線が消せませんでした) */
+function drawHits(x, y, touch, onlyId){
+  if(!state.raw || typeof state._mainY !== 'function') return [];
   const p = panel('main');
-  if(!p || x < p.x - 4 || x > p.x + p.w + 4 || y < p.y - 4 || y > p.y + p.h + 4) return null;
-  const tol = touch ? 14 : 6, hr = touch ? 20 : 9, cur = drawCur();
-  let best = null;
-  const take = (d, part, dist) => { if(!best || dist < best.dist) best = {id: d.id, d, part, dist}; };
+  if(!p || x < p.x - 4 || x > p.x + p.w + 4 || y < p.y - 4 || y > p.y + p.h + 4) return [];
+  const tol = touch ? 16 : 8, hr = touch ? 22 : 10, cur = drawCur();
+  const out = [];
   for(const d of Draw.list()){
     if(onlyId && d.id !== onlyId) continue;
     if(d.cur && cur && d.cur !== cur) continue;
     const A = drawXY(d.a), B = d.b ? drawXY(d.b) : null;
+    let part = '', dist = Infinity;
     if(d.k === 'hline'){
-      const dist = Math.abs(y - A.y);
-      if(dist <= tol) take(d, 'body', dist);
-      continue;
+      dist = Math.abs(y - A.y);
+      part = dist <= tol ? 'body' : '';
+    } else {
+      /* 端はつかみやすく(線より広く)、そして線より先に見ます */
+      const da = Math.hypot(x - A.x, y - A.y), db = Math.hypot(x - B.x, y - B.y);
+      if(da <= hr || db <= hr){
+        part = da <= db ? 'a' : 'b';
+        dist = Math.min(da, db) - hr;
+      } else {
+        dist = segDist(x, y, A, B);
+        if(d.k === 'fib' && x >= Math.min(A.x, B.x) - tol){
+          for(const lv of FIB_LEVELS) dist = Math.min(dist, Math.abs(y - state._mainY(fibPrice(d, lv))));
+        }
+        part = dist <= tol ? 'body' : '';
+      }
     }
-    /* 端はつかみやすく(線より広く)、そして線より先に見ます */
-    const da = Math.hypot(x - A.x, y - A.y), db = Math.hypot(x - B.x, y - B.y);
-    if(da <= hr || db <= hr){ take(d, da <= db ? 'a' : 'b', Math.min(da, db) - hr); continue; }
-    let dist = segDist(x, y, A, B);
-    if(d.k === 'fib' && x >= Math.min(A.x, B.x) - tol){
-      for(const lv of FIB_LEVELS) dist = Math.min(dist, Math.abs(y - state._mainY(fibPrice(d, lv))));
-    }
-    if(dist <= tol) take(d, 'body', dist);
+    if(part) out.push({id: d.id, d, part, dist});
   }
-  return best;
+  return out.sort((u, v) => u.dist - v.dist);
 }
+function drawHit(x, y, touch, onlyId){ return drawHits(x, y, touch, onlyId)[0] || null; }
 
 /* ---- ツールの列 ----------------------------------------------------- */
 function renderDrawBar(){
@@ -5889,12 +5936,30 @@ function renderDrawBar(){
   for(const b of $$('#drawTools [data-draw]')) b.setAttribute('aria-pressed', String(Draw.tool === b.dataset.draw));
   $('#drawDel').disabled = !Draw.sel;
   $('#drawClear').disabled = !list.length;
+  /* 色: 線を選んでいればその線の色、いなければ次に引く線の色 */
+  const selD = Draw.sel ? list.find(d => d.id === Draw.sel) : null;
+  const curC = selD ? (selD.c || 'ink') : Draw.color;
+  for(const b of $$('#drawColors [data-dcol]')) b.setAttribute('aria-pressed', String(b.dataset.dcol === curC));
+  const dl = $('#drawList');
+  if(dl){
+    const cur = drawCur();
+    dl.innerHTML = list.length
+      ? '<span class="qsrc dlhead">引いた線</span>' + list.map(d => {
+          const lab = drawLabel(d) + (d.cur && cur && d.cur !== cur ? '(別の通貨)' : '');
+          const on = d.id === Draw.sel;
+          return `<span class="dlitem${on ? ' on' : ''}">`
+            + `<button class="dlsel" data-dsel="${esc(d.id, 24)}" aria-pressed="${on}">`
+            + `<i class="dsw" style="background:${esc(drawColor(d.c), 24)}"></i>${esc(lab, 60)}</button>`
+            + `<button class="dldel" data-ddel="${esc(d.id, 24)}" title="消す" aria-label="${esc(lab, 60)}を消す">×</button></span>`;
+        }).join('')
+      : '<span class="qsrc dlhead">引いた線はまだありません</span>';
+  }
   const hint = $('#drawHint');
   let h = '';
   if(Draw.tool === 'hline') h = '線を引きたい高さを押してください。';
   else if(Draw.tool) h = 'チャートの上で、始点から終点までなぞってください。';
-  else if(Draw.sel) h = '選んだ線: 端で形、線で位置を動かせます。何もない所を押すと選択をやめます。';
-  else if(Draw.open) h = list.length ? '線を押すと選べます(動かす・消す)。' : 'ツールを選んで線を引いてください。';
+  else if(Draw.sel) h = '選んだ線: 端で形、線で位置を動かせます。色ボタンで色が変わります。重なった所は押すたびに次の線を選びます。';
+  else if(Draw.open) h = list.length ? '色を変える・動かすときは、線を押すか上の一覧で選んでください(×ですぐ消えます)。' : 'ツールと色を選んで、線を引いてください。';
   if(Draw.hidden) h += ` 別の通貨の表示で引いた${Draw.hidden}本は出していません。`;
   if(hint) hint.textContent = h.trim();
   /* ツールを選んでいるとき・線を選んでいるときだけ、指の動きをページのスクロールに渡しません */
@@ -5902,6 +5967,12 @@ function renderDrawBar(){
   if(host) host.classList.toggle('drawing', !!(Draw.tool || Draw.sel));
 }
 function drawRefresh(){ renderBase(); paint(); renderDrawBar(); }
+/* 一覧に出す名前。日付は月/日だけ(長いと一覧が横に伸びるので) */
+function drawLabel(d){
+  const md = t => fmtDate({t: new Date(t)});
+  if(d.k === 'hline') return `水平線 ${drawFmt(d.a.p)}`;
+  return `${d.k === 'fib' ? 'フィボ' : 'トレンドライン'} ${md(d.a.t)}→${md(d.b.t)}`;
+}
 function drawDeleteSel(){
   if(!Draw.sel) return false;
   const list = Draw.list().filter(d => d.id !== Draw.sel);
@@ -5927,13 +5998,15 @@ function drawDown(e){
   if(Draw.tool && inPlot){
     const a = drawSnap(x, y, touch, Draw.tool === 'hline');
     if(Draw.tool === 'hline'){
-      const d = {id: Draw.newId(), k: 'hline', a, cur: drawCur()};
+      const d = Object.assign({id: Draw.newId(), k: 'hline', a, cur: drawCur()}, Draw.newColor());
       Draw.save(Draw.list().concat([d]));
-      Draw.sel = d.id; Draw.tool = ''; Draw.lastAt = Date.now();
+      /* 引いた直後は選びません。選んだままだと、次の線のために色を押したとき、
+         引いたばかりの線の色が変わってしまいます */
+      Draw.sel = ''; Draw.tool = ''; Draw.lastAt = Date.now();
       drawRefresh();
     } else {
       Draw.act = {id: e.pointerId, mode: 'new', touch, x0: x, y0: y,
-                  d: {id: Draw.newId(), k: Draw.tool, a, b: Object.assign({}, a), cur: drawCur()}};
+                  d: Object.assign({id: Draw.newId(), k: Draw.tool, a, b: Object.assign({}, a), cur: drawCur()}, Draw.newColor())};
     }
     take = true;
   } else if(Draw.sel){
@@ -5960,6 +6033,11 @@ function drawMove(e){
   const A = Draw.act;
   if(!A || e.pointerId !== A.id) return;
   const x = localX(e), y = localY(e);
+  /* つかんだだけ(数px)では動かしません。押しただけの線が、吸い付きでずれないように */
+  if(!A.moved){
+    if(Math.hypot(x - A.x0, y - A.y0) <= 3) return;
+    A.moved = true;
+  }
   if(A.mode === 'new'){
     A.d.b = drawSnap(x, y, A.touch, false);
   } else if(A.mode === 'a' || A.mode === 'b'){
@@ -5991,8 +6069,16 @@ function drawUp(e){
         return;
       }
       Draw.save(Draw.list().concat([A.d]));
-      Draw.sel = A.d.id;
+      Draw.sel = '';                   /* 引いた直後は選びません(水平線と同じ理由) */
       Draw.tool = '';
+    } else if(!A.moved){
+      /* 選んである線を押しただけ: 重なっている別の線があれば、そちらを選びます */
+      A.d.a = A.a0; if(A.b0) A.d.b = A.b0;
+      const hs = drawHits(A.x0, A.y0, A.touch);
+      if(hs.length > 1){
+        const k = hs.findIndex(h => h.id === A.d.id);
+        Draw.sel = hs[(k + 1) % hs.length].id;
+      }
     } else {
       Draw.save(Draw.list());
     }
@@ -6002,7 +6088,7 @@ function drawUp(e){
   const pr = Draw.press;
   Draw.press = null;
   if(!pr || pr.id !== e.pointerId || e.target !== cv) return;
-  if(Math.hypot(localX(e) - pr.x, localY(e) - pr.y) > 7) return;    /* パンだった */
+  if(Math.hypot(localX(e) - pr.x, localY(e) - pr.y) > 10) return;   /* パンだった */
   const h = drawHit(pr.x, pr.y, pr.touch);
   /* ツールの欄はチャートの上にあるので、ここで開くとチャートがずれます。開かずに、ボタンの表示で知らせます */
   if(h){ Draw.sel = h.id; drawRefresh(); }
@@ -6154,6 +6240,9 @@ function fmtStamp(b, withYear){
 function hideTip(){ tip.style.opacity = 0; }
 
 function showTip(i, X, Y){
+  /* 作図の欄を開いているあいだは、値段の吹き出しを出しません。線を引きたい場所を
+     大きな箱が覆って、作図の邪魔になっていました(十字の線は残します) */
+  if(typeof Draw !== 'undefined' && (Draw.open || Draw.act)){ hideTip(); return; }
   const b = state.raw.bars[i], d = state.ind, cur = shownCurrency(), T = state.toggles;
   /* The comparison rows are ADDED to the readout, not put in place of it.
      Replacing it threw away the open/high/low/close and every indicator the
@@ -17242,10 +17331,11 @@ function drawReportLines(){
   const day = t => fmtStamp({t: new Date(t)}, true);
   for(const d of Draw.list()){
     if(d.cur && cur && d.cur !== cur) continue;
-    if(d.k === 'hline') out.push(`水平線: ${drawFmt(d.a.p)}`);
-    else if(d.k === 'trend') out.push(`トレンドライン: ${day(d.a.t)} ${drawFmt(d.a.p)} → ${day(d.b.t)} ${drawFmt(d.b.p)}`
+    const cn = `(${DRAW_COLORS[d.c] || '黒'})`;
+    if(d.k === 'hline') out.push(`水平線${cn}: ${drawFmt(d.a.p)}`);
+    else if(d.k === 'trend') out.push(`トレンドライン${cn}: ${day(d.a.t)} ${drawFmt(d.a.p)} → ${day(d.b.t)} ${drawFmt(d.b.p)}`
       + `(最新の足の位置まで延ばすと ${drawFmt(trendAt(d, n))})`);
-    else out.push(`フィボナッチ: ${day(d.a.t)} ${drawFmt(d.a.p)} → ${day(d.b.t)} ${drawFmt(d.b.p)} / `
+    else out.push(`フィボナッチ${cn}: ${day(d.a.t)} ${drawFmt(d.a.p)} → ${day(d.b.t)} ${drawFmt(d.b.p)} / `
       + FIB_LEVELS.map(lv => `${String(+(lv * 100).toFixed(1))}%=${drawFmt(fibPrice(d, lv))}`).join('、'));
   }
   return out;
@@ -17278,8 +17368,8 @@ function reportLegend(panels){
   const dl = drawReportLines();
   if(dl.length){
     const cnt = k => dl.filter(l => l.startsWith(DRAW_KINDS[k])).length;
-    main.push('自分で引いた線: 黒の線(' + Object.keys(DRAW_KINDS).filter(k => cnt(k)).map(k => `${DRAW_KINDS[k]}${cnt(k)}本`).join('・')
-      + ')。値は2ページ目以降の「自分で引いた線」');
+    main.push('自分で引いた線: ' + Object.keys(DRAW_KINDS).filter(k => cnt(k)).map(k => `${DRAW_KINDS[k]}${cnt(k)}本`).join('・')
+      + '(色は線ごと。どの線が何色かと値は、2ページ目以降の「自分で引いた線」)');
   }
   const subs = (panels || []).filter(p => p.key !== 'main').map((p, i) => `${i + 1}. ${p.title}`);
   return {main, subs};
@@ -20733,7 +20823,8 @@ async function runSelfTestsInner(){
     const L = Draw.list();
     if(L.length !== n0 + 1) errs.push(`線の本数 ${L.length}(期待 ${n0 + 1})`);
     const d = L[L.length - 1] || {};
-    if(d.k !== 'trend' || Draw.sel !== d.id || Draw.tool !== '') errs.push('引いたあとの状態 ' + JSON.stringify({k: d.k, sel: !!Draw.sel, tool: Draw.tool}));
+    if(d.k !== 'trend' || Draw.sel !== '' || Draw.tool !== '') errs.push('引いたあとの状態 ' + JSON.stringify({k: d.k, sel: !!Draw.sel, tool: Draw.tool}));
+    if(d.c !== Draw.newColor().c) errs.push('引いた線の色が、選んでいた色になっていない');
     if(state.i0 !== i0) errs.push('線を引いたのに横に動いた');
     /* 何もない所を押すと選択をやめ、線を押すと選ぶ */
     fire('pointerdown', at(.97, .03), 902); fire('pointerup', at(.97, .03), 902);
@@ -20781,6 +20872,103 @@ async function runSelfTestsInner(){
       eq(/選択中/.test($('#drawToggle').textContent), true, 'ボタンに選択中と出ない');
       return true;
     } finally { drawBack(); }
+  });
+  test('作図: 作図の欄を開いているあいだは、値段の吹き出しを出さない', () => {
+    const keepH = state.hover, view = {i0: state.i0, i1: state.i1};
+    try{
+      const n = state.raw.bars.length - 1;
+      state.i1 = n; state.i0 = Math.max(0, n - 100);
+      redraw();
+      Draw.open = false; state.hover = n; paint();
+      const shown = +getComputedStyle(tip).opacity > 0 || tip.style.opacity === '1';
+      Draw.open = true; renderDrawBar(); state.hover = n; paint();
+      eq(tip.style.opacity, '0', '作図中に吹き出しが出た');
+      return eq(shown, true, '作図していないときに吹き出しが出ない(試験の前提)');
+    } finally { state.hover = keepH; state.i0 = view.i0; state.i1 = view.i1; hideTip(); drawBack(); }
+  });
+  test('作図: 線ごとに色を選べる(次に引く線の色・選んだ線の塗り替え・同期で来た色の確かめ)', () => {
+    const keepC = Store.get('drawColor', 'ink');
+    try{
+      const b = state.raw.bars, n = b.length;
+      const L = sanitizeDrawList([{id: 'c1', k: 'hline', a: {t: b[n - 1].t.getTime(), p: 1}, c: 'red'},
+                                  {id: 'c2', k: 'hline', a: {t: b[n - 1].t.getTime(), p: 2}, c: 'url(x)'},
+                                  {id: 'c3', k: 'hline', a: {t: b[n - 1].t.getTime(), p: 3}, c: 'ink'}]);
+      eq(L.map(d => d.c || '').join(','), 'red,,', '色の確かめ');
+      Draw.color = 'green';
+      eq(Draw.newColor().c, 'green', '次に引く線の色');
+      Draw.save([{id: 'c9', k: 'hline', a: {t: b[n - 1].t.getTime(), p: b[n - 1].c}}]);
+      Draw.open = true; Draw.sel = 'c9'; renderDrawBar();
+      $('#drawColors [data-dcol="purple"]').click();
+      eq(Draw.list()[0].c, 'purple', '選んだ線の色が変わらない');
+      eq($('#drawColors [data-dcol="purple"]').getAttribute('aria-pressed'), 'true', '押した色の印');
+      $('#drawColors [data-dcol="ink"]').click();
+      eq(Draw.list()[0].c, undefined, '基本の色に戻せない');
+      eq(drawColor('blue'), '#2f6fde', '色の値');
+      return true;
+    } finally { Store.set('drawColor', keepC); drawBack(); }
+  });
+  test('作図: 色→ツール→引く、を続けても、前に引いた線の色は変わらない(引いた直後は選ばない)', () => {
+    const keepC = Store.get('drawColor', 'ink');
+    try{
+      Draw.save([]); Draw.open = true; Draw.sel = ''; Draw.tool = ''; renderDrawBar(); redraw();
+      const r = cv.getBoundingClientRect(), p = panel('main');
+      const at = (fx, fy) => ({x: r.left + p.x + p.w * fx, y: r.top + p.y + p.h * fy});
+      const fire = (type, q, id) => cv.dispatchEvent(new PointerEvent(type, {clientX: q.x, clientY: q.y,
+        pointerId: id, pointerType: 'mouse', isPrimary: true, bubbles: true, cancelable: true, button: 0, buttons: type === 'pointerup' ? 0 : 1}));
+      const drag = (f1, f2, id) => { fire('pointerdown', at(...f1), id); for(let k = 1; k <= 5; k++) fire('pointermove', at(f1[0] + (f2[0] - f1[0]) * k / 5, f1[1] + (f2[1] - f1[1]) * k / 5), id); fire('pointerup', at(...f2), id); };
+      $('#drawColors [data-dcol="orange"]').click(); $('#drawTools [data-draw="fib"]').click();
+      drag([.3, .8], [.5, .2], 951);
+      $('#drawColors [data-dcol="blue"]').click(); $('#drawTools [data-draw="trend"]').click();
+      drag([.1, .5], [.9, .6], 952);
+      $('#drawColors [data-dcol="red"]').click(); $('#drawTools [data-draw="hline"]').click();
+      fire('pointerdown', at(.5, .15), 953); fire('pointerup', at(.5, .15), 953);
+      return eq(Draw.list().map(d => `${d.k}:${d.c || 'ink'}`).join(' '), 'fib:orange trend:blue hline:red', '線ごとの色');
+    } finally { Store.set('drawColor', keepC); drawBack(); }
+  });
+  test('作図: 引いた線の一覧から選べて、×ですぐ消せる', () => {
+    try{
+      const b = state.raw.bars, n = b.length, t = b[n - 1].t.getTime();
+      Draw.save([{id: 'l1', k: 'hline', a: {t, p: 10}}, {id: 'l2', k: 'fib', a: {t: b[n - 30].t.getTime(), p: 5}, b: {t, p: 15}, c: 'blue'},
+                 {id: 'l3', k: 'trend', a: {t: b[n - 20].t.getTime(), p: 7}, b: {t, p: 9}}]);
+      Draw.open = true; Draw.sel = ''; renderDrawBar();
+      const items = $$('#drawList .dlitem');
+      eq(items.length, 3, '一覧の数');
+      eq(/フィボ/.test(items[1].textContent), true, '一覧の名前');
+      $('#drawList [data-dsel="l3"]').click();
+      eq(Draw.sel, 'l3', '一覧から選べない');
+      $('#drawList [data-ddel="l2"]').click();
+      eq(Draw.list().map(d => d.id).join(','), 'l1,l3', '×で、その線だけが消えない');
+      eq(Draw.sel, '', '消したあとも選んだまま');
+      return noInjection('#drawList', '一覧');
+    } finally { drawBack(); }
+  });
+  test('作図: 重なった線は、押すたびに次の線を選ぶ(下の線も選べる)。線を増やしてもチャートはずれない', () => {
+    const view = {i0: state.i0, i1: state.i1, yz: state.yZoom};
+    try{
+      const b = state.raw.bars, n = b.length, pr = b[n - 1].c, t = b[n - 1].t.getTime();
+      state.i1 = n - 1; state.i0 = Math.max(0, n - 100); state.yZoom = 1;
+      Draw.open = true; Draw.sel = ''; Draw.tool = '';
+      Draw.save([]);                 /* 0本 → 3本で、一覧の欄の高さが変わらないこと */
+      redraw();
+      const top0 = cv.getBoundingClientRect().top;
+      Draw.save([{id: 'o1', k: 'hline', a: {t, p: pr}}, {id: 'o2', k: 'hline', a: {t, p: pr}}, {id: 'o3', k: 'hline', a: {t, p: pr * 1.5}}]);
+      drawRefresh();
+      eq(cv.getBoundingClientRect().top, top0, '線を増やしたらチャートがずれた');
+      const r = cv.getBoundingClientRect(), p = panel('main');
+      const q = {x: r.left + p.x + p.w * .5, y: r.top + state._mainY(pr)};
+      const tap = id => { for(const ty of ['pointerdown', 'pointerup']) cv.dispatchEvent(new PointerEvent(ty, {clientX: q.x, clientY: q.y,
+        pointerId: id, pointerType: 'mouse', isPrimary: true, bubbles: true, cancelable: true, button: 0, buttons: ty === 'pointerup' ? 0 : 1})); };
+      tap(941);
+      const first = Draw.sel;
+      eq(['o1', 'o2'].includes(first), true, '重なった所で線が選べない');
+      tap(942);
+      eq(Draw.sel !== first && ['o1', 'o2'].includes(Draw.sel), true, 'もう一度押しても次の線にならない');
+      tap(943);
+      eq(Draw.sel, first, '3回目で最初の線に戻らない');
+      eq(Draw.list().find(d => d.id === 'o1').a.p, pr, '押しただけで線が動いた');
+      eq(drawHits(q.x - r.left, q.y - r.top, false).length, 2, '当たった線の数');
+      return true;
+    } finally { state.i0 = view.i0; state.i1 = view.i1; state.yZoom = view.yz; drawBack(); }
   });
   test('作図: 線は日時に付いていて、横に動かすと一緒に動く。別の通貨の表示では出さない', () => {
     const view = {i0: state.i0, i1: state.i1, yz: state.yZoom};
@@ -20840,7 +21028,7 @@ async function runSelfTestsInner(){
       const sec = r.sections.find(x => x.k === 'draw');
       eq(!!sec, true, '節がない');
       eq(sec && sec.lines.length, 2, '本数');
-      eq(sec && /水平線: 1,234\.5/.test(sec.lines[0]), true, '水平線の値');
+      eq(sec && /水平線\(黒\): 1,234\.5/.test(sec.lines[0]), true, '水平線の値と色');
       eq(sec && /61\.8%=138\.2/.test(sec.lines[1]), true, 'フィボの値(終点200から始点100へ61.8%戻した値)');
       eq(r.legend.main.some(l => /自分で引いた線/.test(l)), true, '図の見方');
       return true;
@@ -23618,6 +23806,39 @@ $('#drawTools').addEventListener('click', e => {
   drawRefresh();
 });
 $('#drawDel').addEventListener('click', () => drawDeleteSel());
+$('#drawColors').addEventListener('click', e => {
+  const b = e.target.closest('[data-dcol]');
+  if(!b || !owns(DRAW_COLORS, b.dataset.dcol)) return;
+  const c = b.dataset.dcol;
+  Draw.color = c;
+  /* 線を選んでいれば、その線の色も変えます */
+  if(Draw.sel) Draw.save(Draw.list().map(d => {
+    if(d.id !== Draw.sel) return d;
+    const o = Object.assign({}, d);
+    if(owns(DRAW_HEX, c)) o.c = c; else delete o.c;
+    return o;
+  }));
+  drawRefresh();
+});
+$('#drawList').addEventListener('click', e => {
+  const del = e.target.closest('[data-ddel]');
+  if(del){ Draw.sel = del.dataset.ddel; drawDeleteSel(); return; }
+  const b = e.target.closest('[data-dsel]');
+  if(!b) return;
+  Draw.tool = '';
+  Draw.sel = Draw.sel === b.dataset.dsel ? '' : b.dataset.dsel;
+  drawRefresh();
+});
+/* マウスを線に乗せたら、押せることが分かる形に */
+cv.addEventListener('pointermove', e => {
+  if(e.pointerType !== 'mouse' || Draw.act || (typeof sizing !== 'undefined' && sizing)) return;
+  if(cv.style.cursor === 'row-resize' || cv.style.cursor === 'help') return;
+  const x = localX(e), y = localY(e), p = panel('main');
+  const inPlot = !!p && x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h;
+  if(Draw.tool && inPlot){ cv.style.cursor = 'crosshair'; return; }
+  const h = inPlot ? drawHit(x, y, false) : null;
+  cv.style.cursor = !h ? '' : h.id !== Draw.sel ? 'pointer' : h.part === 'body' ? 'move' : 'grab';
+});
 $('#drawClear').addEventListener('click', () => {
   const n = Draw.list().length;
   if(!n) return;
