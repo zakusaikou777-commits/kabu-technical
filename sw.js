@@ -11,7 +11,7 @@ const CACHE = 'ta-tool-v16';
    この行が変わると、ブラウザは新しい sw.js を入れ直し、開いているページに
    「新しい版があります」を出させます。本体だけ上げてここを忘れると、
    開きっぱなしの端末には知らせが届きません。 */
-const APP_VER = 'v65';
+const APP_VER = 'v66';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 /* SheetJS など、内容が固定でSRI検証もかかるもの */
